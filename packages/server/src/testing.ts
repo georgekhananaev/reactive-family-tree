@@ -81,10 +81,12 @@ export interface Browser {
 }
 
 /* One browser: remembers its session cookie between requests. */
-export function browser(app: App): Browser {
+/* `from` is the address on the network the browser is at, as a proxy in front of the tree would report it. */
+export function browser(app: App, from?: string): Browser {
   const cookies = new Map<string, string>();
   async function call(method: string, path: string, body?: unknown): Promise<Answer> {
     const headers = new Headers({ host: new URL(BASE).host });
+    if (from) headers.set('x-forwarded-for', from);
     if (method !== 'GET') headers.set('origin', BASE);
     if (body !== undefined) headers.set('content-type', 'application/json');
     if (cookies.size) headers.set('cookie', [...cookies].map(([name, value]) => `${name}=${value}`).join('; '));

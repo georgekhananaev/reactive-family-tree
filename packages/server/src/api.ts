@@ -140,7 +140,12 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
     const found = await members.openInvite(ctx.query.get('token'));
     return { email: found.email, role: found.role, personName: personName(found.personId), invitedBy: found.createdBy };
   });
-  on('POST', '/api/join', anyone, async (ctx) => { await members.askToJoin(ctx.body); return { ok: true }; });
+  // Who is asking is known only by where the request came from. The nearest proxy writes that last, and the server itself fills it in
+  // for someone who connects with no proxy between.
+  on('POST', '/api/join', anyone, async (ctx) => {
+    await members.askToJoin(ctx.body, ctx.request.headers.get('x-forwarded-for')?.split(',').pop()?.trim() || 'unknown');
+    return { ok: true };
+  });
 
   /* ----- Reading the tree ----- */
 

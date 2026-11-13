@@ -11,9 +11,9 @@ import { indexOf, isAdmin, person, scopeOf } from '@reactive-family-tree/core';
 import type { Actor, ConnectionAccess, ConnectionMode, ConnectionView, Contact, Role, ToolProfile } from '@reactive-family-tree/core';
 import { account, aiConnection, branchGrant, invite, joinRequest, notification, oauthClient, passkey, session, user } from '@reactive-family-tree/db';
 import type { Database } from '@reactive-family-tree/db';
-import { and, asc, count, desc, eq, gt, inArray, isNull, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, isNull, ne } from 'drizzle-orm';
 
-import { badRequest, forbidden, notFound } from './errors';
+import { badRequest, forbidden, notFound, tooMany } from './errors';
 import { hashToken, later, newId, newToken, now } from './ids';
 import type { FamilyStore } from './store';
 
@@ -25,7 +25,11 @@ const ROLES: readonly Role[] = ['owner', 'admin', 'member'];
 const MODES: readonly ConnectionMode[] = ['review_first', 'apply_directly'];
 const ACCESS: readonly ConnectionAccess[] = ['read', 'write', 'admin'];
 const PROFILES: readonly ToolProfile[] = ['full', 'simple'];
-const MAX_WAITING = 100;   // requests to join that wait at once. A family reads them by hand: past this, a machine is filling in the form
+// Asking to join needs no account, so it is the one form a machine could be pointed at. It is slowed down per sender, and what waits is never
+// thrown away to make room: a real relative's request stays until an admin has read it.
+const ASKS_PER_HOUR = 5;     // from one address on the network
+const MAX_ASKERS = 500;      // addresses remembered within the hour, so that the memory of them cannot be made to grow
+const MAX_WAITING = 200;     // requests waiting at once, so that the form can never fill the disk
 /* How long an invitation stays good. */
 export const INVITE_DAYS = 14;
 
@@ -74,6 +78,9 @@ export interface MemberRecord {
 }
 
 export class Members {
+  /* How many times each address on the network has asked to join since the hour began. */
+  private asks = { since: 0, from: new Map<string, number>() };
+
   constructor(
     private readonly db: Database,
     private readonly store: FamilyStore,
@@ -273,21 +280,33 @@ export class Members {
 
   /* ---------- Requests to join ---------- */
 
-  async askToJoin({ name, email, message }: { name?: unknown; email?: unknown; message?: unknown }): Promise<void> {
+  /* `from` is where on the network the request came from, as far as that is known. */
+  async askToJoin({ name, email, message }: { name?: unknown; email?: unknown; message?: unknown }, from: string): Promise<void> {
     if (!this.store.settings.allowJoinRequests) throw forbidden('This family is not taking requests to join.');
     const address = cleanEmail(email);
     // No real address is longer than 254 letters
     if (!String(name ?? '').trim() || !address.includes('@') || address.length > 254) throw badRequest('Enter your name and email address.');
-    // Asking again from the same address replaces the first request, so one person is one line for the admin
-    await this.db.delete(joinRequest).where(and(eq(joinRequest.email, address), eq(joinRequest.status, 'waiting')));
+    if (!this.mayAsk(from)) throw tooMany('That is a lot of requests in a short time. Try again in an hour.');
+    // Someone who asks twice is still one request, and it is the first that stands: nobody else can write over it by giving the same address.
+    // The page is told the same either way, so it does not say whether that address has asked before.
+    const [asked] = await this.db.select({ id: joinRequest.id }).from(joinRequest).where(and(eq(joinRequest.email, address), eq(joinRequest.status, 'waiting'))).limit(1);
+    if (asked) return;
+    const [waiting] = await this.db.select({ n: count() }).from(joinRequest).where(eq(joinRequest.status, 'waiting'));
+    if ((waiting?.n ?? 0) >= MAX_WAITING) throw tooMany('Many requests are waiting to be read already. Ask a relative to invite you instead.');
     await this.db.insert(joinRequest).values({
       id: newId('jr'), name: String(name).trim().slice(0, 80), email: address, message: String(message ?? '').slice(0, 1000), status: 'waiting', decidedBy: null, createdAt: now(),
     });
-    // Only so many wait at once. Past that the oldest make way for the newest, so that nobody is ever turned away for the list being
-    // full, and a machine filling in the form can neither fill the disk nor shut real relatives out.
-    const waiting = await this.db.select({ id: joinRequest.id }).from(joinRequest).where(eq(joinRequest.status, 'waiting')).orderBy(desc(joinRequest.createdAt), desc(joinRequest.id));
-    const over = waiting.slice(MAX_WAITING).map((request) => request.id);
-    if (over.length) await this.db.delete(joinRequest).where(inArray(joinRequest.id, over));
+  }
+
+  /* Whether this sender may ask to join once more this hour. The count starts afresh every hour, for everyone. */
+  private mayAsk(from: string): boolean {
+    if (Date.now() - this.asks.since > 3_600_000) this.asks = { since: Date.now(), from: new Map() };
+    const counts = this.asks.from;
+    // More senders in one hour than any family has relatives is a flood under made-up addresses. It waits for the next hour.
+    if (!counts.has(from) && counts.size >= MAX_ASKERS) return false;
+    const times = (counts.get(from) ?? 0) + 1;
+    counts.set(from, times);
+    return times <= ASKS_PER_HOUR;
   }
 
   async joinRequests() {

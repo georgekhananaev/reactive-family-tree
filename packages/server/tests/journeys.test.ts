@@ -424,23 +424,36 @@ test('trying a change out tells a stranger nothing about people who are kept pri
 });
 
 test('nobody can fill the server by sending something enormous, or a pile of requests to join', async () => {
-  const visitor = browser(demo.app);
+  const visitor = browser(demo.app, '203.0.113.1');
   const huge = await visitor.post('/api/join', { name: 'A', email: 'a@example.com', message: 'x'.repeat(13 * 1024 * 1024) });
   expect(huge.status, 'more than an import or a backup could ever be').toBe(413);
   expect((await visitor.post('/api/join', { name: 'A', email: `a@${'x'.repeat(260)}.com` })).status, 'no address is that long').toBe(400);
-  // Requests to join are never refused for being many. Asking twice from one address is one request, and past a hundred the oldest make way.
+
   const helen = browser(demo.app);
   await helen.signInAs('helen');
   const waiting = async (): Promise<{ name: string; email: string }[]> => (await helen.get('/api/members')).data.requests;
   const before = (await waiting()).length;
-  await visitor.post('/api/join', { name: 'Ruth, in a hurry', email: 'ruth@example.com' });
-  await visitor.post('/api/join', { name: 'Ruth', email: 'Ruth@Example.com', message: 'Second try' });
+
+  // Asking twice from one email address is one request, and the first stands: nobody can write over it by giving the same address
+  expect((await visitor.post('/api/join', { name: 'Ruth', email: 'ruth@example.com', message: 'It is me, Ruth' })).status).toBe(200);
+  const impostor = browser(demo.app, '198.51.100.9');
+  expect((await impostor.post('/api/join', { name: 'Not Ruth', email: 'Ruth@Example.com', message: 'Let me in' })).status, 'told the same as anyone').toBe(200);
   expect((await waiting()).filter((request) => request.email === 'ruth@example.com').map((request) => request.name)).toEqual(['Ruth']);
-  expect((await waiting()).length).toBe(before + 1);
-  for (let asked = 0; asked < 120; asked++) expect((await visitor.post('/api/join', { name: `Asker ${asked}`, email: `asker${asked}@example.com` })).status, 'nobody is turned away').toBe(200);
-  const kept = await waiting();
-  expect(kept.length, 'no more than a family could read').toBe(100);
-  expect([kept.some((request) => request.name === 'Asker 119'), kept.some((request) => request.name === 'Asker 0')], 'the newest is there, the oldest has made way').toEqual([true, false]);
+
+  // One sender gets a few tries an hour. Then it waits, and everyone else can still ask.
+  const eager = browser(demo.app, '203.0.113.50');
+  const answers: number[] = [];
+  for (let asked = 0; asked < 7; asked++) answers.push((await eager.post('/api/join', { name: `Asker ${asked}`, email: `asker${asked}@example.com` })).status);
+  expect(answers).toEqual([200, 200, 200, 200, 200, 429, 429]);
+  expect((await browser(demo.app, '203.0.113.51').post('/api/join', { name: 'A cousin', email: 'cousin@example.com' })).status).toBe(200);
+  // Behind more than one proxy, it is the nearest one that is believed, whatever the sender wrote in front of it
+  const dressedUp = browser(demo.app, '10.9.9.9, 203.0.113.50');
+  expect((await dressedUp.post('/api/join', { name: 'Asker again', email: 'again@example.com' })).status).toBe(429);
+
+  // Nothing that waits was thrown away to make room
+  const kept = (await waiting()).map((request) => request.name);
+  expect(kept.length).toBe(before + 7);
+  expect(kept).toEqual(expect.arrayContaining(['Ruth', 'Asker 0', 'Asker 4', 'A cousin']));
 });
 
 test('history and search keep to what each relative may see', async () => {
