@@ -11,9 +11,9 @@ import { indexOf, isAdmin, person, scopeOf } from '@reactive-family-tree/core';
 import type { Actor, ConnectionAccess, ConnectionMode, ConnectionView, Contact, Role, ToolProfile } from '@reactive-family-tree/core';
 import { account, aiConnection, branchGrant, invite, joinRequest, notification, oauthClient, passkey, session, user } from '@reactive-family-tree/db';
 import type { Database } from '@reactive-family-tree/db';
-import { and, asc, count, desc, eq, gt, isNull, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNull, ne } from 'drizzle-orm';
 
-import { badRequest, forbidden, notFound, tooMany } from './errors';
+import { badRequest, forbidden, notFound } from './errors';
 import { hashToken, later, newId, newToken, now } from './ids';
 import type { FamilyStore } from './store';
 
@@ -25,7 +25,7 @@ const ROLES: readonly Role[] = ['owner', 'admin', 'member'];
 const MODES: readonly ConnectionMode[] = ['review_first', 'apply_directly'];
 const ACCESS: readonly ConnectionAccess[] = ['read', 'write', 'admin'];
 const PROFILES: readonly ToolProfile[] = ['full', 'simple'];
-const MAX_WAITING = 50;   // requests to join that may wait at once. A family reads them by hand; past this, a machine is filling in the form
+const MAX_WAITING = 100;   // requests to join that wait at once. A family reads them by hand: past this, a machine is filling in the form
 /* How long an invitation stays good. */
 export const INVITE_DAYS = 14;
 
@@ -278,11 +278,16 @@ export class Members {
     const address = cleanEmail(email);
     // No real address is longer than 254 letters
     if (!String(name ?? '').trim() || !address.includes('@') || address.length > 254) throw badRequest('Enter your name and email address.');
-    const [waiting] = await this.db.select({ n: count() }).from(joinRequest).where(eq(joinRequest.status, 'waiting'));
-    if ((waiting?.n ?? 0) >= MAX_WAITING) throw tooMany('Many requests are waiting already. Ask a relative to invite you instead.');
+    // Asking again from the same address replaces the first request, so one person is one line for the admin
+    await this.db.delete(joinRequest).where(and(eq(joinRequest.email, address), eq(joinRequest.status, 'waiting')));
     await this.db.insert(joinRequest).values({
       id: newId('jr'), name: String(name).trim().slice(0, 80), email: address, message: String(message ?? '').slice(0, 1000), status: 'waiting', decidedBy: null, createdAt: now(),
     });
+    // Only so many wait at once. Past that the oldest make way for the newest, so that nobody is ever turned away for the list being
+    // full, and a machine filling in the form can neither fill the disk nor shut real relatives out.
+    const waiting = await this.db.select({ id: joinRequest.id }).from(joinRequest).where(eq(joinRequest.status, 'waiting')).orderBy(desc(joinRequest.createdAt), desc(joinRequest.id));
+    const over = waiting.slice(MAX_WAITING).map((request) => request.id);
+    if (over.length) await this.db.delete(joinRequest).where(inArray(joinRequest.id, over));
   }
 
   async joinRequests() {

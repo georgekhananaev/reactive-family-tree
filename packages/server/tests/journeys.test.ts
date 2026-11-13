@@ -428,8 +428,19 @@ test('nobody can fill the server by sending something enormous, or a pile of req
   const huge = await visitor.post('/api/join', { name: 'A', email: 'a@example.com', message: 'x'.repeat(13 * 1024 * 1024) });
   expect(huge.status, 'more than an import or a backup could ever be').toBe(413);
   expect((await visitor.post('/api/join', { name: 'A', email: `a@${'x'.repeat(260)}.com` })).status, 'no address is that long').toBe(400);
-  for (let asked = 0; asked < 50; asked++) expect((await visitor.post('/api/join', { name: `Asker ${asked}`, email: `asker${asked}@example.com` })).status).toBe(200);
-  expect((await visitor.post('/api/join', { name: 'One more', email: 'more@example.com' })).status, 'a family reads these by hand').toBe(429);
+  // Requests to join are never refused for being many. Asking twice from one address is one request, and past a hundred the oldest make way.
+  const helen = browser(demo.app);
+  await helen.signInAs('helen');
+  const waiting = async (): Promise<{ name: string; email: string }[]> => (await helen.get('/api/members')).data.requests;
+  const before = (await waiting()).length;
+  await visitor.post('/api/join', { name: 'Ruth, in a hurry', email: 'ruth@example.com' });
+  await visitor.post('/api/join', { name: 'Ruth', email: 'Ruth@Example.com', message: 'Second try' });
+  expect((await waiting()).filter((request) => request.email === 'ruth@example.com').map((request) => request.name)).toEqual(['Ruth']);
+  expect((await waiting()).length).toBe(before + 1);
+  for (let asked = 0; asked < 120; asked++) expect((await visitor.post('/api/join', { name: `Asker ${asked}`, email: `asker${asked}@example.com` })).status, 'nobody is turned away').toBe(200);
+  const kept = await waiting();
+  expect(kept.length, 'no more than a family could read').toBe(100);
+  expect([kept.some((request) => request.name === 'Asker 119'), kept.some((request) => request.name === 'Asker 0')], 'the newest is there, the oldest has made way').toEqual([true, false]);
 });
 
 test('history and search keep to what each relative may see', async () => {
