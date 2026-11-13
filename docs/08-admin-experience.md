@@ -85,6 +85,7 @@ Each item links to the place on the tree. "Likely duplicates" opens a side-by-si
 | Languages | Interface languages offered, the family's scripts and which one shows first |
 | Guidelines | A short text of the family's conventions (how to transliterate names, how to record uncertain dates). Shown to people when they edit and given to connected AI clients |
 | AI connections | Allow or disallow AI connections for the family, whether "apply directly" may be chosen by members, hourly limits, a list of every connection with revoke |
+| Music | Two separate things, each set apart from the other: the melody in the background (none at all, off until a visitor turns it on, or on) and the quick tune that goes with the Play button (on or off). Each has its own choice of melody, with a button to listen before saving |
 | Email | Sender name, test message |
 | Search engines | Allow indexing (only offered when the tree is public), site title and description |
 

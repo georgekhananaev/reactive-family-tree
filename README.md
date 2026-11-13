@@ -17,6 +17,12 @@ own relatives, with nothing sent anywhere else.
   for them to look over.
 - **Faces as well as leaves.** Each person can have one photo. A switch turns
   the leaves of those who have one into round portraits, and back.
+- **A melody, if the family wants one.** Five calm melodies in the five-note
+  scales of Japanese music, played by the browser itself with no audio files. The
+  melody in the background waits until someone turns it on, and each relative
+  switches it for themselves. Pressing Play brings a quicker tune of its own,
+  which an admin can turn off apart from the other, and make from a different
+  melody.
 - **The living stay private.** A new tree is closed to strangers. If the family
   opens it, living people still appear as unnamed leaves unless they choose
   otherwise themselves.

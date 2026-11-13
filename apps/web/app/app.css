@@ -129,6 +129,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--action); ou
   padding: 8px 10px;
 }
 .timebar output { min-width: 3.4ch; text-align: center; font: 700 1.4rem/1 var(--display); font-variant-numeric: tabular-nums; }
+/* The music button is lit while there is music, and steps back when it is off */
+#music[aria-pressed="false"] { color: var(--muted); }
 .timebar input[type="range"] { flex: 1; min-width: 60px; height: 44px; margin: 0; accent-color: var(--action); touch-action: pan-y; }
 
 /* ---------- Person card ---------- */

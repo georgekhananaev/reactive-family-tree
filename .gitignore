@@ -9,6 +9,7 @@ data/
 *.db-wal
 .env
 .env.local
+credentials/
 .DS_Store
 .claude/
 .idea/

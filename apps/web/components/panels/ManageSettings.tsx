@@ -1,10 +1,12 @@
 'use client';
 
-/* Manage family, the settings: what the family is called, who can see it, who reviews, what an AI may do, and how the family writes things down. */
+/* Manage family, the settings: what the family is called, who can see it, who reviews, what an AI may do, the music, and how the family writes things down. */
 
-import type { AdminSettings, Visibility } from '@reactive-family-tree/core';
+import type { AdminSettings, MusicMode, Visibility } from '@reactive-family-tree/core';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { MELODIES } from 'reactive-family-tree';
+import type { MelodyTrial } from 'reactive-family-tree';
 
 import { api } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
@@ -19,9 +21,16 @@ const VISIBILITY: readonly (readonly [Visibility, string])[] = [
   ['public', 'Public, living people shown only if they choose'],
 ];
 
+const MUSIC: readonly (readonly [MusicMode, string])[] = [
+  ['none', 'None, for anyone'],
+  ['off', 'Off, until someone turns it on'],
+  ['on', 'On, from a visitor’s first click'],
+];
+const MELODY_NAMES = MELODIES.map((melody) => [melody.id, melody.name] as const);
+
 type NumberKey = 'livingAge' | 'aiWritesPerHour';
 type TextKey = 'familyName' | 'description' | NumberKey;
-type CheckKey = 'visitorsCanSuggest' | 'allowJoinRequests' | 'stewardsReview' | 'stewardsCanInvite' | 'allowAi' | 'allowAiDirect';
+type CheckKey = 'visitorsCanSuggest' | 'allowJoinRequests' | 'stewardsReview' | 'stewardsCanInvite' | 'allowAi' | 'allowAiDirect' | 'playMusic';
 
 /* The settings as the form holds them: the two numbers are text while they are being typed. */
 type Typed = Omit<AdminSettings, NumberKey> & Record<NumberKey, string>;
@@ -31,12 +40,34 @@ export function SettingsTab() {
   const { data: current, error } = useQuery({ queryKey: ['settings'], queryFn: () => api.get<AdminSettings>('/api/settings') });
   // Only what has been changed here is held. Everything else is as the server has it.
   const [changed, setChanged] = useState<Partial<Typed>>({});
+  // The melody being tried out, if one is, as the calm one or as the quick tune. It plays on this page only, and stops when the settings are left.
+  const [heard, setHeard] = useState<MelodyTrial | null>(null);
+  const { audition } = app;
+  useEffect(() => {
+    audition(heard);
+    return () => audition(null);
+  }, [audition, heard]);
   if (!current) return <Loading error={error} />;
 
   const shown: Typed = { ...current, livingAge: String(current.livingAge), aiWritesPerHour: String(current.aiWritesPerHour), ...changed };
   const set = <Key extends keyof Typed>(key: Key, value: Typed[Key]) => setChanged((before) => ({ ...before, [key]: value }));
   const text = (key: TextKey, inputMode?: 'numeric') => <input type="text" inputMode={inputMode} value={shown[key]} onChange={(event) => set(key, event.target.value)} />;
   const check = (key: CheckKey, label: string) => <Check label={label} checked={shown[key]} onChange={(on) => set(key, on)} />;
+  /* One of the two melodies: the list to choose from, a line about the one chosen, and a button to hear it before it is saved. */
+  const melody = (key: 'melody' | 'playMelody', label: string) => {
+    const quick = key === 'playMelody', listening = heard?.quick === quick;
+    return (
+      <>
+        <Field label={label} wide>
+          <Select options={MELODY_NAMES} value={shown[key]} onChange={(value) => { set(key, value); if (listening) setHeard({ melody: value, quick }); }} />
+        </Field>
+        <p className="hint-line">{MELODIES.find((one) => one.id === shown[key])?.about}</p>
+        <div className="form-actions">
+          <button type="button" aria-pressed={listening} onClick={() => setHeard(listening ? null : { melody: shown[key], quick })}>{listening ? 'Stop' : quick ? 'Listen to the quick tune' : 'Listen'}</button>
+        </div>
+      </>
+    );
+  };
 
   const save = async () => {
     const read: AdminSettings = { ...shown, livingAge: Number(shown.livingAge), aiWritesPerHour: Number(shown.aiWritesPerHour) };
@@ -75,6 +106,17 @@ export function SettingsTab() {
         {check('allowAiDirect', 'Members may let their AI apply changes without a draft')}
         <Field label="Most changes one connection may make in an hour" wide>{text('aiWritesPerHour', 'numeric')}</Field>
       </div>
+      <h3>Music</h3>
+      <p className="hint-line">Two separate things: a melody in the background while someone looks around, and a quick tune that goes with the Play button. Either can be had without the other.</p>
+      <div className="fields">
+        <Field label="Melody in the background" wide><Select options={MUSIC} value={shown.music} onChange={(value) => set('music', value)} /></Field>
+      </div>
+      {melody('melody', 'Which melody')}
+      <p className="hint-line">Where there is a melody in the background, each person turns it on or off for themselves with the note beside the year.</p>
+      <div className="fields">
+        {check('playMusic', 'A quick tune while the years play')}
+      </div>
+      {melody('playMelody', 'Made from which melody')}
       <h3>Guidelines</h3>
       <p className="hint-line">How this family writes names and dates. Shown to people when they edit, and given to every connected AI.</p>
       <textarea rows={6} value={shown.guidelines} onChange={(event) => set('guidelines', event.target.value)} />

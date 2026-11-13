@@ -250,6 +250,9 @@ export interface DemoAccount {
   blurb: string;
 }
 
+/* The melody in the background: none for anyone, off until a visitor turns it on, or on from a visitor's first click. */
+export type MusicMode = 'none' | 'off' | 'on';
+
 /* What every browser is told, signed in or not. */
 export interface PublicSettings {
   familyName: string;
@@ -260,6 +263,13 @@ export interface PublicSettings {
   allowAi: boolean;
   allowAiDirect: boolean;
   stewardsCanInvite: boolean;
+  music: MusicMode;
+  /* Whether pressing Play brings its own quick tune. A different thing from the melody in the background: either can be had without the other. */
+  playMusic: boolean;
+  /* Which melody plays in the background, by the id the tree's music knows it by. */
+  melody: string;
+  /* Which melody the quick tune is made from. */
+  playMelody: string;
 }
 
 export interface SessionInfo {
@@ -290,6 +300,10 @@ export interface AdminSettings {
   allowAi: boolean;
   allowAiDirect: boolean;
   aiWritesPerHour: number;
+  music: MusicMode;
+  playMusic: boolean;
+  melody: string;
+  playMelody: string;
 }
 
 export interface MemberView {

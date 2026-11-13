@@ -34,6 +34,7 @@ const SECTIONS: readonly (readonly [string, readonly (readonly [string, string])
   ]],
   ['Time', [
     ['P', 'Play the family growing, or pause'],
+    ['S', 'Turn the melody in the background on or off, where the family has one'],
     ['[  ]', 'One year back, one year on'],
   ]],
   ['Everywhere', [

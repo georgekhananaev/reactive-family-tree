@@ -297,6 +297,41 @@ test('the family can leave with all its data, and come back', async () => {
   expect((await helen.patch('/api/settings', { livingAge: 5 })).status).toBe(400);
 });
 
+test('the family chooses its music: the melody in the background, the tune for the years, and which melody', async () => {
+  const helen = browser(demo.app), nora = browser(demo.app), visitor = browser(demo.app);
+  await helen.signInAs('helen');
+  await nora.signInAs('nora');
+  const heard = async (who: typeof helen) => { const { music, melody } = (await who.get('/api/session')).data.settings; return [music, melody]; };
+
+  // Out of the box there is music to be had, and it waits to be turned on
+  expect(await heard(visitor)).toEqual(['off', 'morning-mist']);
+  expect((await nora.patch('/api/settings', { music: 'on' })).status, 'only an admin chooses').toBe(403);
+  expect((await helen.patch('/api/settings', { music: 'on', melody: 'koto-garden' })).status).toBe(200);
+  expect([await heard(visitor), await heard(nora)], 'every browser is told, signed in or not').toEqual([['on', 'koto-garden'], ['on', 'koto-garden']]);
+  expect((await helen.patch('/api/settings', { music: 'none' })).status).toBe(200);
+  expect((await heard(visitor))[0], 'off for everyone').toBe('none');
+
+  for (const wrong of [{ music: 'loud' }, { music: true }, { melody: '' }, { melody: 'Not A Name' }, { melody: '../etc/passwd' }, { melody: 'a'.repeat(41) }]) {
+    expect((await helen.patch('/api/settings', wrong)).status, JSON.stringify(wrong)).toBe(400);
+  }
+  expect(await heard(visitor), 'a wrong value changes nothing').toEqual(['none', 'koto-garden']);
+
+  // The tune that goes with the Play button is a setting of its own: it stays while the background melody is off for everyone
+  const withYears = async () => (await visitor.get('/api/session')).data.settings.playMusic;
+  expect([(await heard(visitor))[0], await withYears()]).toEqual(['none', true]);
+  expect((await helen.patch('/api/settings', { playMusic: false })).status).toBe(200);
+  expect([(await heard(visitor))[0], await withYears()], 'and can be turned off without touching the other').toEqual(['none', false]);
+  expect((await helen.patch('/api/settings', { playMusic: 'yes' })).status).toBe(400);
+
+  // And it has a melody of its own, chosen apart from the one in the background
+  const madeFrom = async () => { const { melody, playMelody } = (await visitor.get('/api/session')).data.settings; return [melody, playMelody]; };
+  expect(await madeFrom()).toEqual(['koto-garden', 'morning-mist']);
+  expect((await helen.patch('/api/settings', { playMelody: 'island-song' })).status).toBe(200);
+  expect(await madeFrom(), 'the background melody is left as it was').toEqual(['koto-garden', 'island-song']);
+  expect((await helen.patch('/api/settings', { playMelody: 'Not A Name' })).status).toBe(400);
+  await helen.patch('/api/settings', { music: 'off', playMusic: true, melody: 'morning-mist', playMelody: 'morning-mist' });
+});
+
 test('history and search keep to what each relative may see', async () => {
   const nora = browser(demo.app), sophie = browser(demo.app), helen = browser(demo.app);
   await nora.signInAs('nora');

@@ -11,8 +11,8 @@ import type { EditResult, MemberView, MembersInfo, PersonLeaf, Relation, Relatio
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { FamilyTree } from 'reactive-family-tree';
-import type { FamilyTreeHandle, TreeInsets } from 'reactive-family-tree';
+import { FamilyTree, useTreeMusic } from 'reactive-family-tree';
+import type { FamilyTreeHandle, MelodyTrial, TreeInsets } from 'reactive-family-tree';
 
 import { activity, api, messageOf } from '@/lib/api';
 import { AppProvider } from '@/lib/app-context';
@@ -84,6 +84,10 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
   const [editing, setEditing] = useState(false);
   const [year, setYear] = useState<number | null>(null);                // null is today
   const [playing, setPlaying] = useState(false);
+  // A calm melody, and a quicker one while the years play. The family chooses which, and whether there is any.
+  const [audition, setAudition] = useState<MelodyTrial | null>(null);
+  const { music: mode, playMusic, melody, playMelody } = session.settings;
+  const music = useTreeMusic(playing, { mode, playMusic, melody, playMelody, audition });
   // Leaves, or the faces of those who have a photo. Each person's own choice, kept on their device.
   const [faces, setFaces] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -271,7 +275,7 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
     toast, fail,
     refresh: actions.refresh, signedIn: actions.signedIn, select: actions.select, openCard: actions.openCard, submit: actions.submit,
     focusOn: actions.focusOn, showRelationship: actions.showRelationship, openPanel: actions.openPanel, closePanel: actions.closePanel,
-    showBranches: setTintMembers, startPainting: actions.startPainting,
+    showBranches: setTintMembers, startPainting: actions.startPainting, audition: setAudition,
   }), [session, tree, people, isAdmin, painting, toast, fail, actions]);
 
   /* ---------- Live updates, and what arrives with them ---------- */
@@ -518,6 +522,7 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
         v: () => { if (anyPhotos) toggleFaces(); },
         f: () => { if (at.selectedId) void actions.focusOn(at.selectedId); },
         p: togglePlay,
+        s: () => { if (music.available) music.toggle(); },
         '+': () => view.current?.zoomStep(1.5),
         '=': () => view.current?.zoomStep(1.5),
         '-': () => view.current?.zoomStep(1 / 1.5),
@@ -536,7 +541,7 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
       document.removeEventListener('pointerdown', onPointerDown, true);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [actions, toggleEditing, togglePlay, toggleFaces, anyPhotos, goToMyLeaf, wholeTree, chooseYear, range]);
+  }, [actions, toggleEditing, togglePlay, toggleFaces, anyPhotos, goToMyLeaf, wholeTree, chooseYear, range, music.available, music.toggle]);
 
   /* ---------- Drawing ---------- */
 
@@ -644,7 +649,7 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
       />
       <Toasts toasts={toasts} onAction={(item) => { dismiss(item.id); item.onAction?.(); }} />
 
-      <TimeBar year={shownYear} min={range.min} max={range.max} playing={playing} onYear={(value) => { setPlaying(false); chooseYear(value); }} onPlay={togglePlay} />
+      <TimeBar year={shownYear} min={range.min} max={range.max} playing={playing} music={music.available ? music.on : null} onYear={(value) => { setPlaying(false); chooseYear(value); }} onPlay={togglePlay} onMusic={music.toggle} />
       <ZoomButtons
         hasLeaf={Boolean(user?.personId)}
         faces={anyPhotos ? faces : null}

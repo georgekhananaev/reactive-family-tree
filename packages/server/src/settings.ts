@@ -29,11 +29,17 @@ export const DEFAULT_SETTINGS: Settings = {
   allowAi: true,
   allowAiDirect: true,
   aiWritesPerHour: 120,
+  music: 'off',
+  playMusic: true,
+  melody: 'morning-mist',
+  playMelody: 'morning-mist',
   demoAccounts: [],
 };
 
 const bool = (value: unknown): value is boolean => typeof value === 'boolean';
 const whole = (min: number, max: number) => (value: unknown) => Number.isInteger(value) && (value as number) >= min && (value as number) <= max;
+// The server does not know the melodies, only what a melody's name looks like. A page that is told one it has never heard of plays its first.
+const melodyName = (value: unknown) => typeof value === 'string' && /^[a-z][a-z-]{0,39}$/.test(value);
 const text = (max: number, required = false) => (value: unknown) => typeof value === 'string' && value.length <= max && (!required || value.trim().length > 0);
 
 /* What each setting the admin can change must look like. */
@@ -50,6 +56,10 @@ export const SETTING_RULES: Record<keyof AdminSettings, (value: unknown) => bool
   livingAge: whole(80, 130),
   aiWritesPerHour: whole(1, 1000),
   guidelines: text(4000),
+  music: (value) => value === 'none' || value === 'off' || value === 'on',
+  playMusic: bool,
+  melody: melodyName,
+  playMelody: melodyName,
 };
 
 /* What to tell someone whose typing a rule turned down. The other settings are picked from a list and cannot go wrong. */
@@ -64,7 +74,7 @@ export const SETTING_HINTS: Partial<Record<keyof AdminSettings, string>> = {
 export const ADMIN_SETTING_KEYS = Object.keys(SETTING_RULES) as (keyof AdminSettings)[];
 
 /* What every browser is told, signed in or not. */
-const PUBLIC_KEYS = ['familyName', 'description', 'visibility', 'visitorsCanSuggest', 'allowJoinRequests', 'allowAi', 'allowAiDirect', 'stewardsCanInvite'] as const satisfies readonly (keyof PublicSettings)[];
+const PUBLIC_KEYS = ['familyName', 'description', 'visibility', 'visitorsCanSuggest', 'allowJoinRequests', 'allowAi', 'allowAiDirect', 'stewardsCanInvite', 'music', 'playMusic', 'melody', 'playMelody'] as const satisfies readonly (keyof PublicSettings)[];
 
 export function publicSettings(settings: Settings): PublicSettings {
   return Object.fromEntries(PUBLIC_KEYS.map((key) => [key, settings[key]])) as unknown as PublicSettings;
