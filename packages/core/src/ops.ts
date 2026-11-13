@@ -52,6 +52,9 @@ const yearOrNull: Rule = (value) => value === null || (typeof value === 'number'
 /* The id of a stored image is the first half of the SHA-256 of its bytes. */
 export const isMediaId = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
 
+/* Does this operation put a photo on someone? Taking one off does not. */
+export const setsPhoto = (op: Op): boolean => (op.type === 'person.update' || op.type === 'person.create') && Boolean(op.set?.portrait);
+
 const PERSON_FIELDS: Record<keyof PersonFields, Rule> = {
   given: text(80), family: text(80), birthName: text(80), bio: text(20000),
   sex: oneOf(SEXES), living: oneOf(LIVING), privacy: oneOf(PRIVACY),

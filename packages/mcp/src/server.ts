@@ -10,6 +10,7 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/server';
 import type { App } from '@reactive-family-tree/server';
 
+import release from '../package.json';
 import { INSTRUCTIONS, PROMPTS, SCHEMA_GUIDE } from './guide';
 import { registerTools } from './tools';
 import type { Caller, RecentWrites } from './tools';
@@ -19,7 +20,7 @@ const PLAIN = 'text/plain';
 export function buildServer(app: App, caller: Caller, recentWrites: RecentWrites): McpServer {
   const { store, views } = app;
   const { settings } = store;
-  const server = new McpServer({ name: 'reactive-family-tree', title: settings.familyName, version: '0.1.0' }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: 'reactive-family-tree', title: settings.familyName, version: release.version }, { instructions: INSTRUCTIONS });
 
   registerTools(server, app, caller, recentWrites);
 

@@ -13,7 +13,7 @@
  * from history except by the compost purge.
  */
 
-import { OpError, applyOps, canApply, cloneState, decideEdit, describeOp, factVisible, formatDate, fullName, indexOf, isAdmin, livingPartners, scopeOf, validate, viewOf } from '@reactive-family-tree/core';
+import { OpError, applyOps, canApply, cloneState, decideEdit, describeOp, factVisible, formatDate, fullName, indexOf, isAdmin, livingPartners, scopeOf, setsPhoto, validate, viewOf } from '@reactive-family-tree/core';
 import type { Actor, Applied, Change, CompostItem, EditComment, EditOrigin, EditView, Fact, FuzzyDate, InboxCounts, Issue, NotificationView, Op, OpEnv, State, SubmitMode, SubmitStatus, Union } from '@reactive-family-tree/core';
 import { aiConnection, edit, editComment, notification } from '@reactive-family-tree/db';
 import type { Database } from '@reactive-family-tree/db';
@@ -142,6 +142,8 @@ export class Edits {
     if (mode === 'draft') return this.keep({ ...base, status: 'draft', touched: this.touchedBy(trial.changes, this.state) });
     if (decision.outcome === 'deny') throw forbidden(decision.reasons[0] ?? 'You cannot make that change.', decision.reasons);
     if (decision.outcome === 'suggest' || mode === 'suggest') {
+      // Nobody reviewing could look at a photo first, so one is never held for review, even when its author asks for that
+      if (list.some(setsPhoto)) throw forbidden('A photo cannot be sent for review. Save it directly.');
       const result = await this.keep({ ...base, status: 'suggested', touched: this.touchedBy(trial.changes, this.state) });
       const kept = result.edit as EditRow;
       await this.tell(await this.reviewersOf(kept), 'suggestion', kept.id, `${actor.name} suggested a change: ${kept.message || 'no description'}`);

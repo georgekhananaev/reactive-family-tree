@@ -366,6 +366,10 @@ test('a photo follows its person: who may add it, who may see it, and when it go
   // Nora looks after Leo, so she may give him a face. A cousin may not, not even as a suggestion.
   expect((await sophie.edit([{ type: 'person.update', person: leo, set: { portrait: photo } }])).status).toBe(403);
   expect((await nora.edit([{ type: 'person.update', person: leo, set: { portrait: 'f'.repeat(32) } }])).status, 'a photo that was never sent').toBe(400);
+  // A photo is never held for review, where nobody could look at it: not beside a change that has to wait, and not when its author asks
+  const withMore = await nora.edit([{ type: 'person.update', person: leo, set: { portrait: photo } }, ...rename(demo.idOf('Walter'), 'W')]);
+  expect([withMore.status, (await nora.edit(rename(demo.idOf('Walter'), 'W'), { mode: 'dry' })).data.status]).toEqual([403, 'suggested']);
+  expect((await nora.edit([{ type: 'person.update', person: leo, set: { portrait: photo } }], { mode: 'suggest' })).status).toBe(403);
   const given = (await nora.edit([{ type: 'person.update', person: leo, set: { portrait: photo } }])).data;
   expect(given.status).toBe('applied');
   expect(given.edit.lines[0].fields, 'history says a photo, not an id').toEqual([{ field: 'portrait', to: 'a photo', was: 'no photo' }]);

@@ -66,6 +66,17 @@ motion turned on. The tree must stay usable with a keyboard alone.
 3. Make sure `pnpm test`, `pnpm typecheck`, and `pnpm lint` pass.
 4. Open a pull request that says what changed and why, and how you checked it.
 
+## Versions and the changelog
+
+Leave `version` and `CHANGELOG.md` alone in a pull request. Both change in one
+place only, the release commit on `main`, so two branches can never collide over
+them. Your change gets its line in the changelog when the release is made, from
+what the commits say. CI turns away a pull request that touches either.
+
+Every package shares one version. Before 1.0 a release with anything new or
+changed moves the middle number (0.1.0 to 0.2.0), and one with only fixes moves
+the last (0.1.0 to 0.1.1).
+
 ## Reporting a problem
 
 A bug report is most useful with what you did, what you expected, and what

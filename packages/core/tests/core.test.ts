@@ -122,6 +122,11 @@ test('who may change what', () => {
   assert.equal(outcome(visitor, [{ type: 'person.update', person: id.gran, set: { portrait: photo } }]), 'deny');
   assert.equal(outcome(steward, [{ type: 'person.create', ref: '$n', set: { given: 'New', portrait: photo } }, { type: 'child.link', union: id.ab, child: '$n' }]), 'deny');
   assert.equal(outcome(admin, [{ type: 'person.update', person: id.zed, set: { portrait: photo } }]), 'apply');
+  // nor can it ride along with a change that has to wait: the whole edit would wait, and the photo with it
+  const elsewhere: Op = { type: 'person.update', person: id.zed, set: { given: 'Z' } };
+  assert.equal(outcome(steward, [elsewhere]), 'suggest');
+  assert.equal(outcome(steward, [{ type: 'person.update', person: id.cleo, set: { portrait: photo } }, elsewhere]), 'deny');
+  assert.equal(outcome(steward, [{ type: 'person.update', person: id.cleo, set: { portrait: null } }, elsewhere]), 'suggest', 'taking one off can wait');
 
   // a member with no branch: own leaf only
   assert.equal(outcome(member, rename(id.zed)), 'apply');

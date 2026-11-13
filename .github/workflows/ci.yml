@@ -19,3 +19,24 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+
+  # A version and the changelog change in one place only, the release commit on main, so two
+  # branches can never collide over them. A release that has to come through a pull request
+  # is made on a branch named release-something.
+  release-files:
+    if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No version or changelog change in a pull request
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          notes=$(git diff --name-only "origin/$BASE"...HEAD -- CHANGELOG.md changelog)
+          versions=$(git diff -U0 --diff-filter=M "origin/$BASE"...HEAD -- '*package.json' | grep -E '^-[[:space:]]*"version":' || true)
+          if [ -n "$notes$versions" ]; then
+            echo "::error::This pull request changes a version or the changelog. Both change only in a release on main. See CONTRIBUTING.md."
+            exit 1
+          fi

@@ -10,6 +10,7 @@ import { browser, startDemo } from '@reactive-family-tree/server/testing';
 import type { Demo } from '@reactive-family-tree/server/testing';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 
+import release from '../package.json';
 import { createMcpEndpoint } from '../src';
 
 let demo: Demo;
@@ -203,6 +204,7 @@ test('the official client library connects, and is told the house rules', async 
     fetch: (address, init) => endpoint(new Request(address, init)),
   }));
   expect(client.getServerVersion()?.name).toBe('reactive-family-tree');
+  expect(client.getServerVersion()?.version, 'the version it was released as, not one typed in by hand').toBe(release.version);
   expect(client.getInstructions()).toMatch(/Never invent/);
 
   const { tools } = await client.listTools();

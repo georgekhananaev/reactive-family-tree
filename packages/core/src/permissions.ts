@@ -10,6 +10,7 @@
  */
 
 import { childrenOf, indexOf, livingPartners, person, scopeOf } from './graph';
+import { setsPhoto } from './ops';
 import { isAdmin, isLiving } from './privacy';
 import type { Actor, Decision, FactSubject, Op, RuleSettings, State, Step } from './types';
 
@@ -55,7 +56,7 @@ export function decideEdit(state: State, actor: Actor, ops: readonly Op[], setti
   function decide(op: Op, index: number): Step {
     if (op.type === 'entity.set') return deny('Only undo can put things back.');
     // A photo cannot wait for review, where nobody could look at it first. It is set by whoever may edit the person outright.
-    if ((op.type === 'person.update' || op.type === 'person.create') && op.set?.portrait && !admin) {
+    if (setsPhoto(op) && !admin) {
       const where = op.type === 'person.update' && !actor.visitor ? reach(op.person) : null;
       if (!where || where === 'new') return deny('A photo can be added by the person themselves, their branch’s steward or an admin.');
     }
@@ -141,6 +142,12 @@ export function decideEdit(state: State, actor: Actor, ops: readonly Op[], setti
   const steps = ops.map(decide);
   // Someone created but never connected into the branch cannot be published by a steward
   for (const index of newPeople.values()) steps[index] = suggest('A new person has to be connected to someone in your branch.');
+  // The same goes for a photo that travels with something that has to wait: the whole edit would wait, and the photo with it
+  if (steps.some((s) => s.outcome === 'suggest')) {
+    ops.forEach((op, index) => {
+      if (setsPhoto(op)) steps[index] = deny('A photo is saved at once or not at all. Save it apart from the changes that need review.');
+    });
+  }
 
   const outcome = steps.some((s) => s.outcome === 'deny') ? 'deny' : steps.some((s) => s.outcome === 'suggest') ? 'suggest' : 'apply';
   const reasons = [...new Set(steps.flatMap((s) => (s.outcome === outcome && s.reason ? [s.reason] : [])))];
