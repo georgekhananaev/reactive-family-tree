@@ -1,41 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Reactive Family Tree — Favicon v1 ("Morning ink")
-       Tapered botanical trunk and limbs flowing seamlessly into five beech leaves
-       (four living greens and one remembered gold) with watercolour wash, veins,
-       and a union blossom at the fork.
-       Author: George Khananaev -->
+  <!-- A small family tree: tapered botanical trunk and limbs, five beech leaves in the tree's own colours with watercolour wash and veins, and a union blossom at the fork. Author: George Khananaev -->
   <style>
     .bark { fill: #3A3028; }
     .blade { stroke: #14261F; stroke-opacity: 0.52; stroke-width: 1.5; stroke-linejoin: round; }
     .vein { fill: none; stroke: #14261F; stroke-opacity: 0.38; stroke-width: 1.65; stroke-linecap: round; }
     .vein-gold { fill: none; stroke: #5A3F0C; stroke-opacity: 0.48; stroke-width: 1.65; stroke-linecap: round; }
-    .l0 { fill: #2F6B4F; }
-    .l1 { fill: #3A7853; }
-    .l2 { fill: #508C58; }
-    .l3 { fill: #6FA560; }
-    .gold { fill: #C9992E; }
-    .wash-light { stop-color: #FFFFFF; }
-    .wash-shade { stop-color: #14261F; }
-    .petal { fill: #E58FA6; stroke: #A9506A; stroke-width: 0.75; }
-    .heart { fill: #C9992E; }
-
+    .l0 { fill: #2F6B4F; } .l1 { fill: #3A7853; } .l2 { fill: #508C58; } .l3 { fill: #6FA560; } .gold { fill: #C9992E; }
+    .wash-light { stop-color: #FFFFFF; } .wash-shade { stop-color: #14261F; }
+    .petal { fill: #E58FA6; stroke: #A9506A; stroke-width: 0.75; } .heart { fill: #C9992E; }
     @media (prefers-color-scheme: dark) {
       .bark { fill: #8491B4; }
       .blade { stroke: #F1FBF3; stroke-opacity: 0.55; }
       .vein { stroke: #0C1322; stroke-opacity: 0.38; }
       .vein-gold { stroke: #4E3B0E; stroke-opacity: 0.5; }
-      .l0 { fill: #8FD0A8; }
-      .l1 { fill: #A3D9B5; }
-      .l2 { fill: #BFE3C8; }
-      .l3 { fill: #CDEBCB; }
-      .gold { fill: #E3C77A; }
-      .wash-light { stop-color: #FFFFFF; }
-      .wash-shade { stop-color: #0C1322; }
-      .petal { fill: #F2A7BA; stroke: #FBD5DE; }
-      .heart { fill: #F3D36B; }
+      .l0 { fill: #8FD0A8; } .l1 { fill: #A3D9B5; } .l2 { fill: #BFE3C8; } .l3 { fill: #CDEBCB; } .gold { fill: #E3C77A; }
+      .wash-light { stop-color: #FFFFFF; } .wash-shade { stop-color: #0C1322; }
+      .petal { fill: #F2A7BA; stroke: #FBD5DE; } .heart { fill: #F3D36B; }
     }
   </style>
-
   <defs>
     <radialGradient id="wash" cx="36%" cy="32%" r="72%">
       <stop class="wash-light" offset="0" stop-opacity="0.42"/>
@@ -55,7 +37,6 @@
       <path class="vein-gold" d="M0,-1 L0,-44 M0,-14 L-8,-22 M0,-14 L8,-22 M0,-27 L-7.5,-34.5 M0,-27 L7.5,-34.5"/>
     </g>
   </defs>
-
   <!-- Seamless tapered trunk and limbs -->
   <g class="bark">
     <path d="M37.70,60.50 L37.06,58.74 L36.49,56.98 L35.98,55.20 L35.52,53.40 L35.11,51.58 L34.74,49.74 L34.42,47.88 L34.13,45.98 L33.87,44.06 L33.65,42.11 L33.46,40.12 L33.29,38.09 L33.14,36.03 L33.02,33.92 L32.91,31.76 L32.81,29.56 L32.73,27.31 L32.65,25.00 L31.35,25.00 L31.27,27.31 L31.19,29.56 L31.09,31.76 L30.98,33.92 L30.86,36.03 L30.71,38.09 L30.54,40.12 L30.35,42.11 L30.13,44.06 L29.87,45.98 L29.58,47.88 L29.26,49.74 L28.89,51.58 L28.48,53.40 L28.02,55.20 L27.51,56.98 L26.94,58.74 L26.30,60.50 Q32.00,61.70 37.70,60.50 Z"/>
