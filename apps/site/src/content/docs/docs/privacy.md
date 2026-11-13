@@ -46,6 +46,14 @@ A signed-in relative sees everyone, with one exception. A person set to private 
 
 A single fact can be more private than the person it is about. A fact set to private is shown to the person, the stewards of their branch and admins. A fact set to members only is hidden from visitors.
 
+The same holds everywhere a fact could show through. A private birth fact takes its year off the leaf, cannot be found by searching for its place, and appears in the history of changes only as a change to something private, with nothing of what it was.
+
+## Photos
+
+Each person can have one photo. It is seen by exactly the people who may see that person, and is never sent for a masked leaf. A photo is added by the person themselves, the steward of their branch or an admin. It cannot be suggested by someone else, because a reviewer would have to approve a picture they could not look at first.
+
+Before a photo is kept, everything a camera writes into the file beside the picture is cut out: where it was taken, on what phone, and when.
+
 ## What a masked leaf sends
 
 A masked person keeps their place in the tree's shape, so the tree is not misleading. Nothing that could identify them leaves the server. This is everything the browser gets for one:

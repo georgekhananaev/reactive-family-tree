@@ -32,6 +32,8 @@ export interface PersonLeaf {
   /* No longer living, by record or by the family's "presumed living" rule. */
   gone: boolean;
   privacy: Privacy;
+  /* The id of their photo, if they have one. The app turns it into an address. */
+  portrait: string | null;
   pending: PendingMark | null;
   editing: Reach;
 }
@@ -124,6 +126,8 @@ export interface PersonDetail {
   privacy: Privacy;
   consented: boolean;
   bio: string;
+  /* The id of their photo, if they have one. */
+  portrait: string | null;
   born: number | null;
   died: number | null;
   facts: FactView[];

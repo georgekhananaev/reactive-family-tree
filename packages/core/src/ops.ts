@@ -49,9 +49,13 @@ const text = (max: number): Rule => (value) => typeof value === 'string' && valu
 const oneOf = (list: readonly unknown[]): Rule => (value) => list.includes(value);
 const yearOrNull: Rule = (value) => value === null || (typeof value === 'number' && Number.isInteger(value) && value > 0 && value < 3000);
 
+/* The id of a stored image is the first half of the SHA-256 of its bytes. */
+export const isMediaId = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
+
 const PERSON_FIELDS: Record<keyof PersonFields, Rule> = {
   given: text(80), family: text(80), birthName: text(80), bio: text(20000),
   sex: oneOf(SEXES), living: oneOf(LIVING), privacy: oneOf(PRIVACY),
+  portrait: (value) => value === null || isMediaId(value),
 };
 const UNION_FIELDS: Record<keyof UnionFields, Rule> = { kind: oneOf(UNION_KINDS), status: oneOf(UNION_STATUS), host: text(40), since: yearOrNull };
 const FACT_FIELDS: Record<keyof FactFields, Rule> = {
@@ -144,7 +148,7 @@ export function applyOps(state: State, ops: readonly Op[], env: OpEnv): Applied 
     'person.create'(op) {
       const fields = pick(PERSON_FIELDS, op.set, fail);
       add('people', 'p', op.ref, {
-        given: '', family: '', birthName: '', sex: 'unknown', living: 'unknown', privacy: 'default', bio: '', consentAt: null, ...fields,
+        given: '', family: '', birthName: '', sex: 'unknown', living: 'unknown', privacy: 'default', bio: '', portrait: null, consentAt: null, ...fields,
       });
     },
     'person.update'(op) {

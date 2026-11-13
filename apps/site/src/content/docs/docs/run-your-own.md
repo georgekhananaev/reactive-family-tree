@@ -77,10 +77,14 @@ You can set them in the shell, or copy `apps/web/.env.example` to `apps/web/.env
 | `SMTP_URL` | Sends email through an SMTP server, for example `smtp://user:pass@host:587`. | Emails are written to the server log |
 | `RESEND_API_KEY` | Sends email through Resend. It is used first if `SMTP_URL` is set too. | Emails are written to the server log |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | With both set, people who already have an account can sign in with Google. | No Google sign-in |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | With all four set, photos are kept in an S3-compatible bucket such as Cloudflare R2. For R2 the endpoint is `https://<account id>.r2.cloudflarestorage.com`. `S3_REGION` is `auto` unless your store wants another. | Photos are kept in a `media` folder beside the database |
+| `MEDIA_DIR` | Another folder for photos, when they are not in a bucket. | The `media` folder beside the database |
 | `JOB_TIMERS` | `0` stops the app from running its daily jobs on a timer of its own. | The timer runs |
 | `JOBS_TOKEN` | Lets a scheduler on your host run the daily jobs, by sending `POST /api/jobs` with the header `Authorization: Bearer` and this token. | That address refuses every request |
 
-The daily jobs empty the compost of people removed more than 30 days ago and, when the database is a file, write a full snapshot into a `snapshots` folder beside it. The last 14 snapshots are kept.
+Photos are files, so a backup of the database does not hold them. Back up the `media` folder, or the bucket, beside it.
+
+The daily jobs remove photos nobody has used for 30 days, empty the compost of people removed more than 30 days ago and, when the database is a file, write a full snapshot into a `snapshots` folder beside it. The last 14 snapshots are kept.
 
 ## Check that it is up
 

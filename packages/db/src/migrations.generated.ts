@@ -77,5 +77,12 @@ export const MIGRATIONS: Migration[] = [
       "CREATE TABLE `verification` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`identifier` text NOT NULL,\n\t`value` text NOT NULL,\n\t`expiresAt` integer NOT NULL,\n\t`createdAt` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,\n\t`updatedAt` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL\n);",
       "CREATE INDEX `verification_identifier_idx` ON `verification` (`identifier`);"
     ]
+  },
+  {
+    "name": "0001_portraits",
+    "statements": [
+      "CREATE TABLE `media` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`size` integer NOT NULL,\n\t`uploaded_by` text,\n\t`created_at` text NOT NULL\n);",
+      "ALTER TABLE `person` ADD `portrait` text;"
+    ]
   }
 ];

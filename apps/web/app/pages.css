@@ -27,6 +27,7 @@
   box-shadow: var(--card-shadow);
 }
 .sheet.wide { width: min(680px, 100%); }
+.person-photo { width: 96px; height: 96px; margin: 0 0 12px; border: 1px solid var(--line); }
 .sheet h1 { margin: 0 0 6px; font: 700 1.75rem/1.15 var(--display); }
 .sheet h2 { margin: 24px 0 8px; font: 700 1.125rem var(--display); }
 .sheet p { margin: 0 0 10px; }

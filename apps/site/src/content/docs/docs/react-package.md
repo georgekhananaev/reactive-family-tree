@@ -105,6 +105,8 @@ Only `data` is required.
 | `matches` | `ReadonlySet<string> \| null` | Search results. These people keep their colour and everyone else steps back. |
 | `route` | `readonly [string, string] \| null` | Light the branches between two people. |
 | `tints` | `ReadonlyMap<string, string> \| null` | Ring each person's leaf in a colour, by person id. |
+| `faces` | `boolean` | Show a round photo in place of the leaf, for everyone who has one. |
+| `portraitOf` | `(person) => string \| null` | Where someone's photo is. Asked only while `faces` is on, for people whose `portrait` is set. |
 | `insets` | `{ right: number; top: number }` | Room taken by an open side panel and a banner, in pixels. The tree keeps clear of it. |
 | `label` | `string` | What a screen reader calls the drawing. The default is "The family tree". |
 | `className` | `string` | A class for the stage. |

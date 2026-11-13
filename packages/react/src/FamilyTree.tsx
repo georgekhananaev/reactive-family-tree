@@ -15,8 +15,8 @@
 
 import { useEffect, useImperativeHandle, useRef } from 'react';
 import type { ReactElement, Ref } from 'react';
-import type { Relation, TreePerson } from '@reactive-family-tree/core';
-import { TreeEngine } from './engine';
+import type { PersonLeaf, Relation, TreePerson } from '@reactive-family-tree/core';
+import { FACE_RADIUS, TreeEngine } from './engine';
 import type { BranchState, TreeData, TreeInsets, YearRange } from './engine';
 import { THIS_YEAR } from './leaf';
 
@@ -36,6 +36,10 @@ export interface FamilyTreeProps {
   route?: readonly [string, string] | null;
   /* Ring each person's leaf in a colour: person id to colour. */
   tints?: ReadonlyMap<string, string> | null;
+  /* Show a round photo in place of the leaf, for everyone who has one. */
+  faces?: boolean;
+  /* Where someone's photo is. Asked only while faces are shown, for people whose `portrait` is set. */
+  portraitOf?(person: PersonLeaf): string | null;
   /* Space taken by an open side panel and a banner, kept clear of the tree. */
   insets?: TreeInsets;
   /* What the drawing is called for a screen reader. */
@@ -87,6 +91,10 @@ const DEFS = (
       <stop offset="0.45" stopColor="#F3D36B" stopOpacity="0.18" />
       <stop offset="1" stopColor="#F3D36B" stopOpacity="0" />
     </radialGradient>
+    {/* The round window a face is seen through, as large as the engine draws a face */}
+    <clipPath id="faceClip">
+      <circle r={FACE_RADIUS} />
+    </clipPath>
     <pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(38)">
       <rect className="hatch-paper" width="5" height="5" />
       <line className="hatch-line" x1="0" y1="0" x2="0" y2="5" />
@@ -108,7 +116,7 @@ function clearDrawing(world: HTMLElement, svg: SVGSVGElement): void {
 
 export function FamilyTree({
   data, viewerId = null, focusId = null, year = THIS_YEAR, editing = false, selectedId = null, matches = null, route = null, tints = null,
-  insets, label = 'The family tree', className, onSelect, onAdd, onHold, onHoldMove, onHoldEnd, onMoved, ref,
+  faces = false, portraitOf, insets, label = 'The family tree', className, onSelect, onAdd, onHold, onHoldMove, onHoldEnd, onMoved, ref,
 }: FamilyTreeProps): ReactElement {
   const stageRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -116,9 +124,9 @@ export function FamilyTree({
   const engineRef = useRef<TreeEngine | null>(null);
 
   // The callbacks as the parent last passed them. The engine reads them here when something happens, so it never has to be made again.
-  const callbacks = useRef({ onSelect, onAdd, onHold, onHoldMove, onHoldEnd, onMoved });
+  const callbacks = useRef({ onSelect, onAdd, onHold, onHoldMove, onHoldEnd, onMoved, portraitOf });
   useEffect(() => {
-    callbacks.current = { onSelect, onAdd, onHold, onHoldMove, onHoldEnd, onMoved };
+    callbacks.current = { onSelect, onAdd, onHold, onHoldMove, onHoldEnd, onMoved, portraitOf };
   });
 
   // One engine for as long as the component is on the page. In development React mounts twice: the first engine is stopped and its drawing cleared before the second is made.
@@ -135,6 +143,7 @@ export function FamilyTree({
         holdEnd: (x, y) => callbacks.current.onHoldEnd?.(x, y),
         moved: () => callbacks.current.onMoved?.(),
       },
+      portraitOf: (person) => callbacks.current.portraitOf?.(person) ?? null,
     });
     engineRef.current = engine;
     return () => {
@@ -169,6 +178,10 @@ export function FamilyTree({
   useEffect(() => {
     engineRef.current?.setEditing(editing);
   }, [editing]);
+
+  useEffect(() => {
+    engineRef.current?.setFaces(faces);
+  }, [faces]);
 
   useEffect(() => {
     engineRef.current?.setSelected(selectedId);

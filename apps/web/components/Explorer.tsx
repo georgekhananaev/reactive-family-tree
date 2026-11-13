@@ -18,7 +18,7 @@ import { activity, api, messageOf } from '@/lib/api';
 import { AppProvider } from '@/lib/app-context';
 import type { AppController, CardMode, Painting, PanelArgs, PanelName, ToastOptions } from '@/lib/app-context';
 import { signOut } from '@/lib/auth-client';
-import { branchOf, displayName } from '@/lib/format';
+import { branchOf, displayName, portraitUrl } from '@/lib/format';
 import { useLiveUpdates } from '@/lib/use-live-updates';
 
 import { AccountMenu, Avatar } from './AccountMenu';
@@ -84,6 +84,8 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
   const [editing, setEditing] = useState(false);
   const [year, setYear] = useState<number | null>(null);                // null is today
   const [playing, setPlaying] = useState(false);
+  // Leaves, or the faces of those who have a photo. Each person's own choice, kept on their device.
+  const [faces, setFaces] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [matches, setMatches] = useState<ReadonlySet<string> | null>(null);
@@ -458,6 +460,17 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
 
   /* ---------- Keys, and taps outside a menu ---------- */
 
+  useEffect(() => {
+    try { setFaces(localStorage.getItem('rft-faces') === '1'); } catch { /* private browsing */ }
+  }, []);
+  const toggleFaces = useCallback(() => {
+    setFaces((was) => {
+      try { localStorage.setItem('rft-faces', was ? '0' : '1'); } catch { /* private browsing */ }
+      return !was;
+    });
+  }, []);
+  const anyPhotos = useMemo(() => tree.people.some((p) => !p.masked && p.portrait), [tree.people]);
+
   const goToMyLeaf = useCallback(() => {
     const mine = now.current.session.user?.personId;
     if (mine) actions.select(mine, { fly: true });
@@ -472,6 +485,8 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
       if (!(event.target as Element).closest('#menu, #search, #menuOpen, #searchOpen')) actions.closePopovers();
     };
     const onKeyDown = (event: KeyboardEvent) => {
+      // A photo opened large is on top and has the keyboard to itself: Escape puts it away, and nothing behind it moves
+      if ((event.target as Element).closest('dialog')) return;
       const at = now.current;
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName ?? '');
       if (event.key === 'Escape') {
@@ -500,6 +515,7 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
         '?': () => actions.openPanel('help'),
         e: () => { if (at.session.user) toggleEditing(!at.editing); },
         m: goToMyLeaf,
+        v: () => { if (anyPhotos) toggleFaces(); },
         f: () => { if (at.selectedId) void actions.focusOn(at.selectedId); },
         p: togglePlay,
         '+': () => view.current?.zoomStep(1.5),
@@ -520,7 +536,7 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
       document.removeEventListener('pointerdown', onPointerDown, true);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [actions, toggleEditing, togglePlay, goToMyLeaf, wholeTree, chooseYear, range]);
+  }, [actions, toggleEditing, togglePlay, toggleFaces, anyPhotos, goToMyLeaf, wholeTree, chooseYear, range]);
 
   /* ---------- Drawing ---------- */
 
@@ -542,6 +558,8 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
         matches={matches}
         route={route}
         tints={tints}
+        faces={faces && anyPhotos}
+        portraitOf={portraitUrl}
         insets={insets}
         onSelect={(person) => actions.select(person?.id ?? null)}
         onAdd={({ person, relation }) => { if (!person.masked) actions.openCard(person, 'add', { relation }); }}
@@ -627,7 +645,14 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
       <Toasts toasts={toasts} onAction={(item) => { dismiss(item.id); item.onAction?.(); }} />
 
       <TimeBar year={shownYear} min={range.min} max={range.max} playing={playing} onYear={(value) => { setPlaying(false); chooseYear(value); }} onPlay={togglePlay} />
-      <ZoomButtons hasLeaf={Boolean(user?.personId)} onZoom={(factor) => view.current?.zoomStep(factor)} onWhole={wholeTree} onMyLeaf={goToMyLeaf} />
+      <ZoomButtons
+        hasLeaf={Boolean(user?.personId)}
+        faces={anyPhotos ? faces : null}
+        onZoom={(factor) => view.current?.zoomStep(factor)}
+        onWhole={wholeTree}
+        onMyLeaf={goToMyLeaf}
+        onFaces={toggleFaces}
+      />
 
       <PetalMenu ref={petals} request={petalRequest} onClose={useCallback(() => setPetalRequest(null), [])} />
     </AppProvider>

@@ -7,6 +7,7 @@ import type { Certainty, Contact, FactType, FactView, Living, Op, PersonDetail, 
 import { useState } from 'react';
 
 import { useApp } from '@/lib/app-context';
+import { portraitUrl } from '@/lib/format';
 
 import { ConfirmButton, Field, Select } from '../ui';
 
@@ -14,6 +15,7 @@ import { CardForm } from './CardForm';
 import { CardHead } from './CardHead';
 import { ContactFields } from './ContactFields';
 import { DateField } from './DateField';
+import { PhotoField } from './PhotoField';
 
 const OTHER_FACTS = FACT_TYPES.filter((type) => type !== 'birth' && type !== 'death');
 const titled = <Value extends string>(list: readonly Value[]) => list.map((value) => [value, value.charAt(0).toUpperCase() + value.slice(1)] as const);
@@ -43,6 +45,8 @@ export function EditForm({ person, detail: d, onDirty, onDone, onCancel }: {
     born: birth?.dateText ?? '', birthPlace: birth?.place ?? '', died: death?.dateText ?? '', bio: d.bio, privacy: d.privacy, note: '',
   });
   const set = (patch: Partial<typeof f>) => setFields((was) => ({ ...was, ...patch }));
+  // Their photo: left as it is until a new one is placed, or the old one is taken off
+  const [photo, setPhoto] = useState<string | null | undefined>(undefined);
   const [contact, setContact] = useState<Contact>({ name: '', email: '' });
   // When someone died is asked only once they are said to have died
   const [diedHidden, setDiedHidden] = useState(d.living === 'yes' && !death?.dateText);
@@ -59,6 +63,7 @@ export function EditForm({ person, detail: d, onDirty, onDone, onCancel }: {
     if (f.sex !== d.sex) changed.sex = f.sex;
     if (f.living !== d.living) changed.living = f.living;
     if (f.privacy !== d.privacy) changed.privacy = f.privacy;
+    if (photo !== undefined && photo !== d.portrait) changed.portrait = photo;
     if (Object.keys(changed).length) ops.push({ type: 'person.update', person: d.id, set: changed });
 
     const lifeFact = (existing: FactView | undefined, type: 'birth' | 'death', dateText: string, place: string) => {
@@ -115,6 +120,8 @@ export function EditForm({ person, detail: d, onDirty, onDone, onCancel }: {
         more={d.canRemove && <ConfirmButton label="Remove" sure="Really remove?" className="danger" onConfirm={() => void remove()} />}
       >
         <div className="fields">
+          {/* A photo is set outright or not at all, so it is offered only where a change is published at once */}
+          {direct && <PhotoField current={portraitUrl(d)} value={photo} onChange={(next) => { setPhoto(next); onDirty(true); }} />}
           <Field label="Given name"><input type="text" autoComplete="off" value={f.given} onChange={(event) => set({ given: event.target.value })} /></Field>
           <Field label="Family name"><input type="text" autoComplete="off" value={f.family} onChange={(event) => set({ family: event.target.value })} /></Field>
           <Field label="Born as"><input type="text" autoComplete="off" value={f.birthName} onChange={(event) => set({ birthName: event.target.value })} /></Field>

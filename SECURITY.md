@@ -41,6 +41,10 @@ not to be.
 - **No passwords.** Sign-in is by emailed link, passkey, or optional Google
   sign-in for people who already have an account. Links and invitations work
   once.
+- **Photos follow their person.** A photo is read by person, never by its own
+  address, so it is seen exactly by those who may see that person. What a
+  camera writes into a file beside the picture, such as where it was taken, is
+  cut out before the photo is kept.
 - **Tokens are stored hashed.** Personal AI tokens, invitations, and the setup
   link are shown once and kept only as a hash.
 - **AI acts as its owner.** A connection can do what that relative can do, never
@@ -54,8 +58,8 @@ not to be.
 
 - Put it behind HTTPS. Sign-in for AI clients is refused on plain HTTP except on
   localhost.
-- Keep the `/data` volume backed up. It holds the database and the nightly
-  snapshots.
+- Keep the `/data` volume backed up. It holds the database, the nightly
+  snapshots and the photos.
 - Never run a real family with `DEMO_MODE` on. Its accounts can be entered by
   anyone.
 - Keep `AUTH_SECRET`, `SETUP_TOKEN`, and `JOBS_TOKEN` out of version control.

@@ -14,8 +14,8 @@ import { badRequest } from './errors';
 const FORMAT = 'reactive-family-tree-backup';
 const VERSION = 2;
 
-/* What a backup holds. */
-const KEPT = ['person', 'family_union', 'union_partner', 'union_child', 'fact', 'memory', 'edit', 'edit_comment', 'notification', 'branch_grant', 'invite', 'join_request', 'ai_connection', 'setting', 'meta', 'user', 'account', 'passkey'];
+/* What a backup holds. Photos are files: the backup lists them, and the folder or bucket they are in is backed up beside it. */
+const KEPT = ['person', 'family_union', 'union_partner', 'union_child', 'fact', 'memory', 'edit', 'edit_comment', 'notification', 'branch_grant', 'invite', 'join_request', 'ai_connection', 'setting', 'meta', 'media', 'user', 'account', 'passkey'];
 /* What is emptied as well when restoring, so that everyone signs in again. */
 const DROPPED = ['session', 'verification', 'oauthAccessToken', 'oauthRefreshToken', 'oauthConsent', 'oauthClientResource', 'oauthClient', 'oauthClientAssertion'];
 /* Kept by this install for itself. They never leave in a backup and are never overwritten by one. */

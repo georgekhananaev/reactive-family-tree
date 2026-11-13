@@ -5,10 +5,13 @@
  */
 
 import type { Op } from '@reactive-family-tree/core';
+import { media } from '@reactive-family-tree/db';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 
 import { browser, startDemo } from '../src/testing';
 import type { Demo } from '../src/testing';
+
+import { phonePhoto } from './photo';
 
 let demo: Demo;
 beforeAll(async () => { demo = await startDemo(); });
@@ -292,6 +295,117 @@ test('the family can leave with all its data, and come back', async () => {
   await helen.signInAs('helen');
   expect((await helen.get(`/api/people/${demo.idOf('Marta')}`)).data.given).toBe('Marta');
   expect((await helen.patch('/api/settings', { livingAge: 5 })).status).toBe(400);
+});
+
+test('history and search keep to what each relative may see', async () => {
+  const nora = browser(demo.app), sophie = browser(demo.app), helen = browser(demo.app);
+  await nora.signInAs('nora');
+  await sophie.signInAs('sophie');
+  await helen.signInAs('helen');
+  const leo = demo.idOf('Leo');
+  const leafOf = async (who: typeof nora, id: string) => (await who.get('/api/tree')).data.people.find((p: Leaf) => p.id === id);
+  const found = async (who: typeof nora, words: string): Promise<{ id: string; born: number | null }[]> => (await who.get(`/api/people?q=${words}`)).data.people;
+
+  // Nora looks after Leo, and keeps where he was born to herself
+  const birth = (await nora.get(`/api/people/${leo}`)).data.facts.find((fact: { type: string }) => fact.type === 'birth');
+  const secret = (await nora.edit([{ type: 'fact.update', fact: birth.id, set: { place: 'Hiddenham', privacy: 'private' } }])).data;
+  expect(secret.status).toBe('applied');
+
+  // Searching by the place finds him for her, and for nobody who may not see the fact. His year goes with it.
+  expect((await found(nora, 'hiddenham')).map((hit) => hit.id)).toEqual([leo]);
+  expect(await found(sophie, 'hiddenham')).toEqual([]);
+  expect((await found(sophie, 'leo')).find((hit) => hit.id === leo)?.born, 'a cousin still finds him by name, without the year').toBeNull();
+  expect((await found(sophie, '2008')).some((hit) => hit.id === leo), 'and not by the year').toBe(false);
+  expect((await leafOf(sophie, leo)).born).toBeNull();
+  expect((await leafOf(nora, leo)).born).toBe(2008);
+
+  // History says that something changed, and to a cousin nothing of what
+  expect(JSON.stringify((await nora.get(`/api/edits/${secret.editId}`)).data), 'its author reads it as written').toContain('Hiddenham');
+  expect(JSON.stringify((await helen.get(`/api/edits/${secret.editId}`)).data), 'and so does an admin').toContain('Hiddenham');
+  const theirs = await sophie.get(`/api/edits/${secret.editId}`);
+  expect(theirs.status).toBe(200);
+  expect(theirs.data.lines.map((line: { text: string }) => line.text)).toEqual(['One more change, to something private.']);
+  const listed = (await sophie.get(`/api/edits?which=activity&person=${leo}`)).data.edits;
+  expect(listed.length).toBeGreaterThan(0);
+  expect(JSON.stringify([theirs.data, listed])).not.toMatch(/Hiddenham|2008/);
+
+  // A whole person can be private. Then their history is not for other relatives to read at all.
+  const tess = demo.idOf('Tess');
+  await helen.edit([{ type: 'person.update', person: tess, set: { privacy: 'private' } }]);
+  const about = (await helen.edit([{ type: 'person.update', person: tess, set: { bio: 'Keeps a walled garden.' } }])).data;
+  expect((await sophie.get(`/api/edits?which=activity&person=${tess}`)).status).toBe(404);
+  expect((await sophie.get(`/api/edits/${about.editId}`)).status).toBe(404);
+  expect((await helen.get(`/api/edits/${about.editId}`)).data.lines[0].text).toContain('Tess');
+  // Where she is one of several people in an edit, she is there without her name
+  const everyone = (await sophie.get(`/api/edits?which=activity&person=${leo}`)).data.edits;
+  expect(JSON.stringify(everyone)).not.toMatch(/Tess|walled garden/);
+
+  await helen.edit([{ type: 'person.update', person: tess, set: { privacy: 'default' } }]);
+  await nora.edit([{ type: 'fact.update', fact: birth.id, set: { place: birth.place, privacy: 'default' } }]);
+  expect((await leafOf(sophie, leo)).born, 'made open again, the year is back').toBe(2008);
+});
+
+test('a photo follows its person: who may add it, who may see it, and when it goes', async () => {
+  const nora = browser(demo.app), sophie = browser(demo.app), helen = browser(demo.app), visitor = browser(demo.app);
+  await nora.signInAs('nora');
+  await sophie.signInAs('sophie');
+  await helen.signInAs('helen');
+  const leo = demo.idOf('Leo'), elias = demo.idOf('Elias');
+  const leafOf = async (who: typeof nora, id: string) => (await who.get('/api/tree')).data.people.find((p: Leaf) => p.id === id);
+  const image = Buffer.from(phonePhoto()).toString('base64');
+
+  // Only a signed-in relative can send a photo, and only a photo
+  expect((await visitor.post('/api/media', { image })).status).toBe(401);
+  expect((await nora.post('/api/media', { image: Buffer.from('not a photo at all').toString('base64') })).status).toBe(400);
+  const photo: string = (await nora.post('/api/media', { image })).data.id;
+  expect(photo).toMatch(/^[a-f0-9]{32}$/);
+  expect((await nora.post('/api/media', { image })).data.id, 'the same picture is kept once').toBe(photo);
+  const kept = await demo.app.media.read(photo);
+  expect(Buffer.from(kept ?? []).toString('latin1'), 'without where it was taken').not.toMatch(/51\.4545|number 12/);
+
+  // Nora looks after Leo, so she may give him a face. A cousin may not, not even as a suggestion.
+  expect((await sophie.edit([{ type: 'person.update', person: leo, set: { portrait: photo } }])).status).toBe(403);
+  expect((await nora.edit([{ type: 'person.update', person: leo, set: { portrait: 'f'.repeat(32) } }])).status, 'a photo that was never sent').toBe(400);
+  const given = (await nora.edit([{ type: 'person.update', person: leo, set: { portrait: photo } }])).data;
+  expect(given.status).toBe('applied');
+  expect(given.edit.lines[0].fields, 'history says a photo, not an id').toEqual([{ field: 'portrait', to: 'a photo', was: 'no photo' }]);
+
+  // Relatives see it on the tree and can fetch it. A stranger cannot: Leo is living.
+  expect((await leafOf(sophie, leo)).portrait).toBe(photo);
+  const fetched = await sophie.get(`/api/people/${leo}/portrait?v=${photo}`);
+  expect([fetched.status, fetched.headers.get('content-type')]).toEqual([200, 'image/jpeg']);
+  expect(fetched.headers.get('cache-control'), 'never shared between people').toContain('private');
+  expect((await visitor.get(`/api/people/${leo}/portrait`)).status).toBe(404);
+  expect(JSON.stringify((await visitor.get('/api/tree')).data)).not.toContain(photo);
+
+  // Someone long gone, on a tree that is open: the photo is open with them
+  expect((await helen.edit([{ type: 'person.update', person: elias, set: { portrait: photo } }])).data.status).toBe('applied');
+  expect((await visitor.get(`/api/people/${elias}/portrait`)).status).toBe(200);
+  expect((await leafOf(visitor, elias)).portrait).toBe(photo);
+
+  // Undo takes it off again
+  expect((await nora.post(`/api/edits/${given.editId}/revert`)).data.status).toBe('applied');
+  expect((await leafOf(nora, leo)).portrait).toBeNull();
+  expect((await sophie.get(`/api/people/${leo}/portrait`)).status).toBe(404);
+
+  // A photo nobody uses is removed after a while. One in use never is.
+  const spare: string = (await nora.post('/api/media', { image: Buffer.from(phonePhoto(320, 320, 2)).toString('base64') })).data.id;
+  expect(await demo.app.media.sweep(), 'nothing fresh is swept').toBe(0);
+  await demo.app.db.update(media).set({ createdAt: '2020-01-01T00:00:00.000Z' });
+  expect(await demo.app.media.sweep()).toBe(1);
+  expect([await demo.app.media.has(spare), await demo.app.media.has(photo)]).toEqual([false, true]);
+  expect(await demo.app.media.read(spare)).toBeNull();
+
+  // A person removed for good takes their photo with them
+  const kid = (await helen.edit([{ type: 'person.create', ref: '$kid', set: { given: 'Briefly', living: 'no' } }])).data.created.$kid as string;
+  const theirs: string = (await helen.post('/api/media', { image: Buffer.from(phonePhoto(320, 320, 3)).toString('base64') })).data.id;
+  await helen.edit([{ type: 'person.update', person: kid, set: { portrait: theirs } }]);
+  await helen.edit([{ type: 'person.remove', person: kid }]);
+  expect(await demo.app.media.has(theirs), 'still there while they are in the compost').toBe(true);
+  expect((await helen.post(`/api/compost/${kid}/purge`)).status).toBe(200);
+  expect(await demo.app.media.has(theirs)).toBe(false);
+
+  await helen.edit([{ type: 'person.update', person: elias, set: { portrait: null } }]);
 });
 
 test('the family in memory matches what is stored, after everything above', async () => {

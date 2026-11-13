@@ -45,8 +45,21 @@ export const person = sqliteTable('person', {
   living: text('living').$type<Living>().notNull(),
   privacy: text('privacy').$type<Privacy>().notNull(),
   bio: text('bio').notNull(),
+  portrait: text('portrait'),
   consentAt: text('consent_at'),
   deletedAt: text('deleted_at'),
+});
+
+/*
+ * An uploaded image. The bytes live in the media store, a folder or a bucket,
+ * under this id. The row says who put it there and when, so that images nobody
+ * uses any more can be found and removed.
+ */
+export const media = sqliteTable('media', {
+  id: text('id').primaryKey(),
+  size: integer('size').notNull(),
+  uploadedBy: text('uploaded_by'),
+  createdAt: text('created_at').notNull(),
 });
 
 /* A partnership. "union" is a reserved word in SQL, so the table carries a longer name. */

@@ -314,6 +314,33 @@
 #stage { -webkit-touch-callout: none; }
 .branch, .root { transition: fill 0.35s, opacity 0.3s; }
 
+/*
+ * Faces: with the switch on, a round photo takes the leaf's place for whoever
+ * has one. The stem stays, so a face still hangs from its branch, and the ring
+ * keeps the leaf's colour: green for the living, gold for the remembered.
+ */
+.face { pointer-events: none; }
+.face-stem { opacity: 0; transition: opacity 0.4s; }
+.face-edge { fill: var(--page); }
+.face-in { opacity: 0; transform: scale(0.5); transition: opacity 0.4s ease, transform 0.6s cubic-bezier(0.2, 1.4, 0.3, 1); }
+.face-ring { fill: none; stroke: var(--leaf-1); stroke-width: 2.6; transition: stroke 0.35s, stroke-width 0.2s; }
+.state-gone .face-ring { stroke: var(--gold-0); }
+.blade { transition: fill 0.9s, stroke 0.2s, stroke-width 0.2s, opacity 0.4s; }
+.wash { transition: opacity 0.4s; }
+.vein { transition: stroke 0.9s, opacity 0.4s; }
+#tree.faces .has-face .face { pointer-events: auto; }
+#tree.faces .has-face .face-in { opacity: 1; transform: none; }
+#tree.faces .has-face .face-stem { opacity: 1; }
+/* What rings and lights a leaf follows its face, which sits 13 further out than the middle of the leaf */
+#tree.faces .has-face :is(.you-ring, .tint-ring, .glow, .pulse) { translate: 0 -13px; }
+#tree.faces .has-face :is(.blade, .wash, .vein) { opacity: 0; }
+#tree.faces .has-face .hit { pointer-events: none; }
+.leaf-node.selected .face-ring, .leaf-node:focus-visible .face-ring { stroke: var(--action); stroke-width: 4; }
+@media (hover: hover) {
+  .leaf-node:hover .face-ring { stroke-width: 3.6; }
+}
+.still .face-in { transition: none; }
+
 .you-ring, .tint-ring { fill: none; display: none; pointer-events: none; }
 .leaf-node.you .you-ring { display: inline; stroke: var(--action); stroke-width: 2; stroke-dasharray: 2 5; stroke-linecap: round; }
 .leaf-node.tinted .tint-ring { display: inline; stroke: var(--tint); stroke-width: 6; stroke-opacity: 0.75; }

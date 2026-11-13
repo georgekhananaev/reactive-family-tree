@@ -127,7 +127,7 @@ These are shortcuts for a zero-install demo. The behaviour is the planned one un
 | Languages | English | English and Hebrew, right to left |
 | Default visibility | Public with living people hidden, so the demo has something to show a visitor | Private |
 
-The app in `apps/web` now covers the first five rows of the right-hand column, apart from the local bridge, and it is private by default. The rows from "Names" to "Languages" are still to come. See [the roadmap](../11-roadmap.md).
+The app in `apps/web` now covers the first five rows of the right-hand column, apart from the local bridge, and it is private by default. It also has one portrait per person, with a switch between leaves and faces. The rest of the rows from "Names" to "Languages" are still to come. See [the roadmap](../11-roadmap.md).
 
 ## Reset
 

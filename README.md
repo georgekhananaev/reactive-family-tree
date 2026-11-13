@@ -15,6 +15,8 @@ own relatives, with nothing sent anywhere else.
 - **Your own AI can help.** Any relative can connect their AI client over MCP. It
   can do what they can do and no more, and by default its changes wait as a draft
   for them to look over.
+- **Faces as well as leaves.** Each person can have one photo. A switch turns
+  the leaves of those who have one into round portraits, and back.
 - **The living stay private.** A new tree is closed to strangers. If the family
   opens it, living people still appear as unnamed leaves unless they choose
   otherwise themselves.
@@ -73,6 +75,7 @@ secrets and infrastructure, and all of them are optional on your own computer.
 | `SMTP_URL` or `RESEND_API_KEY`, `EMAIL_FROM` | Sending sign-in links and invitations. Without them, links go to the server log and invitations are handed over as links |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Optional Google sign-in for people who already have an account |
 | `SETUP_TOKEN` | Claims a fresh install on a host where you cannot read the log |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Keep photos in an S3-compatible bucket such as Cloudflare R2. Without them, photos live in a `media` folder beside the database |
 | `DEMO_MODE` | Plants the Marlow family and its demo accounts. Never for a real family |
 | `JOB_TIMERS`, `JOBS_TOKEN` | Turn the daily jobs' timer off and let the host's cron call `POST /api/jobs` |
 

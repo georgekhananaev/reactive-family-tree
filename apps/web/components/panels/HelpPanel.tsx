@@ -15,6 +15,7 @@ const SECTIONS: readonly (readonly [string, readonly (readonly [string, string])
     ['Two-finger tap', 'Zoom out a step'],
     ['+  −  0', 'Zoom in, zoom out, show the whole tree'],
     ['M', 'Go to my leaf'],
+    ['V', 'Switch between leaves and faces, once someone has a photo'],
   ]],
   ['People', [
     ['Tap a leaf', 'Open that person'],

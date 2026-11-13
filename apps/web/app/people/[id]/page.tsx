@@ -13,6 +13,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 
+import { Photo } from '@/components/Photo';
+import { portraitUrl } from '@/lib/format';
 import { getApp } from '@/lib/server';
 
 export const dynamic = 'force-dynamic';
@@ -95,6 +97,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   const death = d.facts.find((fact) => fact.type === 'death');
   const others = d.facts.filter((fact) => fact !== birth && fact !== death);
   const at = (id: string | null) => (id ? `${baseUrl}/people/${id}` : undefined);
+  const photo = portraitUrl(d);
   // What search engines are told about this person. Only what a visitor may see, and only links to people who have a page.
   const person = {
     '@context': 'https://schema.org',
@@ -103,6 +106,8 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
       '@type': 'Person',
       '@id': at(d.id),
       name: d.name,
+      // Their photo is named only when a visitor may see them, as the page itself is
+      image: open && photo ? `${baseUrl}${photo}` : undefined,
       givenName: d.given || undefined,
       familyName: d.family || undefined,
       alternateName: d.birthName ? `${d.given} ${d.birthName}` : undefined,
@@ -119,6 +124,8 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
     <main className="page">
       <article className="sheet wide person-page">
         <p className="lead"><Link href="/">{familyName}</Link></p>
+        {/* A plain image inside: it is small, already sized, and private to whoever may see this page */}
+        {photo && <Photo className="person-photo" src={photo} name={d.name} />}
         <h1>{d.name}</h1>
         {d.birthName && <p className="life">born {d.birthName}</p>}
         <p className="life">{[birth?.dateText && `Born ${birth.dateText}${birth.place ? `, ${birth.place}` : ''}`, death?.dateText && `died ${death.dateText}`].filter(Boolean).join(', ')}</p>

@@ -219,7 +219,8 @@ export function PersonCard({ target, onSwitch, ref }: {
   const drag = useRef<{ y: number; dy: number; at: number; onGrab: boolean } | null>(null);
   const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     const from = event.target as Element;
-    if (!matchMedia(PHONE).matches || !from.closest('.card-grab, .head') || from.closest('button')) return;
+    // A press on a button, or on a photo that is open large, is not a pull on the sheet
+    if (!matchMedia(PHONE).matches || !from.closest('.card-grab, .head') || from.closest('button, dialog')) return;
     drag.current = { y: event.clientY, dy: 0, at: performance.now(), onGrab: Boolean(from.closest('.card-grab')) };
     event.currentTarget.setPointerCapture(event.pointerId);
     event.currentTarget.style.transition = 'none';

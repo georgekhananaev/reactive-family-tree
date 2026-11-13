@@ -39,7 +39,7 @@ Working today:
 Planned, and not built yet:
 
 - Other views of the tree, beyond the one it has now.
-- Photos, portraits and sources attached to facts.
+- Galleries of photos, and sources attached to facts. One portrait per person is built, with a switch between leaves and faces.
 - Other languages. The app is in English only, and right-to-left layout is not done.
 - A printable poster export.
 - A local bridge for AI clients that cannot reach a remote MCP server.

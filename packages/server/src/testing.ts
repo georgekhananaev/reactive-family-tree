@@ -33,7 +33,7 @@ async function start(mode: Pick<AppConfig, 'demoMode' | 'setupToken'>): Promise<
   const folder = mkdtempSync(join(tmpdir(), 'family-tree-'));
   const app = await createApp({
     baseUrl: BASE, databaseUrl: `file:${join(folder, 'family.db')}`, secret: 'a-secret-only-for-tests-0123456789',
-    email: { from: 'Family tree <tree@localhost>' }, timers: false, ...mode,
+    email: { from: 'Family tree <tree@localhost>' }, media: {}, timers: false, ...mode,
   });
   return {
     app,

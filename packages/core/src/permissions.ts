@@ -18,6 +18,7 @@ const suggest = (reason: string): Step => ({ outcome: 'suggest', reason });
 const deny = (reason: string): Step => ({ outcome: 'deny', reason });
 
 const OUTSIDE = 'This is outside your branch, so it goes to that branch’s steward for review.';
+const JOINS = 'Connecting someone from another branch changes that branch too, so it needs review.';
 
 export function decideEdit(state: State, actor: Actor, ops: readonly Op[], settings: RuleSettings, thisYear: number = new Date().getFullYear()): Decision {
   const ix = indexOf(state);
@@ -53,6 +54,11 @@ export function decideEdit(state: State, actor: Actor, ops: readonly Op[], setti
 
   function decide(op: Op, index: number): Step {
     if (op.type === 'entity.set') return deny('Only undo can put things back.');
+    // A photo cannot wait for review, where nobody could look at it first. It is set by whoever may edit the person outright.
+    if ((op.type === 'person.update' || op.type === 'person.create') && op.set?.portrait && !admin) {
+      const where = op.type === 'person.update' && !actor.visitor ? reach(op.person) : null;
+      if (!where || where === 'new') return deny('A photo can be added by the person themselves, their branch’s steward or an admin.');
+    }
     if (actor.visitor) {
       if (!settings.visitorsCanSuggest) return deny('Sign in to suggest a change.');
       return op.type.startsWith('memory.') ? deny('Sign in to share a memory.') : suggest('The family will look at it.');
@@ -90,24 +96,31 @@ export function decideEdit(state: State, actor: Actor, ops: readonly Op[], setti
       }
       case 'person.restore':
         return suggest('Restoring from the compost needs an admin.');
+      /*
+       * A partner or a child joins the branch, and from then on its steward may
+       * edit them. So only someone new, or someone the steward already looks
+       * after, can be joined without review. Anyone else on the tree would be
+       * pulled out from under their own steward.
+       */
       case 'union.create': {
-        const hasCore = (op.partners ?? []).some(isCore);
+        const partners = op.partners ?? [];
+        const hasCore = partners.some(isCore);
         if (op.ref) newUnions.set(op.ref, hasCore);
         if (!hasCore) return suggest(OUTSIDE);
-        for (const id of op.partners) if (newPeople.has(id)) attach(id, newPartners);
+        if (!partners.every(reach)) return suggest(JOINS);
+        for (const id of partners) if (newPeople.has(id)) attach(id, newPartners);
         return APPLY;
       }
       case 'union.add_partner':
         if (!unionHasCore(op.union)) return suggest(OUTSIDE);
+        if (!reach(op.person)) return suggest(JOINS);
         if (newPeople.has(op.person)) attach(op.person, newPartners);
         return APPLY;
-      case 'child.link': {
-        const isNew = newPeople.has(op.child);
+      case 'child.link':
         if (!unionHasCore(op.union)) return suggest(OUTSIDE);
-        if (!isNew && !reach(op.child)) return suggest('Connecting someone from another branch changes that branch too, so it needs review.');
+        if (!reach(op.child)) return suggest(JOINS);
         attach(op.child, newCore);
         return APPLY;
-      }
       case 'union.update':
       case 'union.remove':
       case 'union.remove_partner':

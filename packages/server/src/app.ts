@@ -23,6 +23,7 @@ import { forbidden, notFound } from './errors';
 import { hashToken, newToken } from './ids';
 import { Scheduler } from './jobs';
 import type { Job } from './jobs';
+import { Media, createMediaStore } from './media';
 import { Members } from './members';
 import type { ActiveConnection, UserRow } from './members';
 import { Hub } from './realtime';
@@ -41,6 +42,7 @@ export interface App {
   members: Members;
   edits: Edits;
   views: Views;
+  media: Media;
   mailer: Mailer;
   auth: Auth;
   scheduler: Scheduler;
@@ -97,7 +99,8 @@ export async function createApp(config: AppConfig): Promise<App> {
   await store.load();
   const hub = new Hub();
   const members = new Members(db, store);
-  const edits = new Edits(db, store, members, hub);
+  const media = new Media(db, createMediaStore(config), store);
+  const edits = new Edits(db, store, members, hub, media);
   const views = new Views(store, edits, members);
   const mailer = createMailer(config.email);
   const links = new Map<string, string>();
@@ -140,6 +143,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
   const jobs: Job[] = [
     { name: 'compost', everyHours: 24, run: async () => `${await edits.sweepCompost()} removed for good` },
+    { name: 'photos', everyHours: 24, run: async () => `${await media.sweep()} unused photos removed` },
   ];
   // The nightly snapshot is written beside the database, so it is offered when the database is a file
   if (config.databaseUrl.startsWith('file:')) {
@@ -149,7 +153,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const scheduler = new Scheduler(db, jobs);
 
   const app: App = {
-    config, db, store, hub, members, edits, views, mailer, auth, scheduler,
+    config, db, store, hub, members, edits, views, media, mailer, auth, scheduler,
     oauth: oauthPossible(config.baseUrl),
     handle: (request) => handle(request),
     async userOf(request) {

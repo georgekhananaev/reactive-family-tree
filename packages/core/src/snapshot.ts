@@ -25,7 +25,7 @@ export function openSnapshot(state: State, { family, rootId, settings, year = ne
     people.push({
       id: p.id, given: p.given, family: p.family, birthName: p.birthName, sex: p.sex,
       born: bornYear(ix, p.id), died: diedYear(ix, p.id), gone: !isLiving(state, ix, p, settings, year),
-      privacy: p.privacy, pending: null, editing: 'none',
+      privacy: p.privacy, portrait: p.portrait, pending: null, editing: 'none',
     });
   }
   const unions: TreeUnion[] = [];

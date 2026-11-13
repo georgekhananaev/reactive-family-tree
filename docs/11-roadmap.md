@@ -37,7 +37,7 @@ A first full build exists (November 2026). Its scope was set as "everything the 
 
 **Still to come, as planned below**
 
-- Photos, galleries and sources (phase 4 and 7).
+- Galleries and sources (phase 4 and 7). One portrait per person is built: uploaded and placed in the edit form, kept in a folder or an S3-compatible bucket, and shown on the tree by the faces switch.
 - Several names per person, and Hebrew with right-to-left layout (phase 4 and 9).
 - The Roots, Rings, Grove and Outline views, and the layout engine moved into `core` (phase 1 and 2).
 - The extra gestures: swiping a card to the next sibling, dropping a bud on someone to connect two people, selecting several, redo (phase 7).

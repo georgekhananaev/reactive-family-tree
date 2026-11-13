@@ -22,6 +22,12 @@ export interface AppConfig {
     resendKey?: string;
   };
   google?: { clientId: string; clientSecret: string };
+  /* Where photos are kept: a bucket when one is set up, otherwise a folder (beside the database unless `dir` names another). */
+  media: {
+    dir?: string;
+    /* Any S3-compatible store. For Cloudflare R2 the endpoint is "https://<account id>.r2.cloudflarestorage.com" and the region "auto". */
+    s3?: { endpoint: string; bucket: string; accessKeyId: string; secretAccessKey: string; region: string };
+  };
   /* Run the daily jobs on a timer inside this process. Off on serverless hosts, where the host's cron calls /api/jobs. */
   timers: boolean;
   /* Lets the host's cron run the daily jobs. */
@@ -34,6 +40,9 @@ export function readConfig(env: Env = process.env): AppConfig {
   const port = env.PORT ?? '3000';
   const google = env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } : undefined;
   const demoMode = env.DEMO_MODE === '1' || env.DEMO_MODE === 'true';
+  const s3 = env.S3_ENDPOINT && env.S3_BUCKET && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY
+    ? { endpoint: env.S3_ENDPOINT.replace(/\/+$/, ''), bucket: env.S3_BUCKET, accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY, region: env.S3_REGION ?? 'auto' }
+    : undefined;
   return {
     baseUrl: (env.PUBLIC_URL ?? `http://localhost:${port}`).replace(/\/+$/, ''),
     // The made-up family gets a folder of its own, so trying the demo never touches a real family's file
@@ -44,6 +53,7 @@ export function readConfig(env: Env = process.env): AppConfig {
     setupToken: env.SETUP_TOKEN,
     email: { from: env.EMAIL_FROM ?? 'Family tree <tree@localhost>', smtpUrl: env.SMTP_URL, resendKey: env.RESEND_API_KEY },
     google,
+    media: { dir: env.MEDIA_DIR, s3 },
     timers: env.JOB_TIMERS !== '0',
     jobsToken: env.JOBS_TOKEN,
   };

@@ -48,7 +48,7 @@ export function viewOf(state: State, ix: FamilyIndex, viewer: Viewer, scope: Sco
 }
 
 /* A fact can be more private than the person it is about. */
-export function factVisible(viewer: Viewer, scope: Scope, fact: Fact, personId: string): boolean {
+export function factVisible(viewer: Viewer, scope: Scope, fact: Pick<Fact, 'privacy'>, personId: string): boolean {
   if (fact.privacy === 'private') return isAdmin(viewer) || viewer.personId === personId || scope.core.has(personId) || scope.partners.has(personId);
   if (fact.privacy === 'members') return !viewer.visitor;
   return true;

@@ -98,9 +98,30 @@ test('who may change what', () => {
   assert.equal(outcome(steward, newChild(id.g)), 'suggest', 'a sibling of the anchor is outside');
   assert.equal(outcome(steward, [{ type: 'child.link', union: id.ab, child: id.zed }]), 'suggest', 'pulling in someone from another branch needs review');
   assert.equal(outcome(steward, [{ type: 'union.create', partners: [id.ben, id.zed] }]), 'suggest', 'a partner’s other marriages belong to their own family');
+  // Joining someone who is already on the tree would hand them to this steward, so it is never done without review
+  assert.equal(outcome(steward, [{ type: 'union.create', partners: [id.cleo, id.zed] }]), 'suggest', 'a partner from another branch cannot be pulled in');
+  assert.equal(outcome(steward, [{ type: 'union.create', partners: [id.cleo, id.gran] }]), 'suggest', 'nor someone above the anchor');
+  assert.equal(outcome(steward, [
+    { type: 'union.create', ref: '$solo', partners: [id.cleo] },
+    { type: 'union.add_partner', union: '$solo', person: id.zed },
+  ]), 'suggest', 'nor by adding them to a partnership afterwards');
+  assert.equal(outcome(steward, [
+    { type: 'person.create', ref: '$p', set: { given: 'Partner' } },
+    { type: 'union.create', ref: '$solo', partners: [id.cleo] },
+    { type: 'union.add_partner', union: '$solo', person: '$p' },
+  ]), 'apply', 'someone new can still be added as a partner');
   assert.equal(outcome(steward, [{ type: 'person.create', ref: '$x', set: { given: 'Loose' } }]), 'suggest', 'an unconnected person needs an admin');
   assert.equal(outcome(steward, [{ type: 'person.remove', person: id.anna }]), 'suggest', 'removing your own leaf needs an admin');
   assert.equal(outcome(steward, [{ type: 'person.remove', person: id.cleo }]), 'apply');
+
+  // a photo is set outright or not at all: it cannot wait for review, where nobody could look at it first
+  const photo = 'a'.repeat(32);
+  assert.equal(outcome(steward, [{ type: 'person.update', person: id.cleo, set: { portrait: photo } }]), 'apply');
+  assert.equal(outcome(steward, [{ type: 'person.update', person: id.zed, set: { portrait: photo } }]), 'deny');
+  assert.equal(outcome(steward, [{ type: 'person.update', person: id.zed, set: { portrait: null } }]), 'suggest', 'taking one off can be suggested');
+  assert.equal(outcome(visitor, [{ type: 'person.update', person: id.gran, set: { portrait: photo } }]), 'deny');
+  assert.equal(outcome(steward, [{ type: 'person.create', ref: '$n', set: { given: 'New', portrait: photo } }, { type: 'child.link', union: id.ab, child: '$n' }]), 'deny');
+  assert.equal(outcome(admin, [{ type: 'person.update', person: id.zed, set: { portrait: photo } }]), 'apply');
 
   // a member with no branch: own leaf only
   assert.equal(outcome(member, rename(id.zed)), 'apply');
@@ -145,6 +166,7 @@ test('operations refuse nonsense and name what was wrong', () => {
   assert.equal(codeOf([{ type: 'child.link', union: id.ab, child: id.anna }]), 'own_parent');
   assert.equal(codeOf([{ type: 'union.add_partner', union: id.ab, person: id.zed }]), 'too_many_partners');
   assert.equal(codeOf([{ type: 'child.link', union: '$nothing', child: id.zed }]), 'unknown_reference');
+  assert.equal(codeOf([{ type: 'person.update', person: id.zed, set: { portrait: '../../etc/passwd' } }]), 'bad_value', 'a photo is named by its id and nothing else');
   assert.equal(codeOf([{ type: 'launch.rocket' }]), 'unknown_operation');
 });
 

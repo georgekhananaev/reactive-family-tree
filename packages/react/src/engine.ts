@@ -59,6 +59,8 @@ export interface TreeEngineOptions {
   world: HTMLElement;
   svg: SVGSVGElement;
   on: TreeEngineEvents;
+  /* Where someone's photo is, if they have one. Asked only while faces are shown. */
+  portraitOf?(person: PersonLeaf): string | null;
 }
 
 /* The family as the engine needs it: the people, how they are joined, and whose family to start from. */
@@ -165,6 +167,8 @@ interface Leaf {
   fresh: boolean;
   inked: boolean;
   angle: number;
+  /* Their photo, once faces have been asked for and they have one. It stays upright while the leaf leans along its branch. */
+  face?: SVGGElement;
   labelEl?: SVGGElement | null;
   yearsEl?: SVGTextElement | null;
   yearsNow?: string;
@@ -321,6 +325,29 @@ const branchWidth = (count: number): number => BRANCH_BASE * Math.sqrt(count);
  * piece of markup in this file: it is made of fixed strings and numbers, and names reach the page through
  * textContent. LeafPortrait.tsx draws this same leaf as elements.
  */
+/*
+ * A face is about as wide as its leaf is long, and sits far enough out along
+ * it that partners, whose leaves share a fork, stay clear of each other. A
+ * short stem reaches it. tree.css moves a leaf's rings out by the same amount.
+ */
+const FACE_CENTRE = -49;
+export const FACE_RADIUS = 28;
+
+/*
+ * What a name has to keep clear of, as distances from the fork along the leaf:
+ * the round patch that stands for it when other names look for room, then its
+ * middle, its far end and half its width.
+ */
+interface Body {
+  patchAt: number;
+  patch: number;
+  mid: number;
+  reach: number;
+  half: number;
+}
+const LEAF_BODY: Body = { patchAt: 38, patch: 25, mid: 40, reach: 66, half: 28 };
+const FACE_BODY: Body = { patchAt: -FACE_CENTRE, patch: FACE_RADIUS + 2, mid: -FACE_CENTRE, reach: FACE_RADIUS - FACE_CENTRE, half: FACE_RADIUS };
+
 function leafMarkup(shape: LeafShape, depth: number, goldIndex: number): string {
   return '<circle class="glow cool" cx="0" cy="-36" r="46" fill="url(#leafGlow)"/>' +
     '<circle class="glow warm" cx="0" cy="-36" r="46" fill="url(#warmGlow)"/>' +
@@ -328,6 +355,7 @@ function leafMarkup(shape: LeafShape, depth: number, goldIndex: number): string 
     '<circle class="tint-ring" cx="0" cy="-36" r="34"/>' +
     '<circle class="pulse" cx="0" cy="-36" r="30"/>' +
     '<path class="stem" d="M0,0 L0,-12"/>' +
+    `<path class="stem face-stem" d="M0,-12 L0,${FACE_CENTRE + FACE_RADIUS}"/>` +
     `<path class="hatch" d="${shape.d}" fill="url(#hatch)"/>` +
     `<path class="blade g${Math.min(depth, 4)} au${goldIndex}" d="${shape.d}"/>` +
     `<path class="wash" d="${shape.d}" fill="url(#wash)"/>` +
@@ -352,6 +380,8 @@ export class TreeEngine {
   private readonly world: HTMLElement;
   private readonly svg: SVGSVGElement;
   private readonly on: TreeEngineEvents;
+  private readonly portraitOf: TreeEngineOptions['portraitOf'];
+  private faces = false;
 
   private year: number;
   private hoverId: string | null;
@@ -404,11 +434,12 @@ export class TreeEngine {
   private frameId = 0;
   private cameraFrame = 0;
 
-  constructor({ stage, world, svg, on }: TreeEngineOptions) {
+  constructor({ stage, world, svg, on, portraitOf }: TreeEngineOptions) {
     this.stage = stage;
     this.world = world;
     this.svg = svg;
     this.on = on;
+    this.portraitOf = portraitOf;
     this.still = /(?:^|[#&])still(?:&|$)/.test(location.hash) || matchMedia('(prefers-reduced-motion: reduce)').matches;
     document.documentElement.classList.toggle('still', this.still);
 
@@ -675,6 +706,7 @@ export class TreeEngine {
     this.drawTrunk();
     for (const n of this.nodes) if (n.parent) this.drawBranch(n);
     this.svg.classList.toggle('editing', this.editing);
+    this.svg.classList.toggle('faces', this.faces);
     this.drawHandles();
     // Whoever was chosen stays chosen, without the ripple of being chosen again
     this.leafOf.get(this.selectedId)?.el.classList.add('selected', 'kept');
@@ -700,7 +732,49 @@ export class TreeEngine {
     const leaf: Leaf = { person, node, offset, scale, isPartner, el: group, on, state, fresh: this.freshIds.has(person.id), inked: !isPartner && node.inked, angle: 0 };
     this.leaves.push(leaf);
     if (!isPartner || !this.leafOf.has(person.id)) this.leafOf.set(person.id, leaf);
+    if (this.faces) this.addFace(leaf);
     return leaf;
+  }
+
+  /*
+   * A round photo over the leaf, for someone who has one. The leaf steps back
+   * only once the photo has arrived, and comes back if it never does.
+   */
+  private addFace(leaf: Leaf): void {
+    const person = unmasked(leaf.person);
+    const address = person?.portrait ? this.portraitOf?.(person) : null;
+    const sway = leaf.el.querySelector('.sway');
+    if (!address || !sway || leaf.face) return;
+    const face = el('g', { class: 'face' });
+    const inner = el('g', { class: 'face-in' }, face);
+    // An edge in the colour of the page, so that where two faces meet they read as one in front of the other
+    el('circle', { class: 'face-edge', r: String(FACE_RADIUS + 2.6) }, inner);
+    const photo = el('image', { href: address, x: String(-FACE_RADIUS), y: String(-FACE_RADIUS), width: String(FACE_RADIUS * 2), height: String(FACE_RADIUS * 2), 'clip-path': 'url(#faceClip)', preserveAspectRatio: 'xMidYMid slice' }, inner);
+    el('circle', { class: 'face-ring', r: String(FACE_RADIUS) }, inner);
+    photo.addEventListener('load', () => leaf.el.classList.add('has-face'), { once: true });
+    photo.addEventListener('error', () => {
+      leaf.el.classList.remove('has-face');
+      face.remove();
+      leaf.face = undefined;
+    }, { once: true });
+    sway.insertBefore(face, sway.querySelector('.hit'));
+    leaf.face = face;
+    this.turnFace(leaf);
+  }
+
+  /* Keep a face level, whatever way its leaf leans. */
+  private turnFace(leaf: Leaf): void {
+    leaf.face?.setAttribute('transform', `translate(0 ${FACE_CENTRE}) rotate(${((-leaf.angle * 180) / Math.PI).toFixed(1)})`);
+  }
+
+  /* Show people's photos in place of their leaves, or go back to leaves. */
+  setFaces(faces: boolean): void {
+    if (faces === this.faces) return;
+    this.faces = faces;
+    this.svg.classList.toggle('faces', faces);
+    if (faces) for (const leaf of this.leaves) this.addFace(leaf);
+    // A face reaches further than a leaf, so the names step out of its way, and back
+    if (this.shift >= 1) this.placeLabels();
   }
 
   /* The tree is one stop for the Tab key. Arrow keys travel from there along the family. */
@@ -737,6 +811,7 @@ export class TreeEngine {
       for (const leaf of n.leaves) {
         leaf.angle = base + leaf.offset;
         leaf.el.setAttribute('transform', `translate(${n.x.toFixed(1)} ${n.y.toFixed(1)}) rotate(${((leaf.angle * 180) / Math.PI).toFixed(1)}) scale(${leaf.scale})`);
+        this.turnFace(leaf);
       }
       if (n.blossomEl) n.blossomEl.setAttribute('transform', `translate(${n.x.toFixed(1)} ${n.y.toFixed(1)})`);
       if (n.budEl) n.budEl.setAttribute('transform', `translate(${(n.x + n.dir.x * 86).toFixed(1)} ${(n.y + n.dir.y * 86).toFixed(1)})`);
@@ -746,9 +821,11 @@ export class TreeEngine {
   /* Each name tries a few spots around its leaf and takes the one that overlaps the least. */
   private placeLabels(): void {
     this.layer.labels.replaceChildren();
-    const blobs = this.leaves.map((leaf) => ({
-      leaf, x: leaf.node.x + Math.sin(leaf.angle) * 38 * leaf.scale, y: leaf.node.y - Math.cos(leaf.angle) * 38 * leaf.scale, r: 25 * leaf.scale,
-    }));
+    const bodyOf = (leaf: Leaf): Body => (this.faces && leaf.face ? FACE_BODY : LEAF_BODY);
+    const blobs = this.leaves.map((leaf) => {
+      const body = bodyOf(leaf), along = body.patchAt * leaf.scale;
+      return { leaf, face: body === FACE_BODY, x: leaf.node.x + Math.sin(leaf.angle) * along, y: leaf.node.y - Math.cos(leaf.angle) * along, r: body.patch * leaf.scale };
+    });
     const placed: LabelBox[] = [];
     const boxAt = (x: number, y: number, ox: number, oy: number, width: number): LabelBox => {
       const box: LabelBox = { x, y, anchor: 'middle', nameDy: 0, yearsDy: 0, left: 0, right: 0, top: 0, bottom: 0 };
@@ -778,7 +855,8 @@ export class TreeEngine {
         if (box.left < other.right + 4 && box.right > other.left - 4 && box.top < other.bottom + 2 && box.bottom > other.top - 2) cost += 3;
       }
       for (const blob of blobs) {
-        if (blob.leaf === self) continue;
+        // A name may lean over its own leaf, which is narrow. A face is round and wide, and nobody's name crosses it.
+        if (blob.leaf === self && !blob.face) continue;
         const nx = Math.max(box.left, Math.min(blob.x, box.right)), ny = Math.max(box.top, Math.min(blob.y, box.bottom));
         if (Math.hypot(nx - blob.x, ny - blob.y) < blob.r) cost += 2;
       }
@@ -792,11 +870,14 @@ export class TreeEngine {
       const dx = Math.sin(leaf.angle), dy = -Math.cos(leaf.angle), px = -dy, py = dx;
       const name = this.nameOf(leaf.person);
       const width = Math.max(name.length * NAME_SIZE * 0.58, 9 * YEARS_SIZE * 0.5);
-      const tip = 66 * s + 12, side = 28 * s + 10;
+      const body = bodyOf(leaf);
+      const tip = body.reach * s + 12, side = body.half * s + 10;
+      const mid = body.mid * s, high = (body.reach - 4) * s, low = (body.mid - 26) * s;
+      // Past the tip, beside the middle, further past the tip, beside the far end, beside the near end
       const spots = [
-        [dx * tip, dy * tip], [dx * 40 * s + px * side, dy * 40 * s + py * side], [dx * 40 * s - px * side, dy * 40 * s - py * side],
-        [dx * (tip + 22), dy * (tip + 22)], [dx * 62 * s + px * side, dy * 62 * s + py * side], [dx * 62 * s - px * side, dy * 62 * s - py * side],
-        [dx * 14 * s + px * (side + 8), dy * 14 * s + py * (side + 8)], [dx * 14 * s - px * (side + 8), dy * 14 * s - py * (side + 8)],
+        [dx * tip, dy * tip], [dx * mid + px * side, dy * mid + py * side], [dx * mid - px * side, dy * mid - py * side],
+        [dx * (tip + 22), dy * (tip + 22)], [dx * high + px * side, dy * high + py * side], [dx * high - px * side, dy * high - py * side],
+        [dx * low + px * (side + 8), dy * low + py * (side + 8)], [dx * low - px * (side + 8), dy * low - py * (side + 8)],
       ];
       // The first spot always costs less than Infinity, so one of them is always taken
       let best!: LabelBox, bestCost = Infinity;

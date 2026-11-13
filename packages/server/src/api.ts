@@ -73,7 +73,7 @@ async function readBody(request: Request): Promise<Body> {
 }
 
 export function createApi(app: App): (request: Request) => Promise<Response> {
-  const { config, store, members, edits, views, hub } = app;
+  const { config, store, members, edits, views, media, hub } = app;
   const routes: Route[] = [];
   const on = (method: string, pattern: string, guard: Guard, handler: Handler) => {
     const keys: string[] = [];
@@ -132,6 +132,21 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
   on('GET', '/api/tree', anyone, (ctx) => views.tree(ctx.actor));
   on('GET', '/api/people', anyone, (ctx) => ({ people: views.search(ctx.actor, ctx.query.get('q')) }));
   on('GET', '/api/people/:id', anyone, (ctx) => views.person(ctx.actor, id(ctx)));
+  /*
+   * Photos. A relative sends one, already cropped and shrunk by the browser,
+   * and gets back its id to put on a person through an ordinary edit. Reading
+   * goes by person, never by id, so a photo is seen exactly by those who may
+   * see the person.
+   */
+  on('POST', '/api/media', member, async (ctx) => ({ id: await media.save(ctx.actor, ctx.body.image) }));
+  on('GET', '/api/people/:id/portrait', anyone, async (ctx) => {
+    const photo = views.portraitOf(ctx.actor, id(ctx));
+    const bytes = photo ? await media.read(photo) : null;
+    if (!photo || !bytes) throw notFound('There is no photo here.');
+    // The address carries the photo's id, so a new photo is a new address and this one never changes
+    const fixed = ctx.query.get('v') === photo;
+    return new Response(bytes, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': fixed ? 'private, max-age=31536000, immutable' : 'private, no-cache', 'X-Content-Type-Options': 'nosniff' } });
+  });
   on('GET', '/api/relationship', anyone, (ctx) => views.relationship(ctx.actor, text(ctx.query.get('from')), text(ctx.query.get('to'))));
 
   /* ----- Edits: the one way anything changes ----- */
@@ -335,6 +350,7 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
       };
       route.guard(ctx);
       const result = await route.handler(ctx);
+      if (result instanceof Response) return result;
       if (result && typeof result === 'object' && 'download' in result) {
         const file = (result as Download).download;
         return new Response(file.body, { headers: { 'Content-Type': file.type, 'Content-Disposition': `attachment; filename="${file.name}"`, 'Cache-Control': 'no-store' } });

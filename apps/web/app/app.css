@@ -199,6 +199,42 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--action); ou
   .title h1 { font-size: 1.25rem; }
 }
 
+/* ---------- Photos: on the card, in the edit form, and the switch between leaves and faces ---------- */
+
+/* A photo is a round button: pressed, it opens large over the page until it is pressed again */
+.photo { display: block; min-height: 0; padding: 0; border: 0; border-radius: 50%; overflow: hidden; cursor: zoom-in; }
+.photo img, .photo-large img { display: block; width: 100%; height: 100%; object-fit: cover; }
+#card .medal .photo { width: 100%; height: 100%; }
+/* The medal stops cutting at its edge, so the ring that shows where the keyboard is can be seen */
+#card .medal:has(.photo) { overflow: visible; }
+.photo-large { margin: auto; padding: 0; border: 0; background: none; overflow: visible; animation: photo-in 0.32s cubic-bezier(0.2, 1.2, 0.3, 1); }
+.photo-large::backdrop { background: rgba(8, 14, 24, 0.62); animation: veil-in 0.25s ease-out; }
+.photo-large button { display: block; width: min(240px, 72vw); height: auto; aspect-ratio: 1; padding: 0; border: 0; border-radius: 50%; overflow: hidden; cursor: zoom-out; box-shadow: 0 0 0 4px var(--card), 0 24px 60px -18px rgba(0, 0, 0, 0.7); }
+@keyframes photo-in { from { opacity: 0; transform: scale(0.5); } }
+@keyframes veil-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .photo-large, .photo-large::backdrop { animation: none; }
+}
+.zoom button[aria-pressed="true"], .zoom button[aria-pressed="true"]:hover { background: var(--action); color: var(--on-action); }
+
+.photo-field { display: grid; gap: 8px; }
+.photo-label { font-size: 0.875rem; color: var(--muted); }
+.photo-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.photo-now { flex: none; width: 64px; height: 64px; border-radius: 50%; overflow: hidden; background: var(--halo); border: 1px solid var(--line); }
+.photo-now img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.photo-now span { display: block; width: 100%; height: 100%; }
+
+/* Placing a face: the picture moves under a round window, the same window it is seen through on the tree */
+.crop { display: grid; justify-items: center; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--halo); }
+.crop-view { position: relative; overflow: hidden; border-radius: 50%; cursor: grab; touch-action: none; user-select: none; box-shadow: 0 0 0 3px var(--action); background: var(--line); }
+.crop-view:active { cursor: grabbing; }
+.crop-view:focus-visible { outline: 3px solid var(--action); outline-offset: 5px; }
+.crop-view img { position: absolute; left: 50%; top: 50%; max-width: none; pointer-events: none; }
+.crop-zoom { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 260px; font-size: 0.875rem; color: var(--muted); }
+.crop-zoom input { flex: 1; accent-color: var(--action); }
+.crop .hint-line { margin: 0; text-align: center; }
+.crop .form-actions { margin: 0; }
+
 /* ---------- Reduced motion, and the #still address option ---------- */
 
 .still .top, .still .timebar { animation: none !important; }
@@ -771,4 +807,4 @@ dl.keys dd { margin: 0; color: var(--muted); }
 
 /* ---------- Reduced motion, and the #still address option ---------- */
 
-.still .toast, .still .zoom, .still .banner, .still .petal-item, .still .card-body, .still .card-ask, .still .drawer-page { animation: none !important; }
+.still .toast, .still .zoom, .still .banner, .still .petal-item, .still .card-body, .still .card-ask, .still .drawer-page, .still .photo-large, .still .photo-large::backdrop { animation: none !important; }

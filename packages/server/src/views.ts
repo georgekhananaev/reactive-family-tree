@@ -5,11 +5,12 @@
  */
 
 import {
-  ADDITIVE, applyOps, birthUnions, bornYear, childrenOf, cloneState, diedYear, factVisible, factsOf, firstFact, formatDate, fullName, hostOf, indexOf,
-  isAdmin, isLiving, livingChildren, livingPartners, parentsOf, partnersOf, pathBetween, person, present, scopeOf, unionsOf, validate, viewOf,
+  ADDITIVE, applyOps, birthUnions, bornYear, childrenOf, cloneState, factVisible, factsOf, formatDate, fullName, hostOf, indexOf,
+  isAdmin, isLiving, livingChildren, livingPartners, parentsOf, partnersOf, pathBetween, person, present, scopeOf, unionsOf, validate, viewOf, yearOf,
 } from '@reactive-family-tree/core';
 import type {
-  Actor, Change, HealthEntry, HealthReport, PendingMark, Person, PersonDetail, Reach, Relationship, RelativeBrief, Scope, SearchHit, State, TreePerson, TreeSnapshot, TreeUnion,
+  Actor, Change, Fact, FactType, HealthEntry, HealthReport, PendingMark, Person, PersonDetail, Reach, Relationship, RelativeBrief, Scope, SearchHit, State, TreePerson, TreeSnapshot,
+  TreeUnion,
 } from '@reactive-family-tree/core';
 
 import type { Edits } from './edits';
@@ -25,6 +26,14 @@ interface Lens {
   scope: Scope;
   view(p: Person): 'full' | 'masked';
   living(p: Person): boolean;
+  /*
+   * The first fact of a kind about someone, if this viewer may see it. A fact
+   * can be more private than its person, so the years on a leaf and the words
+   * a search looks through come from here and never straight from the record.
+   */
+  fact(personId: string, type: FactType): Fact | null;
+  born(personId: string): number | null;
+  died(personId: string): number | null;
   /* Whether this viewer's change to this person would publish, wait for review, or is not offered at all. */
   editing(id: string): Reach;
 }
@@ -43,8 +52,11 @@ export class Views {
     const ix = indexOf(state);
     const scope = scopeOf(this.state, indexOf(this.state), actor.anchors);
     const year = thisYear();
+    const fact = (personId: string, type: FactType) => factsOf(ix, personId).find((known) => known.type === type && factVisible(actor, scope, known, personId)) ?? null;
     return {
-      ix, scope,
+      ix, scope, fact,
+      born: (personId) => yearOf(fact(personId, 'birth')?.date),
+      died: (personId) => yearOf(fact(personId, 'death')?.date),
       view: (p) => viewOf(state, ix, actor, scope, p, this.settings, year),
       living: (p) => isLiving(state, ix, p, this.settings, year),
       editing: (id) => {
@@ -107,8 +119,8 @@ export class Views {
       shown.set(p.id, p.id);
       people.push({
         id: p.id, given: p.given, family: p.family, birthName: p.birthName, sex: p.sex,
-        born: bornYear(lens.ix, p.id), died: diedYear(lens.ix, p.id),
-        gone: !lens.living(p), privacy: p.privacy, pending, editing: pending ? 'none' : lens.editing(p.id),
+        born: lens.born(p.id), died: lens.died(p.id),
+        gone: !lens.living(p), privacy: p.privacy, portrait: p.portrait, pending, editing: pending ? 'none' : lens.editing(p.id),
       });
     }
 
@@ -144,7 +156,7 @@ export class Views {
       const other = person(state, personId);
       if (!other) return null;
       if (lens.view(other) === 'masked') return { id: null, name: 'Living relative', masked: true };
-      return { id: other.id, name: fullName(other), born: bornYear(ix, other.id), died: diedYear(ix, other.id) };
+      return { id: other.id, name: fullName(other), born: lens.born(other.id), died: lens.died(other.id) };
     };
     const briefs = (ids: string[]) => ids.map(brief).filter((relative): relative is RelativeBrief => relative !== null);
     const facts = factsOf(ix, id).filter((fact) => factVisible(actor, lens.scope, fact, id)).map((fact) => ({
@@ -167,12 +179,19 @@ export class Views {
 
     return {
       id, given: p.given, family: p.family, birthName: p.birthName, name: fullName(p), sex: p.sex, living: p.living,
-      gone: !lens.living(p), privacy: p.privacy, consented: Boolean(p.consentAt), bio: p.bio,
-      born: bornYear(ix, id), died: diedYear(ix, id), facts, unions, siblings, memories, waiting,
+      gone: !lens.living(p), privacy: p.privacy, consented: Boolean(p.consentAt), bio: p.bio, portrait: p.portrait,
+      born: lens.born(id), died: lens.died(id), facts, unions, siblings, memories, waiting,
       parents: briefs(parentsOf(state, ix, id)), parentUnionId: born?.id ?? null,
       isSelf: id === actor.personId, editing,
       canRemove: isAdmin(actor) || (editing === 'apply' && id !== actor.personId && !childrenOf(state, ix, id).length),
     };
+  }
+
+  /* The id of someone's photo, if they have one and this viewer may see them. */
+  portraitOf(actor: Actor, id: string): string | null {
+    if (this.closedTo(actor)) return null;
+    const p = person(this.state, id);
+    return p && this.lens(actor).view(p) === 'full' ? p.portrait : null;
   }
 
   search(actor: Actor, query: unknown): SearchHit[] {
@@ -183,9 +202,11 @@ export class Views {
     const results: SearchHit[] = [];
     for (const p of this.state.people.values()) {
       if (!present(p) || lens.view(p) === 'masked') continue;
-      const hay = `${p.given} ${p.family} ${p.birthName} ${bornYear(lens.ix, p.id) ?? ''} ${firstFact(lens.ix, p.id, 'birth')?.place ?? ''}`.toLowerCase();
+      // Only what this viewer may see is searched, or a hit would give away what the card hides
+      const born = lens.born(p.id);
+      const hay = `${p.given} ${p.family} ${p.birthName} ${born ?? ''} ${lens.fact(p.id, 'birth')?.place ?? ''}`.toLowerCase();
       if (words.every((word) => hay.includes(word))) {
-        results.push({ id: p.id, name: fullName(p), birthName: p.birthName, born: bornYear(lens.ix, p.id), died: diedYear(lens.ix, p.id) });
+        results.push({ id: p.id, name: fullName(p), birthName: p.birthName, born, died: lens.died(p.id) });
       }
     }
     return results.slice(0, 25);
@@ -217,7 +238,7 @@ export class Views {
     const label = (id: string): string => {
       const p = person(state, id);
       if (!p || lens.view(p) === 'masked') return 'Living relative (private)';
-      const born = bornYear(lens.ix, id), died = diedYear(lens.ix, id);
+      const born = lens.born(id), died = lens.died(id);
       const years = born ? ` (${born}${died ? `–${died}` : ''})` : '';
       return `${fullName(p)}${p.birthName ? ` born ${p.birthName}` : ''}${years} [${id}]`;
     };

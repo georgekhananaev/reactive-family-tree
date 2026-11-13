@@ -36,6 +36,8 @@ export interface Person {
   living: Living;
   privacy: Privacy;
   bio: string;
+  /* Their one photo: the id of a stored image, or nothing. On the tree it can take the leaf's place. */
+  portrait: string | null;
   /* When a living person chose, from their own account, to be public. */
   consentAt: string | null;
   deletedAt: string | null;
@@ -115,7 +117,7 @@ export interface Change<K extends EntityKind = EntityKind> {
 
 /* ---------- Operations: the only way the family changes ---------- */
 
-export type PersonFields = Pick<Person, 'given' | 'family' | 'birthName' | 'bio' | 'sex' | 'living' | 'privacy'>;
+export type PersonFields = Pick<Person, 'given' | 'family' | 'birthName' | 'bio' | 'sex' | 'living' | 'privacy' | 'portrait'>;
 export type UnionFields = Pick<Union, 'kind' | 'status' | 'host' | 'since'>;
 export type FactFields = Pick<Fact, 'type' | 'date' | 'place' | 'value' | 'note' | 'certainty' | 'privacy'>;
 

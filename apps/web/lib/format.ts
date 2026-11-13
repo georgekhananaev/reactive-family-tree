@@ -55,4 +55,8 @@ export function lifespan(person: { born?: number | null; died?: number | null })
   return person.died ? `${person.born} to ${person.died}` : `born ${person.born}`;
 }
 
+/* Where someone's photo is. The photo's own id is part of the address, so a new photo is fetched and an old one never is twice. */
+export const portraitUrl = (person: { id: string; portrait?: string | null }): string | null =>
+  (person.portrait ? `/api/people/${person.id}/portrait?v=${person.portrait}` : null);
+
 export const initialsOf = (name: string) => name.split(/\s+/).map((word) => word[0]).slice(0, 2).join('');
