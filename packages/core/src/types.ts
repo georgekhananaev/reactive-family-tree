@@ -215,6 +215,8 @@ export interface Decision {
 export interface Issue {
   code: string;
   message: string;
+  /* The people already on the tree whom the message names or gives away. It is kept from anyone who may not see one of them. */
+  people?: string[];
 }
 
 export interface Validation {

@@ -59,10 +59,23 @@ const owner: Guard = (ctx) => { member(ctx); if (ctx.actor.role !== 'owner') thr
 const json = (status: number, payload: unknown): Response =>
   new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
 
+/*
+ * What was sent, as JSON. It is counted as it arrives and dropped the moment
+ * it passes the limit, so that nobody can fill the server's memory by sending
+ * something enormous.
+ */
 async function readBody(request: Request): Promise<Body> {
-  if (request.method === 'GET') return {};
-  const raw = await request.text();
-  if (raw.length > MAX_BODY) throw new HttpError(413, 'That is too large to send.');
+  if (request.method === 'GET' || !request.body) return {};
+  const tooLarge = () => new HttpError(413, 'That is too large to send.');
+  if (Number(request.headers.get('content-length')) > MAX_BODY) throw tooLarge();
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  for await (const part of request.body as unknown as AsyncIterable<Uint8Array>) {
+    size += part.byteLength;
+    if (size > MAX_BODY) throw tooLarge();
+    parts.push(part);
+  }
+  const raw = Buffer.concat(parts).toString('utf8');
   if (!raw) return {};
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -101,7 +114,7 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
         id: ctx.user.id, name: ctx.user.name, email: ctx.user.email, role: roleOf(ctx.user), personId: ctx.user.personId, anchors: ctx.actor.anchors,
         hasPasskey: await members.hasPasskey(ctx.user.id),
       },
-      settings: publicSettings(store.settings),
+      settings: publicSettings(store.settings, Boolean(ctx.user)),
       counts: await edits.counts(ctx.actor),
       // Ready-made accounts, so the demo can be tried as every role. A real install has none.
       demoAccounts: offered.flatMap((account) => {
@@ -116,9 +129,11 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
   on('GET', '/api/seq', anyone, () => ({ seq: store.seq }));
 
   // With no email configured, a demo install hands the sign-in link to the page that asked for it
+  // Only for the ready-made accounts of the made-up family: a link to anyone else's account is never handed to a page.
   on('GET', '/api/demo/link', anyone, (ctx) => {
-    if (!config.demoMode) throw notFound();
-    return { link: app.takeLink(text(ctx.query.get('email'))) };
+    const email = text(ctx.query.get('email')).trim().toLowerCase();
+    if (!config.demoMode || !store.settings.demoAccounts.some((account) => account.email.toLowerCase() === email)) throw notFound();
+    return { link: app.takeLink(email) };
   });
 
   on('GET', '/api/invites/open', anyone, async (ctx): Promise<OpenInvite> => {
@@ -333,8 +348,10 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
     try {
       // A page on another site must not be able to act with this visitor's session
       const origin = request.headers.get('origin');
-      const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? url.host;
-      if (request.method !== 'GET' && origin && new URL(origin).host !== host) throw forbidden('Requests from other sites are not accepted.');
+      // The page is this site if it comes from the address the request was sent to, or from the address the tree is known by.
+      // The second is for a proxy that passes requests on under a name of its own.
+      const hosts = [request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? url.host, new URL(config.baseUrl).host];
+      if (request.method !== 'GET' && origin && !hosts.includes(new URL(origin).host)) throw forbidden('Requests from other sites are not accepted.');
 
       const user = await app.userOf(request);
       if (url.pathname === '/api/stream') return hub.stream(user?.id ?? null, request.signal);
@@ -344,11 +361,13 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
       if (!route || !match) throw notFound('There is nothing at that address.');
       await store.fresh();
       const ctx: Context = {
-        request, user, body: await readBody(request), query: url.searchParams,
+        request, user, body: {}, query: url.searchParams,
         actor: user ? await members.actorFor(user) : members.visitor(),
         params: Object.fromEntries(route.keys.map((key, index) => [key, decodeURIComponent(match[index + 1] ?? '')])),
       };
+      // Who may ask comes before what they sent: something sent to an address its sender may not use is turned away unread
       route.guard(ctx);
+      ctx.body = await readBody(request);
       const result = await route.handler(ctx);
       if (result instanceof Response) return result;
       if (result && typeof result === 'object' && 'download' in result) {

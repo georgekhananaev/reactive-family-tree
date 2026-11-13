@@ -50,7 +50,8 @@ export class Views {
 
   private lens(actor: Actor, state: State = this.state): Lens {
     const ix = indexOf(state);
-    const scope = scopeOf(this.state, indexOf(this.state), actor.anchors);
+    // Indexing the family is the costly part of a read, so it is done once when the two are the same family
+    const scope = scopeOf(this.state, state === this.state ? ix : indexOf(this.state), actor.anchors);
     const year = thisYear();
     const fact = (personId: string, type: FactType) => factsOf(ix, personId).find((known) => known.type === type && factVisible(actor, scope, known, personId)) ?? null;
     return {
@@ -134,8 +135,9 @@ export class Views {
       const host = hostOf(state, union);
       unions.push({
         id: union.id, partners: partners.map(sent), host: host ? sent(host) : null,
-        since: anyMasked ? null : union.since, status: union.status, kind: union.kind, pending: marks.get(union.id) ?? null,
-        children: livingChildren(state, union).map((child) => ({ id: sent(child.id), kind: child.kind })),
+        // Of a partnership with someone kept private, only that it is there is told. The same goes for how a private child came to the family.
+        since: anyMasked ? null : union.since, status: anyMasked ? 'unknown' : union.status, kind: anyMasked ? 'unknown' : union.kind, pending: marks.get(union.id) ?? null,
+        children: livingChildren(state, union).map((child) => ({ id: sent(child.id), kind: sent(child.id) === child.id ? child.kind : 'unknown' })),
       });
     }
     const root = this.settings.rootPersonId;
@@ -163,11 +165,17 @@ export class Views {
       id: fact.id, type: fact.type, date: fact.date, dateText: formatDate(fact.date), place: fact.place,
       value: fact.value, note: fact.note, certainty: fact.certainty, privacy: fact.privacy,
     }));
-    const unions = unionsOf(ix, id).map((union) => ({
-      id: union.id, kind: union.kind, status: union.status, since: union.since, host: hostOf(state, union),
-      partner: briefs(livingPartners(state, union).filter((other) => other !== id))[0] ?? null,
-      children: livingChildren(state, union).flatMap((child) => { const who = brief(child.id); return who ? [{ ...who, kind: child.kind }] : []; }),
-    }));
+    const unions = unionsOf(ix, id).map((union) => {
+      const partner = briefs(livingPartners(state, union).filter((other) => other !== id))[0] ?? null;
+      const host = hostOf(state, union);
+      // Of a partner who is kept private nothing is told: not who they are, which their id would give away, nor since when or how it stands
+      const kept = partner?.masked === true;
+      return {
+        id: union.id, kind: kept ? 'unknown' as const : union.kind, status: kept ? 'unknown' as const : union.status, since: kept ? null : union.since,
+        host: kept && host !== id ? null : host, partner,
+        children: livingChildren(state, union).flatMap((child) => { const who = brief(child.id); return who ? [{ ...who, kind: who.masked ? 'unknown' as const : child.kind }] : []; }),
+      };
+    });
     const born = birthUnions(ix, id)[0] ?? null;
     const siblings = born ? briefs(livingChildren(state, born).filter((child) => child.id !== id).map((child) => child.id)) : [];
     const memories = [...state.memories.values()].filter((m) => present(m) && m.personId === id && !actor.visitor)
@@ -269,13 +277,15 @@ export class Views {
     const people = [...state.people.values()].filter((p) => present(p) && mine(p.id));
     const entry = (p: Person): HealthEntry => ({ id: p.id, name: fullName(p), detail: '' });
 
+    const seen = (id: string): boolean => { const other = person(state, id); return !other || lens.view(other) === 'full'; };
     const everyone: Change[] = people.map((p) => ({ kind: 'people', id: p.id, before: p, after: p }));
     const check = validate(state, everyone);
     const report: HealthReport = {
       unnamed: people.filter((p) => !p.given).map(entry),
       noBirthDate: people.filter((p) => p.given && bornYear(ix, p.id) === null).map(entry),
       noParents: people.filter((p) => !parentsOf(state, ix, p.id).length && !partnersOf(state, ix, p.id).length).map(entry),
-      suspicious: [...new Map([...check.errors, ...check.warnings].filter((issue) => issue.code !== 'possible_duplicate').map((issue) => [issue.message, issue])).values()],
+      // An issue about someone in their care can still name a parent they may not see
+      suspicious: [...new Map([...check.errors, ...check.warnings].filter((issue) => issue.code !== 'possible_duplicate' && (issue.people ?? []).every(seen)).map((issue) => [issue.message, issue])).values()],
     };
     if (isAdmin(actor)) {
       const covered = new Set<string>();

@@ -1,18 +1,29 @@
 # docker compose -f docker/compose.yml up --build
+#
+# On a server, first say where people reach the tree, in a file named .env beside this one:
+#
+#   PUBLIC_URL=https://family.example.com
+#
+# Links in emails, sign-in and the address for AI clients are all built from it, and passkeys and
+# AI sign-in need https there. The first start prints a one-time setup link to the log:
+#
+#   docker compose -f docker/compose.yml logs tree
 services:
   tree:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     ports:
-      - "3000:3000"
+      # Reached from this machine only, by the proxy that gives the tree its https address (Caddy, nginx,
+      # Traefik, a tunnel). To open it to the network as it is, with no proxy, write "3000:3000".
+      - "127.0.0.1:3000:3000"
     environment:
-      # Where people reach the tree. Sign-in for AI clients needs https here, or localhost.
-      PUBLIC_URL: http://localhost:3000
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
       # Sending email is optional. Without it, sign-in links are written to the log and invitations are handed over as links.
       # SMTP_URL: smtp://user:password@smtp.example.com:587
       # EMAIL_FROM: Family tree <tree@example.com>
     volumes:
+      # The database, the photos and the nightly snapshots. Back this volume up somewhere else.
       - tree-data:/data
     restart: unless-stopped
 

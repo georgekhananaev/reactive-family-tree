@@ -25,6 +25,7 @@ import { AccountMenu, Avatar } from './AccountMenu';
 import { Drawer } from './Drawer';
 import type { OpenPanel } from './Drawer';
 import { Icon } from './Icon';
+import { PageNote } from './PageNote';
 import { PersonCard } from './PersonCard';
 import type { CardHandle } from './PersonCard';
 import { PetalMenu } from './PetalMenu';
@@ -59,8 +60,17 @@ type Theme = 'light' | 'dark';
 export function Explorer() {
   const session = useQuery({ queryKey: ['session'], queryFn: () => api.get<SessionInfo>('/api/session') });
   const tree = useQuery({ queryKey: ['tree'], queryFn: () => api.get<TreeSnapshot>('/api/tree') });
-  if (!session.data || !tree.data) return <div id="stage" />;
-  return <Family session={session.data} tree={tree.data} />;
+  if (session.data && tree.data) return <Family session={session.data} tree={tree.data} />;
+  // Until both have answered there is an empty stage. If one could not, say so and offer another try, where there would be nothing at all.
+  if (!session.error && !tree.error) return <div id="stage" />;
+  return (
+    <PageNote title="The family tree could not be loaded">
+      <p>The server did not answer. It may be starting, or the connection may be down.</p>
+      <div className="form-actions">
+        <button type="button" className="primary" onClick={() => { void session.refetch(); void tree.refetch(); }}>Try again</button>
+      </div>
+    </PageNote>
+  );
 }
 
 function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot }) {
@@ -86,7 +96,7 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
   const [playing, setPlaying] = useState(false);
   // A calm melody, and a quicker one while the years play. The family chooses which, and whether there is any.
   const [audition, setAudition] = useState<MelodyTrial | null>(null);
-  const { music: mode, playMusic, melody, playMelody } = session.settings;
+  const { music: mode, playMusic, melody, playMelody, latitude, longitude } = session.settings;
   const music = useTreeMusic(playing, { mode, playMusic, melody, playMelody, audition });
   // Leaves, or the faces of those who have a photo. Each person's own choice, kept on their device.
   const [faces, setFaces] = useState(false);
@@ -558,6 +568,8 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
         viewerId={user?.personId ?? null}
         focusId={focusId}
         year={shownYear}
+        playing={playing}
+        place={latitude === null || longitude === null ? null : { latitude, longitude }}
         editing={editing}
         selectedId={selectedId}
         matches={matches}

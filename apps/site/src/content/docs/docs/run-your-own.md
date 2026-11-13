@@ -72,7 +72,7 @@ You can set them in the shell, or copy `apps/web/.env.example` to `apps/web/.env
 | `DATABASE_AUTH_TOKEN` | The token for a hosted libSQL database. | No token is sent |
 | `AUTH_SECRET` | The secret that signs sessions. | One is made on the first start and kept in the database |
 | `DEMO_MODE` | `1` or `true` plants the demo family and its ready-made accounts. | Off |
-| `SETUP_TOKEN` | Sets the token of the setup link yourself, for hosts where you cannot read the log. The link is then `PUBLIC_URL` followed by `/setup?token=` and your token. | A random token is made and printed |
+| `SETUP_TOKEN` | Sets the token of the setup link yourself, for hosts where you cannot read the log. The link is then `PUBLIC_URL` followed by `/setup?token=` and your token. Whoever knows it becomes the owner, so make it long and random: one shorter than 20 characters is not used. | A random token is made and printed |
 | `EMAIL_FROM` | The address emails are sent from. | `Family tree <tree@localhost>` |
 | `SMTP_URL` | Sends email through an SMTP server, for example `smtp://user:pass@host:587`. | Emails are written to the server log |
 | `RESEND_API_KEY` | Sends email through Resend. It is used first if `SMTP_URL` is set too. | Emails are written to the server log |
@@ -99,3 +99,9 @@ docker compose -f docker/compose.yml up --build
 ```
 
 The first start prints the same setup link in the container's log.
+
+On a server, three things make it a real install:
+
+- **Say where it lives.** Put `PUBLIC_URL=https://family.example.com` in a file named `.env` beside `compose.yml`. Links in emails, sign-in and the address for AI clients are built from it. Passkeys and AI sign-in need https there.
+- **Put a proxy in front.** The container listens on this machine only, at `127.0.0.1:3000`, and speaks plain http. A proxy such as Caddy, nginx or Traefik gives it its https address. Let it pass on up to 12 MB in one request, or a GEDCOM import and a restore from backup are turned away (nginx allows 1 MB unless told otherwise), and let it pass the live update stream at `/api/stream` through without buffering.
+- **Back up the volume.** The database, the photos and the nightly snapshots all live in the `/data` volume. A copy of that volume kept somewhere else is the whole backup.

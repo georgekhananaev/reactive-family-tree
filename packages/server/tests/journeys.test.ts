@@ -6,7 +6,7 @@
 
 import type { Op } from '@reactive-family-tree/core';
 import { media } from '@reactive-family-tree/db';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { afterAll, beforeAll, expect, test, vi } from 'vitest';
 
 import { browser, startDemo } from '../src/testing';
 import type { Demo } from '../src/testing';
@@ -235,25 +235,31 @@ test('invitations and sign-in links work once', async () => {
   expect(session.user.anchors, 'invited as herself, she looks after her own branch').toEqual([demo.idOf('Elin')]);
   expect((await browser(demo.app).post('/api/auth/family/accept-invite', { token, name: 'Mallory', email: 'm@example.com' })).status).toBe(400);
 
-  // An emailed link. In demo mode the page that asked may fetch it once, as there is no mailbox to read.
+  // An emailed link. For the ready-made accounts of the made-up family, the page that asked may fetch it once, as there is no mailbox to read.
   const asker = browser(demo.app);
-  await asker.post('/api/auth/sign-in/magic-link', { email: 'elin@marlow.example', callbackURL: '/' });
-  const link = (await asker.get('/api/demo/link?email=elin@marlow.example')).data.link as string;
+  await asker.post('/api/auth/sign-in/magic-link', { email: 'nora@marlow.example', callbackURL: '/' });
+  const link = (await asker.get('/api/demo/link?email=nora@marlow.example')).data.link as string;
   expect(link).toContain('/api/auth/magic-link/verify');
-  expect((await asker.get('/api/demo/link?email=elin@marlow.example')).data.link, 'handed over once').toBeNull();
+  expect((await asker.get('/api/demo/link?email=nora@marlow.example')).data.link, 'handed over once').toBeNull();
   const path = link.slice(new URL(link).origin.length);
   const again = browser(demo.app);
   await again.get(path);
-  expect((await again.get('/api/session')).data.user.name).toBe('Elin Lindqvist');
+  expect((await again.get('/api/session')).data.user.name).toBe('Nora Bell');
   const replay = browser(demo.app);
   await replay.get(path);
   expect((await replay.get('/api/session')).data.user, 'a link works once').toBeNull();
 
-  // Nobody can make an account for themselves by asking for a link
+  // An account somebody made for themselves is a real one, even here. Its link is mailed, and never handed to a page.
+  await asker.post('/api/auth/sign-in/magic-link', { email: 'elin@marlow.example', callbackURL: '/' });
+  expect((await asker.get('/api/demo/link?email=elin@marlow.example')).status).toBe(404);
+
+  // Nobody can make an account for themselves by asking for a link, and nothing is sent to an address without one
   const stranger = browser(demo.app);
-  await stranger.post('/api/auth/sign-in/magic-link', { email: 'nobody@example.com', callbackURL: '/' });
-  const strangerLink = (await stranger.get('/api/demo/link?email=nobody@example.com')).data.link as string | null;
-  if (strangerLink) await stranger.get(strangerLink.slice(new URL(strangerLink).origin.length));
+  const letters = vi.spyOn(demo.app.mailer, 'send');
+  expect((await stranger.post('/api/auth/sign-in/magic-link', { email: 'nobody@example.com', callbackURL: '/' })).status, 'the page is told the same either way').toBe(200);
+  expect(letters, 'no letter went out').not.toHaveBeenCalled();
+  letters.mockRestore();
+  expect((await stranger.get('/api/demo/link?email=nobody@example.com')).status).toBe(404);
   expect((await stranger.get('/api/session')).data.user).toBeNull();
 
   // stewards invite within their branch only, and only an owner makes owners
@@ -330,6 +336,100 @@ test('the family chooses its music: the melody in the background, the tune for t
   expect(await madeFrom(), 'the background melody is left as it was').toEqual(['koto-garden', 'island-song']);
   expect((await helen.patch('/api/settings', { playMelody: 'Not A Name' })).status).toBe(400);
   await helen.patch('/api/settings', { music: 'off', playMusic: true, melody: 'morning-mist', playMelody: 'morning-mist' });
+});
+
+test('the family says where it is, to the whole degree, and a stranger at a private tree is not told', async () => {
+  const helen = browser(demo.app), nora = browser(demo.app), visitor = browser(demo.app);
+  await helen.signInAs('helen');
+  await nora.signInAs('nora');
+  const placeOf = async (who: typeof helen) => { const { latitude, longitude } = (await who.get('/api/session')).data.settings; return [latitude, longitude]; };
+  const kept = async () => { const { timezone, latitude, longitude } = (await helen.get('/api/settings')).data; return [timezone, latitude, longitude]; };
+
+  // Nobody has said yet
+  expect([await kept(), await placeOf(visitor)]).toEqual([['', null, null], [null, null]]);
+  expect((await nora.patch('/api/settings', { latitude: 32, longitude: 35 })).status, 'only an admin says').toBe(403);
+  expect((await helen.patch('/api/settings', { timezone: 'Asia/Jerusalem', latitude: 32, longitude: 35 })).status).toBe(200);
+  expect(await kept()).toEqual(['Asia/Jerusalem', 32, 35]);
+  // The demo family's tree is open to visitors, and the sky over it is the same for all of them
+  expect([await placeOf(visitor), await placeOf(nora)]).toEqual([[32, 35], [32, 35]]);
+  expect('timezone' in (await visitor.get('/api/session')).data.settings, 'the timezone is the admin\'s to know').toBe(false);
+
+  // A place is no closer than a whole degree, which is about a hundred kilometres, and a timezone is one the clocks know
+  const wrong = [{ latitude: 32.0853 }, { longitude: 34.7818 }, { latitude: 91 }, { longitude: -181 }, { latitude: '32' }, { timezone: 'Mars/Olympus' }, { timezone: 7 }, { timezone: 'a'.repeat(65) }];
+  for (const patch of wrong) expect((await helen.patch('/api/settings', patch)).status, JSON.stringify(patch)).toBe(400);
+  expect(await kept(), 'a wrong value changes nothing').toEqual(['Asia/Jerusalem', 32, 35]);
+  // South and west are the minus ways
+  expect((await helen.patch('/api/settings', { timezone: 'America/Sao_Paulo', latitude: -24, longitude: -47 })).status).toBe(200);
+  expect(await placeOf(visitor)).toEqual([-24, -47]);
+
+  // Closed to strangers, the tree keeps where it is from them too
+  expect((await helen.patch('/api/settings', { visibility: 'private' })).status).toBe(200);
+  expect([await placeOf(visitor), await placeOf(nora)]).toEqual([[null, null], [-24, -47]]);
+
+  // And it can be taken back
+  expect((await helen.patch('/api/settings', { visibility: 'public_masked', timezone: '', latitude: null, longitude: null })).status).toBe(200);
+  expect([await kept(), await placeOf(nora)]).toEqual([['', null, null], [null, null]]);
+});
+
+test('trying a change out tells a stranger nothing about people who are kept private', async () => {
+  const helen = browser(demo.app), visitor = browser(demo.app);
+  await helen.signInAs('helen');
+  const nora = demo.idOf('Nora');
+  // A child born in the year 1, hung on Nora's family: what the family makes of that names both parents and their years
+  const probe: Op[] = [
+    { type: 'person.create', ref: '$x', set: { given: 'Zed', family: 'Probe' } },
+    { type: 'fact.add', subject: { type: 'person', id: '$x' }, set: { type: 'birth', date: { kind: 'exact', from: '0001' } } },
+    { type: 'child.link', union: demo.unionOf(nora), child: '$x' },
+  ];
+  // Someone with the name and year of a person already on the tree
+  const twin: Op[] = [
+    { type: 'person.create', ref: '$x', set: { given: 'Nora', family: 'Bell' } },
+    { type: 'fact.add', subject: { type: 'person', id: '$x' }, set: { type: 'birth', date: { kind: 'exact', from: '1975' } } },
+  ];
+  const dry = async (who: typeof helen, ops: Op[]) => (await who.post('/api/edits', { mode: 'dry', ops })).data;
+  const told = (answer: unknown) => JSON.stringify(answer);
+
+  // An admin is told, which is what the warnings are for
+  expect(told(await dry(helen, probe))).toContain('Nora Bell (born 1975) is recorded as a parent of Zed Probe');
+  expect((await dry(helen, twin)).warnings.map((issue: { code: string }) => issue.code)).toContain('possible_duplicate');
+
+  // A stranger who may not suggest is told no, and nothing else
+  await helen.patch('/api/settings', { visitorsCanSuggest: false });
+  const refused = await dry(visitor, probe);
+  expect([refused.status, refused.warnings]).toEqual(['denied', []]);
+  expect(told(await dry(visitor, twin))).not.toContain('possible_duplicate');
+
+  // Where strangers may suggest, they are told only of people they can see. Nora is living, so she is not one of them.
+  await helen.patch('/api/settings', { visitorsCanSuggest: true });
+  for (const ops of [probe, twin]) {
+    const answer = await dry(visitor, ops);
+    expect(answer.status).toBe('suggested');
+    expect(answer.warnings, told(answer)).toEqual([]);
+    expect(told(answer)).not.toMatch(/Nora|Bell|1975|Sam/);
+  }
+  // Something that breaks the family says so, without saying whom it is about
+  const died: Op[] = [{ type: 'fact.add', subject: { type: 'person', id: nora }, set: { type: 'death', date: { kind: 'exact', from: '1900' } } }];
+  const broken = await visitor.post('/api/edits', { mode: 'dry', ops: died });
+  expect(told(broken.data)).not.toMatch(/Nora|Bell|1975/);
+  expect((await helen.post('/api/edits', { mode: 'dry', ops: died })).data.error).toContain('Nora Bell cannot have died (1900) before being born (1975)');
+
+  // A card of someone who has died says nothing of a living partner: not who, not since when, not how it stands
+  const thomas = demo.idOf('Thomas');
+  const known = (await helen.get(`/api/people/${thomas}`)).data.unions[0];
+  expect([typeof known.partner.id, known.status === 'unknown'], 'an admin reads it all').toEqual(['string', false]);
+  const card = (await visitor.get(`/api/people/${thomas}`)).data;
+  const [marriage] = card.unions;
+  expect([marriage.partner.masked, marriage.partner.id, marriage.since, marriage.status, marriage.kind]).toEqual([true, null, null, 'unknown', 'unknown']);
+  expect(told(card), 'her id is not in it anywhere').not.toContain(known.partner.id);
+});
+
+test('nobody can fill the server by sending something enormous, or a pile of requests to join', async () => {
+  const visitor = browser(demo.app);
+  const huge = await visitor.post('/api/join', { name: 'A', email: 'a@example.com', message: 'x'.repeat(13 * 1024 * 1024) });
+  expect(huge.status, 'more than an import or a backup could ever be').toBe(413);
+  expect((await visitor.post('/api/join', { name: 'A', email: `a@${'x'.repeat(260)}.com` })).status, 'no address is that long').toBe(400);
+  for (let asked = 0; asked < 50; asked++) expect((await visitor.post('/api/join', { name: `Asker ${asked}`, email: `asker${asked}@example.com` })).status).toBe(200);
+  expect((await visitor.post('/api/join', { name: 'One more', email: 'more@example.com' })).status, 'a family reads these by hand').toBe(429);
 });
 
 test('history and search keep to what each relative may see', async () => {

@@ -270,6 +270,9 @@ export interface PublicSettings {
   melody: string;
   /* Which melody the quick tune is made from. */
   playMelody: string;
+  /* Where the family is, to the nearest whole degree, for the sun and the moon on the tree. North and east are the positive ways. Both are null until an admin says, and for a stranger at a private tree. */
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface SessionInfo {
@@ -304,6 +307,10 @@ export interface AdminSettings {
   playMusic: boolean;
   melody: string;
   playMelody: string;
+  /* The family's timezone, by the name the world's clocks know it by, such as Asia/Jerusalem. Empty until an admin says. */
+  timezone: string;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface MemberView {

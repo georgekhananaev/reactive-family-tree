@@ -6,6 +6,7 @@
 
 :root {
   --display: var(--font-display), Georgia, serif;
+  --display-slanted: var(--font-display-slanted), Georgia, serif;
   --ui: var(--font-ui), "Segoe UI", system-ui, sans-serif;
 }
 

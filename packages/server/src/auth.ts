@@ -36,6 +36,8 @@ const LINK_MINUTES = 15;
 /* What the family's own rules decide during sign-in. Each returns the id of the account to sign in, or throws an HttpError. */
 export interface FamilySignIn {
   familyName(): string;
+  /* Whether someone with this address has an account. */
+  hasAccount(email: string): Promise<boolean>;
   demoAccount(email: string): Promise<string>;
   acceptInvite(input: { token: string; name: string; email: string }): Promise<string>;
   claimSetup(input: { token: string; name: string; email: string }): Promise<string>;
@@ -98,10 +100,13 @@ export function createAuth({ db, config, secret, mailer, family, onLink }: AuthO
   const { baseUrl, google } = config;
   const plugins: BetterAuthPlugin[] = [
     magicLink({
-      // Only people who already have an account get a link
+      // Only people who already have an account can sign in with a link
       disableSignUp: true,
       expiresIn: LINK_MINUTES * 60,
       sendMagicLink: async ({ email, url }) => {
+        // And only they are sent one. Asked for any other address, nothing goes out, or the family's mailbox could be made to write to strangers.
+        // The page says the same either way, so it does not give away who has an account.
+        if (!(await family.hasAccount(email))) return;
         onLink?.(email, url);
         await mailer.send({
           to: email,

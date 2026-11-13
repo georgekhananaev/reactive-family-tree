@@ -44,9 +44,10 @@ export function readConfig(env: Env = process.env): AppConfig {
     ? { endpoint: env.S3_ENDPOINT.replace(/\/+$/, ''), bucket: env.S3_BUCKET, accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY, region: env.S3_REGION ?? 'auto' }
     : undefined;
   return {
-    baseUrl: (env.PUBLIC_URL ?? `http://localhost:${port}`).replace(/\/+$/, ''),
+    // A variable that is there but empty, as a compose file leaves one that was not filled in, counts as not set
+    baseUrl: (env.PUBLIC_URL || `http://localhost:${port}`).replace(/\/+$/, ''),
     // The made-up family gets a folder of its own, so trying the demo never touches a real family's file
-    databaseUrl: env.DATABASE_URL ?? (demoMode ? 'file:./data/demo/family.db' : 'file:./data/family.db'),
+    databaseUrl: env.DATABASE_URL || (demoMode ? 'file:./data/demo/family.db' : 'file:./data/family.db'),
     databaseAuthToken: env.DATABASE_AUTH_TOKEN,
     secret: env.AUTH_SECRET,
     demoMode,

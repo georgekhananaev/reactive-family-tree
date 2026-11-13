@@ -100,6 +100,8 @@ Only `data` is required.
 | `viewerId` | `string \| null` | Whose leaf is ringed as "you". |
 | `focusId` | `string \| null` | Show the family this person belongs to, instead of the one at `rootId`. |
 | `year` | `number` | The year being shown. People born later are not on the tree yet. The default is this year. |
+| `playing` | `boolean` | The years are being played through. The moon steps out of the sky until they stop. |
+| `place` | `{ latitude: number; longitude: number } \| null` | Where the family is, in degrees, north and east positive. The sun and the moon are drawn as they stand over that place right now. |
 | `editing` | `boolean` | Edit mode. The chosen leaf gets + buds for the relatives that can be added. |
 | `selectedId` | `string \| null` | The chosen leaf. You keep it, usually from `onSelect`. |
 | `matches` | `ReadonlySet<string> \| null` | Search results. These people keep their colour and everyone else steps back. |
@@ -153,6 +155,7 @@ The handle works from the moment the component is on the page. Before that, and 
 
 - **Light and dark.** Every colour is a CSS custom property. Dark is `data-theme="dark"` on the `<html>` element.
 - **Type.** Names are set in Literata and controls in Source Sans 3. Load the two fonts yourself. Without them the tree falls back to Georgia and the system font.
+- **The sky.** By day there is a sun, and in the dark a moon and stars. The moon is the real one: it shows tonight's phase, worked out from the date and time, and its glow is strong when it is full and nearly gone when it is new. Give the tree a `place` and the moon is turned the way it is seen from there, lit on the right from the north, on the left from the south, and from below near the equator. Near sunrise and sunset in that place the sun is warmer. Without a place the moon is drawn as it is seen from the north. The sun, the moon and the stars are far away, so they keep their place and nearly their size while the tree is moved and zoomed, and they fade when someone comes close to read. While `playing` is on the moon is hidden, since it is tonight's moon and the years are going by.
 - **Reduced motion.** If the device asks for less motion, the tree is shown fully grown at once and nothing moves by itself. Adding `#still` to the page's address does the same. The component sets a `still` class on `<html>` so your own page can follow.
 
 ## With the keyboard
@@ -162,11 +165,12 @@ The tree is one stop for the Tab key. From there the arrow keys travel along the
 ## What else the package exports
 
 - `LeafPortrait`: one leaf drawn exactly as on the tree, for a person's card. It uses the gradients of a tree on the same page.
-- `TreeEngine`: the engine under the component, plain DOM with no React.
+- `TreeEngine`: the engine under the component, plain DOM with no React. It draws into the markup the component renders: a stage holding an empty `.heavens` layer and the world, and in the world `.behind`, the `<svg>` and `.ahead`.
 - `useTreeMusic(lively, options)`: background music for a page that shows the tree. `lively` is true while the years are playing, and the melody turns quicker. `options.mode` is `'none'`, `'off'` (the default: silent until the visitor turns it on) or `'on'` (from the visitor's first click, since a browser allows no sound before one). `options.playMusic` (true unless you say otherwise) is a separate thing: whether the quick tune plays with the years, which it does whether or not the background melody is on. `options.melody` is the id of one of `MELODIES`, for the background, and `options.playMelody` the id of one of `QUICK_TUNES` (the melody's own, when left out). It gives back `{ available, on, toggle }` for a button of your own, and remembers each visitor's choice on their device.
 - `MELODIES` and `QUICK_TUNES`: the calm melodies and the quick tunes to choose from, each with an `id`, a `name` and a line `about` it. Every melody brings a quick tune under its own id, and there are more quick tunes besides. Nothing is a recording: the browser plays every note, so there are no audio files to host.
 - `TreeMusic`: the player under the hook, with no React.
-- The types: `FamilyTreeProps`, `FamilyTreeHandle`, `TreeData`, `TreeInsets`, `YearRange`, `BranchState`, `Camera`, `TreeEngineEvents`, `TreeEngineOptions`, `LeafPortraitProps`, `LeafState`, `LeafSubject`, `Melody`, `Mood`, `TreeMusicOptions` and `TreeMusicSwitch`.
+- `skyOver(when, place)`: the arithmetic behind the sky, for a line of words of your own. It gives how much of the moon is lit (`lit`, 0 to 1), whether that is growing (`waxing`), and with a place how high the sun and the moon stand over it, in degrees (`sunHeight`, `moonHeight`).
+- The types: `FamilyTreeProps`, `FamilyTreeHandle`, `TreeData`, `TreeInsets`, `YearRange`, `BranchState`, `Camera`, `TreeEngineEvents`, `TreeEngineOptions`, `LeafPortraitProps`, `LeafState`, `LeafSubject`, `Melody`, `Mood`, `TreeMusicOptions`, `TreeMusicSwitch`, `Place` and `Sky`.
 
 ## Not built yet
 

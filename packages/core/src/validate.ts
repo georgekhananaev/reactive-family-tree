@@ -13,7 +13,8 @@ export function validate(state: State, changes: readonly Change[]): Validation {
   const errors: Issue[] = [];
   const warnings: Issue[] = [];
   const name = (id: string) => fullName(person(state, id));
-  const warn = (code: string, message: string) => warnings.push({ code, message });
+  // Each issue says whom it names, so that it can be kept from someone who may not see them
+  const warn = (code: string, message: string, people: string[]) => warnings.push({ code, message, people });
 
   // Everyone the edit touched, directly or through a partnership or a fact
   const touched = new Set<string>();
@@ -46,21 +47,21 @@ export function validate(state: State, changes: readonly Change[]): Validation {
     const died = diedYear(ix, id);
 
     if (ancestorsOf(state, ix, id).has(id)) {
-      errors.push({ code: 'own_ancestor', message: `That would make ${name(id)} their own ancestor. Check who you connected.` });
+      errors.push({ code: 'own_ancestor', message: `That would make ${name(id)} their own ancestor. Check who you connected.`, people: [id] });
     }
     if (born !== null && died !== null && died < born) {
-      errors.push({ code: 'died_before_born', message: `${name(id)} cannot have died (${died}) before being born (${born}).` });
+      errors.push({ code: 'died_before_born', message: `${name(id)} cannot have died (${died}) before being born (${born}).`, people: [id] });
     }
     if (born !== null && died !== null && died - born > 125) {
-      warn('long_life', `${name(id)} is recorded as living ${died - born} years.`);
+      warn('long_life', `${name(id)} is recorded as living ${died - born} years.`, [id]);
     }
     for (const union of ix.unionsOfChild.get(id) ?? []) {
       for (const parentId of livingPartners(state, union)) {
         const parentBorn = bornYear(ix, parentId);
         if (born === null || parentBorn === null) continue;
         const age = born - parentBorn;
-        if (age <= 0) warn('parent_younger_than_child', `${name(parentId)} (born ${parentBorn}) is recorded as a parent of ${name(id)} (born ${born}).`);
-        else if (age < 12 || age > 80) warn('unlikely_parent_age', `${name(parentId)} would have been ${age} when ${name(id)} was born.`);
+        if (age <= 0) warn('parent_younger_than_child', `${name(parentId)} (born ${parentBorn}) is recorded as a parent of ${name(id)} (born ${born}).`, [parentId, id]);
+        else if (age < 12 || age > 80) warn('unlikely_parent_age', `${name(parentId)} would have been ${age} when ${name(id)} was born.`, [parentId, id]);
       }
     }
   }
@@ -75,7 +76,8 @@ export function validate(state: State, changes: readonly Change[]): Validation {
       const sameName = other.given.toLowerCase() === fresh.given.toLowerCase() && other.family.toLowerCase() === fresh.family.toLowerCase();
       const otherBorn = bornYear(ix, other.id);
       const closeYear = born === null || otherBorn === null || Math.abs(born - otherBorn) <= 2;
-      if (sameName && closeYear) warn('possible_duplicate', `${fullName(fresh)} looks like someone already on the tree. Same person?`);
+      // The name is the author's own, but the warning gives away that the other person is there
+      if (sameName && closeYear) warn('possible_duplicate', `${fullName(fresh)} looks like someone already on the tree. Same person?`, [other.id]);
     }
   }
 

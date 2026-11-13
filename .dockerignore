@@ -1,13 +1,30 @@
+# What the image is built from is the source and the lockfile, and nothing else.
+# A pattern here matches only at the top of the repo unless it starts with **/.
+
+# Built or fetched again inside the image
 **/node_modules
 **/.next
 **/.astro
+**/.turbo
 **/dist
+**/coverage
+**/*.tsbuildinfo
+
+# A family's data and an install's secrets never go into an image
 **/data
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/.env
+**/.env.*
+!**/.env.example
+credentials
+
+# Not part of the app
 .git
+.github
+.claude
+.idea
+.playwright-mcp
 docs
 apps/site
-*.db
-*.db-shm
-*.db-wal
-.env
-.env.local

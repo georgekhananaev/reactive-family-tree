@@ -8,6 +8,8 @@
 interface Listener {
   userId: string | null;
   send(event: string, data: unknown): void;
+  /* Let this browser go. */
+  end(): void;
 }
 
 const BEAT_MS = 25000;
@@ -28,7 +30,18 @@ export class Hub {
             detach();           // the browser has gone
           }
         };
-        const listener: Listener = { userId, send: (event, data) => write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`) };
+        const listener: Listener = {
+          userId,
+          send: (event, data) => write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+          end: () => {
+            detach();
+            try {
+              controller.close();
+            } catch {
+              // the browser had gone already
+            }
+          },
+        };
         const beat = setInterval(() => write(': still here\n\n'), BEAT_MS);
         detach = () => {
           clearInterval(beat);
@@ -54,6 +67,15 @@ export class Hub {
     for (const listener of this.listeners) {
       if (!userIds || (listener.userId !== null && userIds.includes(listener.userId))) listener.send(event, data);
     }
+  }
+
+  /*
+   * The server is stopping. Every browser is let go, because the server waits
+   * for each open stream before it stops, and a stream is held for as long as
+   * a tab is open. Each browser asks again by itself, and finds the next server.
+   */
+  close(): void {
+    for (const listener of [...this.listeners]) listener.end();
   }
 
   /* The family changed: everyone refreshes their own view of it. */

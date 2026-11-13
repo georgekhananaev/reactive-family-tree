@@ -63,3 +63,15 @@ test('a tree that is new is private until its owner decides otherwise', async ()
   expect(tree.closed, 'a stranger is told the tree is closed').toBe(true);
   expect(tree.people.length, 'and sees nobody').toBe(0);
 });
+
+test('a setup token that could be guessed is not taken', async () => {
+  // SETUP_TOKEN left empty, or set to a word: whoever knew it would become the owner
+  for (const weak of ['', '   ', 'family']) {
+    const loose = await startFresh(weak);
+    const claim = await browser(loose.app).post('/api/auth/family/claim-setup', { token: weak, name: 'Mallory', email: 'm@example.com' });
+    expect(claim.status, `"${weak}" opens nothing`).toBe(403);
+    expect((await browser(loose.app).get('/api/session')).data.needsSetup, 'and the install still waits for the real link').toBe(true);
+    await loose.close();
+  }
+});
+

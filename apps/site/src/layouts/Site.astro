@@ -6,7 +6,7 @@
  * Author: George Khananaev
  */
 
-import { AUTHOR, FONTS, SITE_NAME } from '../lib/site.mjs';
+import { AUTHOR, FONTS, SITE_NAME, iconLinks } from '../lib/site.mjs';
 import '../styles/site.css';
 
 interface Props {
@@ -21,6 +21,9 @@ const { title, description, structuredData } = Astro.props;
 // One address per page, always with its closing slash, whichever way it was asked for
 const path = Astro.url.pathname.endsWith('/') ? Astro.url.pathname : `${Astro.url.pathname}/`;
 const canonical = new URL(path, Astro.site).href;
+
+// Set in astro.config.mjs from the icon files themselves
+const icons = iconLinks(import.meta.env.ICON_VERSION);
 ---
 
 <!doctype html>
@@ -33,9 +36,9 @@ const canonical = new URL(path, Astro.site).href;
     <meta name="author" content={AUTHOR} />
     <link rel="canonical" href={canonical} />
     <link rel="sitemap" href="/sitemap-index.xml" />
-    <link rel="icon" href="/favicon.ico" sizes="32x32" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link {...icons.ico} />
+    <link {...icons.svg} />
+    <link {...icons.appleTouch} />
     <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0C1322" media="(prefers-color-scheme: dark)" />
     <meta property="og:type" content="website" />

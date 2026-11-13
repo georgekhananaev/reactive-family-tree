@@ -39,6 +39,7 @@ export function DemoTree({ explorer = false }: DemoTreeProps): ReactElement {
       <FamilyTree
         data={family.tree}
         year={timeline.year}
+        playing={timeline.playing}
         selectedId={selectedId}
         label={`The ${family.name} tree`}
         onSelect={(person) => setSelectedId(person?.id ?? null)}

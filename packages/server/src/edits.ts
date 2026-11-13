@@ -17,7 +17,7 @@ import { OpError, applyOps, canApply, cloneState, decideEdit, describeOp, factVi
 import type { Actor, Applied, Change, CompostItem, EditComment, EditOrigin, EditView, Fact, FuzzyDate, InboxCounts, Issue, NotificationView, Op, OpEnv, State, SubmitMode, SubmitStatus, Union } from '@reactive-family-tree/core';
 import { aiConnection, edit, editComment, notification } from '@reactive-family-tree/db';
 import type { Database } from '@reactive-family-tree/db';
-import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, or } from 'drizzle-orm';
 
 import { badRequest, conflict, forbidden, invalid, notFound } from './errors';
 import { newId, now } from './ids';
@@ -131,25 +131,37 @@ export class Edits {
       if (typeof photo === 'string' && !(await this.media.has(photo))) throw badRequest('That photo is not on this tree. Upload it again.');
     }
     const decision = decideEdit(this.state, actor, list, this.settings);
-    const trial = this.tryOut(actor, list);
-    const warnings = trial.warnings;
+    // Whoever may not make the change is told so, and nothing of what the family would have made of it. A draft is its author's own business.
+    if (decision.outcome === 'deny' && mode !== 'draft') {
+      if (mode !== 'dry') throw forbidden(decision.reasons[0] ?? 'You cannot make that change.', decision.reasons);
+      return { status: 'denied', edit: null, reasons: decision.reasons, warnings: [], created: {}, remaining: 0 };
+    }
+    const tells = this.tellsTo(actor);
+    const trial = this.tryOut(actor, list, tells);
+    // The warnings are kept in full for whoever reviews the edit. Its author is given the ones about people they may see.
+    const warnings = trial.warnings, own = warnings.filter(tells);
 
     if (mode === 'dry') {
       const status = ({ apply: 'applied', suggest: 'suggested', deny: 'denied' } as const)[decision.outcome];
-      return { status, edit: null, reasons: decision.reasons, warnings, created: {}, remaining: 0 };
+      return { status, edit: null, reasons: decision.reasons, warnings: own, created: {}, remaining: 0 };
     }
     const base = { actor, ops: list, message: String(message).slice(0, 300), note: String(note).slice(0, 2000), origin, connectionId, warnings };
-    if (mode === 'draft') return this.keep({ ...base, status: 'draft', touched: this.touchedBy(trial.changes, this.state) });
-    if (decision.outcome === 'deny') throw forbidden(decision.reasons[0] ?? 'You cannot make that change.', decision.reasons);
+    if (mode === 'draft') return { ...(await this.keep({ ...base, status: 'draft', touched: this.touchedBy(trial.changes, this.state) })), warnings: own };
     if (decision.outcome === 'suggest' || mode === 'suggest') {
       // Nobody reviewing could look at a photo first, so one is never held for review, even when its author asks for that
       if (list.some(setsPhoto)) throw forbidden('A photo cannot be sent for review. Save it directly.');
       const result = await this.keep({ ...base, status: 'suggested', touched: this.touchedBy(trial.changes, this.state) });
       const kept = result.edit as EditRow;
       await this.tell(await this.reviewersOf(kept), 'suggestion', kept.id, `${actor.name} suggested a change: ${kept.message || 'no description'}`);
-      return { ...result, reasons: decision.reasons };
+      return { ...result, reasons: decision.reasons, warnings: own };
     }
-    return this.publish({ ...base, creditTo: actor });
+    return { ...(await this.publish({ ...base, creditTo: actor })), warnings: own };
+  }
+
+  /* Whether someone may be told of an issue: only if they may see everyone it names. Their sight is worked out when the first issue asks. */
+  private tellsTo(actor: Actor): (issue: Issue) => boolean {
+    let seen: Sight | null = null;
+    return (issue) => (issue.people ?? []).every((id) => (seen ??= this.sight(actor)).person(id));
   }
 
   /* Check the shape of what was sent, and set the things only the server may set. */
@@ -176,13 +188,17 @@ export class Edits {
     return { newId, now: now(), userId: actor.userId, userName: actor.name };
   }
 
-  /* Run the edit on a copy of the family. Throws if it cannot work or would break the family. */
-  private tryOut(actor: Pick<Actor, 'userId' | 'name'>, ops: Op[]): Applied & { warnings: Issue[] } {
+  /*
+   * Run the edit on a copy of the family. Throws if it cannot work or would
+   * break the family. What breaks it may be about someone the author may not
+   * see: then they are told that it does not fit, and not whom it is about.
+   */
+  private tryOut(actor: Pick<Actor, 'userId' | 'name'>, ops: Op[], tells: (issue: Issue) => boolean = () => true): Applied & { warnings: Issue[] } {
     const copy = cloneState(this.state);
     const applied = this.applyTo(copy, ops, actor);
     const check = validate(copy, applied.changes);
     const [broken] = check.errors;
-    if (broken) throw invalid(broken.message, check.errors);
+    if (broken) throw tells(broken) ? invalid(broken.message, check.errors.filter(tells)) : invalid('That change does not fit the family as it is recorded.');
     return { ...applied, warnings: check.warnings };
   }
 
@@ -328,7 +344,9 @@ export class Edits {
   /* Edits still waiting that this person may see: their own, and those they can review. Newest last. */
   async pendingFor(actor: Actor): Promise<EditRow[]> {
     if (actor.visitor) return [];
-    const rows = await this.db.select().from(edit).where(inArray(edit.status, ['suggested', 'draft'])).orderBy(asc(edit.createdAt));
+    // A draft is its author's alone, so nobody else's is read: one waiting import can hold thousands of changes
+    const own = actor.userId ? and(eq(edit.status, 'draft'), eq(edit.authorUserId, actor.userId)) : undefined;
+    const rows = await this.db.select().from(edit).where(or(eq(edit.status, 'suggested'), own)).orderBy(asc(edit.createdAt));
     return rows.filter((row) => this.canSee(actor, row));
   }
 
@@ -416,6 +434,11 @@ export class Edits {
       const memory = op.memory ? state.memories.get(op.memory) ?? changeTo('memories', op.memory)?.before : null;
       const about = op.type === 'person.create' ? madeBy.get(op) : op.person ?? op.child ?? (op.subject?.type === 'person' ? op.subject.id : undefined) ?? memory?.personId;
       if (about && !seesPerson(about)) return true;
+      if (op.type === 'union.update') {
+        // How a partnership stands, and since when, is told only to someone who may see both partners
+        const partners = op.union ? state.unions.get(op.union)?.partners : undefined;
+        return !partners || !partners.every(seesPerson);
+      }
       if (!op.type.startsWith('fact.')) return false;
       const factId = madeBy.get(op) ?? (op.fact ? real(op.fact) : undefined);
       const change = changeTo('facts', factId);
@@ -468,18 +491,21 @@ export class Edits {
 
     const mine = Boolean(actor.userId) && row.authorUserId === actor.userId;
     const canReview = this.canReview(actor, row);
+    // The message, the note and the talk under an edit were written by people who could see everyone it is about, and name them freely.
+    // A reader who may not see all of it is told only that something changed.
+    const veiled = !open && (shown.length < ops.length || row.touched.some((id) => !sight().person(id)));
     return {
       id: row.id, seq: row.seq, status: row.status, origin: row.origin, client,
       author: row.authorName, byVisitor: !row.authorUserId && Boolean(row.authorContact),
-      message: row.message, note: row.note, lines,
-      // Warnings are written for the author and reviewers, and may name anyone
-      warnings: open ? row.warnings : [],
+      message: veiled ? 'A change to the family' : row.message, note: veiled ? '' : row.note, lines,
+      // Warnings are written for reviewers, and may name anyone. An author who is not one reads those about people they may see.
+      warnings: !open ? [] : isAdmin(actor) || canReview ? row.warnings : row.warnings.filter((issue) => (issue.people ?? []).every((id) => sight().person(id))),
       touched: open ? row.touched : row.touched.filter((id) => sight().person(id)),
-      reviewedBy: row.reviewedBy, reviewNote: row.reviewNote, createdAt: row.createdAt, appliedAt: row.appliedAt,
+      reviewedBy: row.reviewedBy, reviewNote: veiled ? null : row.reviewNote, createdAt: row.createdAt, appliedAt: row.appliedAt,
       mine, canReview, canRevert: this.canRevert(actor, row),
       // The raw changes, for the two people who may alter them: the author of a draft and a reviewer
       ops: canReview || (mine && row.status === 'draft') ? row.ops : null,
-      comments,
+      comments: veiled ? [] : comments,
     };
   }
 

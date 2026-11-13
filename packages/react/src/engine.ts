@@ -19,12 +19,17 @@
 import type { PersonLeaf, Relation, TreePerson, TreeSnapshot, TreeUnion } from '@reactive-family-tree/core';
 import { SHAPES, THIS_YEAR, goldOf, stateOf } from './leaf';
 import type { LeafShape, LeafState, ShapeName } from './leaf';
+import { litOutline, skyOver } from './sky';
+import type { Place } from './sky';
 
 const NS = 'http://www.w3.org/2000/svg';
 const SPREAD = (92 * Math.PI) / 180;
 const RADII = [0, 185, 355, 520, 680];
 const RADIUS_STEP = 150;                 // each generation beyond the fifth
 const TRUNK = 160;
+const MOON_RADIUS = 59;                 // of the moon's disc, in its own drawing, which is 120 across
+const FAR_DRIFT = 0.25;                 // how much of the tree's movement across the screen the sun and the moon follow
+const FAR_GROWTH = 0.3;                 // how much of a zoom they follow: twice as near makes them a quarter larger
 const NAME_SIZE = 23;
 const YEARS_SIZE = 16;
 const BRANCH_BASE = 3.3;
@@ -35,6 +40,23 @@ const MAX_ZOOM = 3.2;
 
 const GRAFT_SHAPES: readonly ShapeName[] = ['olive', 'ginkgo', 'linden'];
 const RELATIONS: readonly Relation[] = ['child', 'partner', 'parent', 'sibling'];
+
+/*
+ * The moon: a dark disc, the lit part over it, and the grey seas, which show
+ * only where the light falls. paintSky() gives the lit part its outline, and
+ * turns it and the seas the way they are seen tonight. The seas are where
+ * they are on the real moon, with its north at the top: the wide one down the
+ * left, three across the upper right, and the small round one near the edge.
+ */
+const SEAS = [[-34, -4, 15, 26], [-14, -27, 17, 13], [14, -22, 10, 10], [25, -6, 12, 9], [43, -17, 5, 8], [37, 9, 7, 10], [-14, 23, 14, 9], [-31, 25, 6, 6]]
+  .map(([cx, cy, rx, ry]) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`).join('');
+const MOON = '<i class="halo"></i><svg class="disc" viewBox="-60 -60 120 120">' +
+  `<radialGradient id="moonFace" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="${MOON_RADIUS}"><stop class="moon-middle" offset="0.3"/><stop class="moon-edge" offset="1"/></radialGradient>` +
+  '<clipPath id="moonLit"><path/></clipPath>' +
+  `<circle class="unlit" r="${MOON_RADIUS}"/><path class="lit"/><g clip-path="url(#moonLit)"><g class="seas">${SEAS}</g></g></svg>`;
+
+/* How much of the warm light of the horizon something has, from 0 to 1 by how high it stands: all of it within a few degrees of the horizon, none a hand's width above it or once it is well down. */
+const lowLight = (height: number | null): number => (height === null ? 0 : Math.max(0, Math.min(1, (14 - height) / 10, (height + 6) / 5)));
 
 /* ---------- What the engine is given, and what it tells ---------- */
 
@@ -378,6 +400,8 @@ export class TreeEngine {
 
   private readonly stage: HTMLElement;
   private readonly world: HTMLElement;
+  /* Where the sun, the moon and the stars are drawn: a layer of the stage that the camera does not move. */
+  private readonly heavens: HTMLElement;
   private readonly svg: SVGSVGElement;
   private readonly on: TreeEngineEvents;
   private readonly portraitOf: TreeEngineOptions['portraitOf'];
@@ -421,6 +445,11 @@ export class TreeEngine {
   private moving = false;
   private last = 0;
   private decorated = false;
+  /* The sun, the moon and the sheet of stars, each with the spot on the tree it is counted from. The stars also say how large their sheet is. */
+  private far: { el: HTMLElement; x: number; y: number; sheet: { w: number; h: number } | null }[] = [];
+  /* Where the family is, if the tree has been told. The moon is turned as it is seen from there. */
+  private place: Place | null = null;
+  private skyClock: ReturnType<typeof setInterval> | undefined;
   private cameraQueued = false;
   private goal: CameraGoal | null = null;
   private zoomGoal: ZoomGoal | null = null;
@@ -437,10 +466,13 @@ export class TreeEngine {
   constructor({ stage, world, svg, on, portraitOf }: TreeEngineOptions) {
     this.stage = stage;
     this.world = world;
+    this.heavens = stage.querySelector<HTMLElement>('.heavens')!;   // part of the markup the engine is given, as .behind and .ahead are
     this.svg = svg;
     this.on = on;
     this.portraitOf = portraitOf;
     this.still = /(?:^|[#&])still(?:&|$)/.test(location.hash) || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // The real sky changes slowly. Once a minute keeps the moon and the sun right on a page that is left open.
+    if (!this.still) this.skyClock = setInterval(() => this.paintSky(), 60_000);
     document.documentElement.classList.toggle('still', this.still);
 
     this.year = THIS_YEAR;
@@ -1138,6 +1170,12 @@ export class TreeEngine {
     this.kick();
   }
 
+  /* Where the family is. The sun and the moon are drawn as they stand over that place right now. */
+  setPlace(place: Place | null): void {
+    this.place = place;
+    this.paintSky();
+  }
+
   toggleBranch(nodeId: string): void {
     if (this.collapsed.has(nodeId)) this.collapsed.delete(nodeId);
     else this.collapsed.add(nodeId);
@@ -1283,7 +1321,78 @@ export class TreeEngine {
     this.world.style.transform = `translate(${(cam.x + bounds.x0 * cam.k).toFixed(2)}px,${(cam.y + bounds.y0 * cam.k).toFixed(2)}px) scale(${cam.k.toFixed(4)})`;
     const zoom = cam.k < 0.3 ? 'far' : cam.k < 0.44 ? 'mid' : 'near';
     if (this.svg.getAttribute('data-zoom') !== zoom) this.svg.setAttribute('data-zoom', zoom);
+    this.paintFar();
     this.on.moved?.();
+  }
+
+  /*
+   * The sun, the moon and the stars are a long way off, and so they do not behave as the
+   * tree does. Painted onto the tree they would grow as large as the screen
+   * when someone comes close, and shrink to a dot beside it when they step
+   * back. A thing far away does neither: it keeps its place in the sky and
+   * very nearly its size, while the tree in front of it grows and shrinks.
+   *
+   * So they are kept out of the world the camera moves. Each has a place on
+   * the screen, where it stands when the page opens, and a size that goes by
+   * the screen and not by the tree. From there it follows only a quarter of
+   * the tree's movement and a little of its zoom, which is what a far thing
+   * does when the viewer moves. Come close to the tree and it also fades, so
+   * that it never sits bright behind the names someone has come to read.
+   *
+   * Each is drawn at the size it is shown at, and slid by whole dots of the
+   * screen. A picture drawn at one size and stretched to another, or set
+   * down between two dots, comes out with rough edges.
+   */
+  private paintFar(): void {
+    const home = this.far.length ? this.fitted(false) : null;
+    if (!home) return;
+    const { cam, stageBox: r } = this, near = cam.k / home.k, dots = devicePixelRatio;
+    // The moon's disc is about a thirteenth of the screen's short side: enough to be the moon, not enough to be the subject
+    const across = Math.max(44, Math.min(84, Math.min(r.width, r.height) * 0.075));
+    const disc = `${(across * near ** FAR_GROWTH).toFixed(1)}px`, fade = Math.max(0.35, Math.min(1, 1 - 0.45 * Math.log2(near))).toFixed(2);
+    for (const { el, x, y, sheet } of this.far) {
+      const tx = home.x + home.k * x, ty = home.y + home.k * y;   // where the tree has this spot when the page opens
+      // The sun and the moon stand there, but never off the screen or under the bar along its top
+      const hx = sheet ? tx : Math.max(across + 16, tx), hy = sheet ? ty : Math.max(this.insets.top + across + 64, ty);
+      // The stars are further off still, so they follow less
+      const drift = sheet ? FAR_DRIFT / 2 : FAR_DRIFT;
+      let sx = hx + drift * (cam.x + cam.k * x - tx), sy = hy + drift * (cam.y + cam.k * y - ty);
+      if (sheet) {
+        // Their sheet is never let shrink to less than the whole screen, nor slide so far that its edge comes into view, or the sky would have an edge
+        const grown = Math.max(home.k * near ** (FAR_GROWTH / 2), (1.25 * r.width) / sheet.w, (1.25 * r.height) / sheet.h);
+        const reach = { x: (sheet.w * grown) / 2, y: (sheet.h * grown) / 2 };
+        sx = Math.max(r.width - reach.x + 1, Math.min(reach.x - 1, sx));
+        sy = Math.max(r.height - reach.y + 1, Math.min(reach.y - 1, sy));
+        el.style.setProperty('--star', grown.toFixed(4));
+      } else {
+        el.style.setProperty('--disc', disc);
+        el.style.opacity = fade;
+      }
+      el.style.transform = `translate(${Math.round(sx * dots) / dots}px,${Math.round(sy * dots) / dots}px)`;
+    }
+  }
+
+  /*
+   * The real sky, as it is right now. The moon is in the phase it is in
+   * tonight and turned the way it is seen from the family's place, and it
+   * glows by how much of it is lit: a full moon far more than a half one.
+   * Low over the horizon there it is a little amber, as a rising moon is,
+   * and the sun is warmer near sunrise and sunset.
+   */
+  private paintSky(): void {
+    const moon = this.heavens.querySelector<HTMLElement>('.moon');
+    if (!moon) return;
+    const { lit, face, limb, sunHeight, moonHeight } = skyOver(new Date(), this.place);
+    // The lit part, and the window the seas are seen through, which is the same shape
+    for (const part of moon.querySelectorAll('path')) {
+      part.setAttribute('d', litOutline(lit, MOON_RADIUS));
+      part.setAttribute('transform', `rotate(${limb.toFixed(1)})`);
+    }
+    moon.querySelector('.seas')?.setAttribute('transform', `rotate(${face.toFixed(1)})`);
+    moon.style.setProperty('--glow', (0.05 + 0.95 * lit ** 1.5).toFixed(3));
+    // A moon under the horizon is drawn as it stands when highest, so it has none of the horizon's colour
+    moon.style.setProperty('--low', lowLight(moonHeight !== null && moonHeight > 0 ? moonHeight : null).toFixed(2));
+    this.heavens.querySelector<HTMLElement>('.sun')?.style.setProperty('--warm', lowLight(sunHeight).toFixed(2));
   }
 
   private applyCamera(): void {
@@ -1339,25 +1448,32 @@ export class TreeEngine {
 
   /* Wide screens show the whole tree. An upright phone fills the height and is panned sideways. */
   fit(whole = false, animated = false): void {
-    const r = (this.stageBox = this.stage.getBoundingClientRect());
-    if (r.width < 40 || r.height < 40) return;
-    const pad = r.width <= 640 ? { top: 76, bottom: 92, side: 8 } : r.height <= 480 ? { top: 56, bottom: 84, side: 16 } : { top: 84, bottom: 104, side: 16 };
-    const bw = this.bounds.x1 - this.bounds.x0, bh = this.bounds.y1 - this.bounds.y0;
-    pad.top += this.insets.top;
-    const aw = this.freeWidth - pad.side * 2, ah = r.height - pad.top - pad.bottom;
-    let k = Math.min(aw / bw, ah / bh);
-    if (!whole && aw / bw < ah / bh && k < 0.44) k = Math.min(0.66, ah / bh);
-    const to = {
-      k,
-      x: bw * k <= aw + 1 ? pad.side + (aw - bw * k) / 2 - this.bounds.x0 * k : this.freeWidth / 2,
-      y: pad.top + (ah - bh * k) / 2 - this.bounds.y0 * k,
-    };
+    this.stageBox = this.stage.getBoundingClientRect();
+    const to = this.fitted(whole);
+    if (!to) return;
     this.userMoved = whole;
     if (animated) return this.glideTo(to, 750);
     this.cameraRun++;
     this.cam = to;
     this.paintCamera();
     this.sharpen();
+  }
+
+  /* Where the camera stands to show the tree as the page opens it, or all of it. Null while the page has no room to show anything. */
+  private fitted(whole: boolean): Camera | null {
+    const r = this.stageBox;
+    if (r.width < 40 || r.height < 40) return null;
+    const pad = r.width <= 640 ? { top: 76, bottom: 92, side: 8 } : r.height <= 480 ? { top: 56, bottom: 84, side: 16 } : { top: 84, bottom: 104, side: 16 };
+    const bw = this.bounds.x1 - this.bounds.x0, bh = this.bounds.y1 - this.bounds.y0;
+    pad.top += this.insets.top;
+    const aw = this.freeWidth - pad.side * 2, ah = r.height - pad.top - pad.bottom;
+    let k = Math.min(aw / bw, ah / bh);
+    if (!whole && aw / bw < ah / bh && k < 0.44) k = Math.min(0.66, ah / bh);
+    return {
+      k,
+      x: bw * k <= aw + 1 ? pad.side + (aw - bw * k) / 2 - this.bounds.x0 * k : this.freeWidth / 2,
+      y: pad.top + (ah - bh * k) / 2 - this.bounds.y0 * k,
+    };
   }
 
   private glideTo(to: Camera, ms: number): void {
@@ -1711,7 +1827,10 @@ export class TreeEngine {
       this.velocity.y *= slow;
       this.paintCamera();
       this.markMoving();
-      if (Math.hypot(this.velocity.x, this.velocity.y) > 0.012) requestAnimationFrame(step);
+      // Thrown hard, it stops as it leaves the screen, and keepInReach() brings it back. Left to drift on it would be gone for seconds.
+      const { cam, bounds: b, stageBox: r } = this;
+      const gone = cam.x + b.x1 * cam.k < 0 || cam.x + b.x0 * cam.k > r.width || cam.y + b.y1 * cam.k < 0 || cam.y + b.y0 * cam.k > r.height;
+      if (!gone && Math.hypot(this.velocity.x, this.velocity.y) > 0.012) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
   }
@@ -1740,22 +1859,38 @@ export class TreeEngine {
   private decorate(): void {
     this.decorated = true;
     const b = this.bounds, g = TRUNK;
+    const shade = Math.max(260, (b.x1 - b.x0) * 0.24);
     const spot = (cx: number, cy: number, rx: number, ry: number): string => `left:${(cx - rx - b.x0).toFixed(1)}px;top:${(cy - ry - b.y0).toFixed(1)}px;width:${rx * 2}px;height:${ry * 2}px`;
-    let html = `<div class="only-light sun" style="${spot(b.x0 + 250, b.y0 + 150, 330, 330)}"></div>` +
-      `<div class="only-light canopy-wash" style="${spot(0, -330, 860, 470)}"></div>` +
-      `<div class="only-light soil" style="${spot(0, g + 12, 640, 44)}"></div>`;
+    // .behind and .ahead are part of the markup the engine is given
+    this.world.querySelector('.behind')!.innerHTML = `<div class="only-light canopy-wash" style="${spot(0, -330, 860, 470)}"></div>` +
+      `<div class="only-light soil" style="${spot(0, g + 12, 640, 44)}"></div>` +
+      // The tree's shadow on the ground. The sun and the moon stand up and to the left, so it lies to the right of the trunk.
+      `<div class="shade" style="${spot(shade * 0.55, g + 13, shade, 20)}"></div>`;
 
-    const sky = { x: b.x0 - 360, y: b.y0 - 260, w: b.x1 - b.x0 + 720, h: g - b.y0 + 480 };
-    let stars = '';
+    // The stars are one sheet, laid out around its own middle, which is the middle of the sky over the tree
+    const sky = { w: Math.round(b.x1 - b.x0 + 720), h: Math.round(g - b.y0 + 480) };
+    let stars = '', twinkles = '';
     for (let i = 0; i < 150; i++) {
       const id = `star${i}`;
-      const sx = rnd(id, 'x') * sky.w, sy = rnd(id, 'y') * sky.h, sr = 0.6 + rnd(id, 'r') * 1.3;
-      if (i % 6 === 0) html += `<i class="only-dark twinkle" style="${spot(sky.x + sx, sky.y + sy, sr, sr)};animation-delay:-${(rnd(id, 'd') * 5).toFixed(1)}s"></i>`;
-      else stars += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${sr.toFixed(2)}" opacity="${(0.2 + rnd(id, 'o') * 0.6).toFixed(2)}"/>`;
+      const sx = ((rnd(id, 'x') - 0.5) * sky.w).toFixed(1), sy = ((rnd(id, 'y') - 0.5) * sky.h).toFixed(1), sr = (0.6 + rnd(id, 'r') * 1.3).toFixed(2);
+      if (i % 6 === 0) twinkles += `<i class="twinkle" style="--x:${sx};--y:${sy};--r:${sr};animation-delay:-${(rnd(id, 'd') * 5).toFixed(1)}s"></i>`;
+      else stars += `<circle cx="${sx}" cy="${sy}" r="${sr}" opacity="${(0.2 + rnd(id, 'o') * 0.6).toFixed(2)}"/>`;
     }
-    html += `<svg class="only-dark stars" style="${spot(sky.x + sky.w / 2, sky.y + sky.h / 2, sky.w / 2, sky.h / 2)}" viewBox="0 0 ${sky.w} ${sky.h}">${stars}</svg>` +
-      `<div class="only-dark moon" style="${spot(b.x0 + 210, b.y0 + 80, 400, 400)}"><span></span></div>`;
-    this.world.querySelector('.behind')!.innerHTML = html;   // .behind and .ahead are part of the markup the engine is given
+    // The sun, the stars and the moon are far things. Each is given a spot on the tree to be counted from, and paintFar() places it from there.
+    const spots = [
+      { x: b.x0 + 250, y: b.y0 + 150, sheet: null },
+      { x: (b.x0 + b.x1) / 2, y: (b.y0 - 260 + g + 220) / 2, sheet: sky },
+      { x: b.x0 + 210, y: b.y0 + 80, sheet: null },
+    ];
+    this.heavens.innerHTML = '<div class="far"><div class="only-light sun"></div></div>' +
+      `<div class="far"><div class="only-dark starfield" style="--w:${sky.w};--h:${sky.h}"><svg class="stars" viewBox="${-sky.w / 2} ${-sky.h / 2} ${sky.w} ${sky.h}">${stars}</svg>${twinkles}</div></div>` +
+      `<div class="far"><div class="only-dark moon">${MOON}</div></div>`;
+    this.far = spots.flatMap((place, at) => {
+      const el = this.heavens.children[at];
+      return el instanceof HTMLElement ? [{ el, ...place }] : [];
+    });
+    this.paintFar();
+    this.paintSky();
 
     this.layer.back.replaceChildren();
     el('path', { class: 'ground', d: `M-560,${g + 4} C-300,${g - 6} -120,${g + 9} 0,${g + 3} C160,${g - 4} 380,${g + 10} 580,${g + 2}` }, this.layer.back);
@@ -1767,13 +1902,13 @@ export class TreeEngine {
       el('path', { class: 'grass', d: `M${x.toFixed(1)},${g + 5} q${(lean / 2).toFixed(1)},${(-h / 2).toFixed(1)} ${lean.toFixed(1)},${(-h).toFixed(1)}` }, this.layer.back);
     }
 
-    html = '';
+    let flies = '';
     for (let i = 0; i < 22; i++) {
       const id = `fly${i}`;
       const fx = b.x0 + rnd(id, 'x') * (b.x1 - b.x0), fy = b.y0 + 80 + rnd(id, 'y') * (g - b.y0 - 60);
-      html += `<i class="only-dark fly" style="${spot(fx, fy, 11, 11)};--t:${(7 + rnd(id, 't') * 9).toFixed(1)}s;--d:-${(rnd(id, 'd') * 9).toFixed(1)}s;--dx:${((rnd(id, 'dx') - 0.5) * 220).toFixed(0)}px;--dy:${((rnd(id, 'dy') - 0.5) * 160).toFixed(0)}px"><b></b></i>`;
+      flies += `<i class="only-dark fly" style="${spot(fx, fy, 11, 11)};--t:${(7 + rnd(id, 't') * 9).toFixed(1)}s;--d:-${(rnd(id, 'd') * 9).toFixed(1)}s;--dx:${((rnd(id, 'dx') - 0.5) * 220).toFixed(0)}px;--dy:${((rnd(id, 'dy') - 0.5) * 160).toFixed(0)}px"><b></b></i>`;
     }
-    this.world.querySelector('.ahead')!.innerHTML = html;
+    this.world.querySelector('.ahead')!.innerHTML = flies;
   }
 
   /* ---------- Letting go ---------- */
@@ -1796,6 +1931,7 @@ export class TreeEngine {
   destroy(): void {
     this.abort.abort();
     this.resizer.disconnect();
+    clearInterval(this.skyClock);
     cancelAnimationFrame(this.frameId);
     cancelAnimationFrame(this.cameraFrame);
     this.running = this.cameraQueued = false;

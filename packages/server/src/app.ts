@@ -33,6 +33,7 @@ import { Views } from './views';
 
 const AUTH_SECRET = 'auth_secret';
 const SETUP_TOKEN = 'setup_token_hash';
+const SETUP_TOKEN_LENGTH = 20;   // the shortest setup token an install will take from its settings
 
 export interface App {
   config: AppConfig;
@@ -114,6 +115,7 @@ export async function createApp(config: AppConfig): Promise<App> {
 
   const family: FamilySignIn = {
     familyName: () => store.settings.familyName,
+    hasAccount: async (email) => Boolean(await members.userByEmail(email)),
     async demoAccount(email) {
       await store.fresh();
       const listed = config.demoMode && store.settings.demoAccounts.some((account) => account.email === email);
@@ -139,7 +141,11 @@ export async function createApp(config: AppConfig): Promise<App> {
     },
   };
 
-  const auth = createAuth({ db, config, secret: await secretFor(db, config), mailer, family, onLink: (email, url) => links.set(email.toLowerCase(), url) });
+  const auth = createAuth({
+    db, config, secret: await secretFor(db, config), mailer, family,
+    // Sign-in links are kept to show on the page only for the made-up family. A real family's are mailed and kept nowhere.
+    onLink: config.demoMode ? (email, url) => links.set(email.toLowerCase(), url) : undefined,
+  });
 
   const jobs: Job[] = [
     { name: 'compost', everyHours: 24, run: async () => `${await edits.sweepCompost()} removed for good` },
@@ -197,7 +203,10 @@ export async function createApp(config: AppConfig): Promise<App> {
     await seedDemo(app);
     console.log(`Planted the demo family. Try it at ${config.baseUrl}`);
   } else if (await needsSetup()) {
-    const token = config.setupToken ?? newToken('setup_');
+    // A token that is empty or short is one a stranger could guess, and whoever holds it becomes the owner. Then a fresh one is made instead.
+    const given = config.setupToken?.trim() ?? '';
+    if (given && given.length < SETUP_TOKEN_LENGTH) console.warn(`SETUP_TOKEN is shorter than ${SETUP_TOKEN_LENGTH} characters, so it was not used.`);
+    const token = given.length >= SETUP_TOKEN_LENGTH ? given : newToken('setup_');
     await writeMeta(db, SETUP_TOKEN, hashToken(token));
     console.log(`\nThis family tree has not been set up yet. Open this link to claim it:\n\n  ${config.baseUrl}/setup?token=${token}\n`);
   }

@@ -13,6 +13,8 @@ credentials/
 .DS_Store
 .claude/
 .idea/
+# Screenshots and logs left by browser test tools
+.playwright-mcp/
 coverage/
 *.tsbuildinfo
 # Written by Next.js on every dev start and build

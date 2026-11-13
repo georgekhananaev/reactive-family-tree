@@ -611,7 +611,7 @@ button[disabled] { opacity: 0.5; cursor: default; }
   padding: 10px 12px;
   border: 1px dashed var(--pencil);
   border-radius: 6px;
-  font-family: var(--display);
+  font-family: var(--display-slanted);
   font-style: italic;
   color: var(--muted);
 }
@@ -707,7 +707,7 @@ dl.keys dd { margin: 0; color: var(--muted); }
 .edit header strong { font: 700 1.0625rem var(--display); }
 .edit header small { color: var(--muted); white-space: nowrap; }
 .edit .by { margin: 2px 0 8px; color: var(--muted); font-size: 0.9375rem; }
-.edit .note { margin: 8px 0; padding: 8px 12px; border-left: 3px solid var(--line); font-family: var(--display); font-style: italic; }
+.edit .note { margin: 8px 0; padding: 8px 12px; border-left: 3px solid var(--line); font-family: var(--display-slanted); font-style: italic; }
 .edit ul { margin: 0; padding: 0; list-style: none; }
 .edit li { padding: 6px 0; border-top: 1px solid var(--line); }
 .edit li .check { min-height: 0; }

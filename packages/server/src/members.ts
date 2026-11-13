@@ -13,7 +13,7 @@ import { account, aiConnection, branchGrant, invite, joinRequest, notification, 
 import type { Database } from '@reactive-family-tree/db';
 import { and, asc, count, desc, eq, gt, isNull, ne } from 'drizzle-orm';
 
-import { badRequest, forbidden, notFound } from './errors';
+import { badRequest, forbidden, notFound, tooMany } from './errors';
 import { hashToken, later, newId, newToken, now } from './ids';
 import type { FamilyStore } from './store';
 
@@ -25,6 +25,7 @@ const ROLES: readonly Role[] = ['owner', 'admin', 'member'];
 const MODES: readonly ConnectionMode[] = ['review_first', 'apply_directly'];
 const ACCESS: readonly ConnectionAccess[] = ['read', 'write', 'admin'];
 const PROFILES: readonly ToolProfile[] = ['full', 'simple'];
+const MAX_WAITING = 50;   // requests to join that may wait at once. A family reads them by hand; past this, a machine is filling in the form
 /* How long an invitation stays good. */
 export const INVITE_DAYS = 14;
 
@@ -274,9 +275,13 @@ export class Members {
 
   async askToJoin({ name, email, message }: { name?: unknown; email?: unknown; message?: unknown }): Promise<void> {
     if (!this.store.settings.allowJoinRequests) throw forbidden('This family is not taking requests to join.');
-    if (!String(name ?? '').trim() || !cleanEmail(email).includes('@')) throw badRequest('Enter your name and email address.');
+    const address = cleanEmail(email);
+    // No real address is longer than 254 letters
+    if (!String(name ?? '').trim() || !address.includes('@') || address.length > 254) throw badRequest('Enter your name and email address.');
+    const [waiting] = await this.db.select({ n: count() }).from(joinRequest).where(eq(joinRequest.status, 'waiting'));
+    if ((waiting?.n ?? 0) >= MAX_WAITING) throw tooMany('Many requests are waiting already. Ask a relative to invite you instead.');
     await this.db.insert(joinRequest).values({
-      id: newId('jr'), name: String(name).trim().slice(0, 80), email: cleanEmail(email), message: String(message ?? '').slice(0, 1000), status: 'waiting', decidedBy: null, createdAt: now(),
+      id: newId('jr'), name: String(name).trim().slice(0, 80), email: address, message: String(message ?? '').slice(0, 1000), status: 'waiting', decidedBy: null, createdAt: now(),
     });
   }
 

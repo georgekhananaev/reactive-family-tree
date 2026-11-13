@@ -23,6 +23,10 @@ own relatives, with nothing sent anywhere else.
   switches it for themselves. Pressing Play brings a quicker tune of its own,
   which an admin can turn off apart from the other, and make from a different
   melody.
+- **Tonight's moon over it.** In the dark the tree stands under the real moon,
+  in tonight's phase. Tell the tree roughly where the family is, and the moon is
+  turned the way it is seen from there, and the sun is warmer near sunrise and
+  sunset.
 - **The living stay private.** A new tree is closed to strangers. If the family
   opens it, living people still appear as unnamed leaves unless they choose
   otherwise themselves.
@@ -62,9 +66,13 @@ file of its own, so it never touches a real family's tree.
 docker compose -f docker/compose.yml up --build
 ```
 
-One container, no separate database. The database file, the secret that signs
-sessions, and the nightly snapshots live in the `/data` volume. Read the setup link
-with `docker compose -f docker/compose.yml logs tree`.
+One container, no separate database. The database file, the photos, the secret
+that signs sessions, and the nightly snapshots live in the `/data` volume. Read
+the setup link with `docker compose -f docker/compose.yml logs tree`.
+
+On a server, put `PUBLIC_URL=https://family.example.com` in a `.env` file beside
+`compose.yml` before the first start, and put a proxy that speaks https in front:
+the container listens on `127.0.0.1:3000` only. Back up the `/data` volume.
 
 ### Settings
 
@@ -81,7 +89,8 @@ secrets and infrastructure, and all of them are optional on your own computer.
 | `SMTP_URL` or `RESEND_API_KEY`, `EMAIL_FROM` | Sending sign-in links and invitations. Without them, links go to the server log and invitations are handed over as links |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Optional Google sign-in for people who already have an account |
 | `SETUP_TOKEN` | Claims a fresh install on a host where you cannot read the log |
-| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Keep photos in an S3-compatible bucket such as Cloudflare R2. Without them, photos live in a `media` folder beside the database |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` | Keep photos in an S3-compatible bucket such as Cloudflare R2. Without them, photos live in a `media` folder beside the database |
+| `MEDIA_DIR` | Another folder for the photos, when they are not in a bucket |
 | `DEMO_MODE` | Plants the Marlow family and its demo accounts. Never for a real family |
 | `JOB_TIMERS`, `JOBS_TOKEN` | Turn the daily jobs' timer off and let the host's cron call `POST /api/jobs` |
 

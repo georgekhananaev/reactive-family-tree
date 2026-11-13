@@ -143,7 +143,9 @@ export class FamilyStore {
     const next = this.settingsRev + 1;
     await this.db.transaction(async (tx) => {
       for (const [key, value] of Object.entries(patch)) {
-        await tx.insert(setting).values({ key, value }).onConflictDoUpdate({ target: setting.key, set: { value } });
+        // A setting that is emptied is not kept at all. Only one whose default is empty can be: the family's place, and whose tree it is.
+        if (value === null) await tx.delete(setting).where(eq(setting.key, key));
+        else await tx.insert(setting).values({ key, value }).onConflictDoUpdate({ target: setting.key, set: { value } });
       }
       await this.bump(tx, SETTINGS_REV, next);
     });

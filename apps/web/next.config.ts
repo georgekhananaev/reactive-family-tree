@@ -32,6 +32,10 @@ const config: NextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'X-Frame-Options', value: 'DENY' },
+          // Browsers heed this only over https. From then on they never try the tree over plain http again.
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
+          // No other site may show the tree inside a page of its own, no plug-in is ever loaded, and a planted <base> cannot move the page's links
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'" },
         ],
       },
     ];

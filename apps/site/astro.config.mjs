@@ -6,11 +6,22 @@
  * Author: George Khananaev
  */
 
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
 import react from '@astrojs/react';
 import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 
-import { AUTHOR, FONTS, SITE_NAME } from './src/lib/site.mjs';
+import { AUTHOR, FONTS, SITE_NAME, iconLinks } from './src/lib/site.mjs';
+
+/* A short hash of the icon files. It goes on the icon links, so a new icon shows at once. */
+const iconHash = createHash('sha256');
+for (const file of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png']) {
+  iconHash.update(readFileSync(new URL(`./public/${file}`, import.meta.url)));
+}
+const ICON_VERSION = iconHash.digest('hex').slice(0, 8);
+const icons = iconLinks(ICON_VERSION);
 
 /*
  * The workspace packages are TypeScript source, so Vite compiles them with the
@@ -27,14 +38,15 @@ export default defineConfig({
     starlight({
       title: SITE_NAME,
       description: 'How to run Reactive Family Tree for your own family, and how to build on it.',
+      favicon: icons.svg.href,
       customCss: ['./src/styles/docs.css'],
       // Commands are shown as plain code, without the drawn window around a terminal
       expressiveCode: { defaultProps: { frame: 'code' } },
       head: [
         { tag: 'meta', attrs: { name: 'author', content: AUTHOR } },
-        // Starlight adds /favicon.svg itself. These two are for browsers without SVG icons, and phone home screens.
-        { tag: 'link', attrs: { rel: 'icon', href: '/favicon.ico', sizes: '32x32' } },
-        { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' } },
+        // Starlight adds the SVG icon itself, from `favicon` above
+        { tag: 'link', attrs: icons.ico },
+        { tag: 'link', attrs: icons.appleTouch },
         { tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.googleapis.com' } },
         { tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: true } },
         { tag: 'link', attrs: { rel: 'stylesheet', href: FONTS } },
@@ -52,6 +64,8 @@ export default defineConfig({
     }),
   ],
   vite: {
+    // The pages read it as import.meta.env.ICON_VERSION
+    define: { 'import.meta.env.ICON_VERSION': JSON.stringify(ICON_VERSION) },
     ssr: { noExternal: WORKSPACE_SOURCE },
     resolve: { noExternal: WORKSPACE_SOURCE },
   },

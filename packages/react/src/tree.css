@@ -58,6 +58,7 @@
   --bud-text: #14261F;
   --ground: #3A3028;
   --grass: #2F6B4F;
+  --shade: rgba(52, 62, 44, 0.26);
 }
 
 /* ---------- Dark: the same tree after sunset ---------- */
@@ -105,6 +106,7 @@
   --bud-text: #7CCDE0;
   --ground: #8491B4;
   --grass: #5E9C7C;
+  --shade: rgba(4, 8, 20, 0.5);
 }
 
 /* ---------- The stage ---------- */
@@ -271,30 +273,71 @@
 :root[data-theme="dark"] .only-dark { opacity: 1; }
 :root[data-theme="dark"] .only-light { opacity: 0; }
 
+/*
+ * The sun, the moon and the stars are far away, so the camera does not carry
+ * them. They have a layer of their own over the sky, and the tree's drawing
+ * code keeps each in its place there as the tree is moved and zoomed. It
+ * hands over how wide the moon's disc is (--disc) and how large the sheet of
+ * stars is (--star), and everything here is sized from those two, so that
+ * each thing is drawn at the size it is shown at and keeps a clean edge.
+ */
+.heavens { position: absolute; inset: 0; pointer-events: none; }
+.far { position: absolute; left: 0; top: 0; width: 0; height: 0; will-change: transform; }
+.far > * { position: absolute; }
+
 /* The sun sets as the moon rises, and the other way round */
-.moon { transform: translateY(300px); }
+.moon { transform: translateY(calc(var(--disc) * 2.5)); }
 :root[data-theme="dark"] .moon { transform: none; }
-:root[data-theme="dark"] .sun { transform: translateY(300px); }
+:root[data-theme="dark"] .sun { transform: translateY(calc(var(--disc) * 2.5)); }
+/* While the years play, the moon steps out: it is tonight's moon, and has no place in a century going by in a minute */
+.heavens.playing .only-dark.moon { opacity: 0; transition-duration: 0.6s, 2.6s; }
 
 .ground { fill: none; stroke: var(--ground); stroke-opacity: 0.55; stroke-width: 1.4; stroke-linecap: round; transition: stroke 0.4s; }
 .grass { fill: none; stroke: var(--grass); stroke-opacity: 0.6; stroke-width: 1.3; stroke-linecap: round; transition: stroke 0.4s; }
 
 /* The sky's furniture: ordinary elements, so fading and moving them is free */
-.sun { background: radial-gradient(closest-side, rgba(255, 243, 209, 0.95), rgba(255, 243, 209, 0.38) 40%, rgba(255, 243, 209, 0)); }
+.sun { left: calc(var(--disc) * -2.8); top: calc(var(--disc) * -2.8); width: calc(var(--disc) * 5.6); height: calc(var(--disc) * 5.6); background: radial-gradient(closest-side, rgba(255, 243, 209, 0.95), rgba(255, 243, 209, 0.38) 40%, rgba(255, 243, 209, 0)); }
+/* Near sunrise and sunset where the family is, the sun is the warmer colour it has low in the sky */
+.sun::after { content: ""; position: absolute; inset: 0; background: radial-gradient(closest-side, rgba(255, 208, 140, 0.7), rgba(255, 196, 128, 0.26) 42%, rgba(255, 196, 128, 0)); opacity: var(--warm, 0); transition: opacity 2s; }
 .canopy-wash { background: radial-gradient(closest-side, rgba(141, 191, 106, 0.2), rgba(141, 191, 106, 0)); }
 .soil { background: radial-gradient(closest-side, rgba(107, 90, 62, 0.3), rgba(124, 138, 82, 0.14) 60%, rgba(124, 138, 82, 0)); }
+/* The tree's shadow, lying away from the light. It is there by day and, fainter against the dark, by night. */
+.shade { border-radius: 50%; background: radial-gradient(closest-side, var(--shade), transparent); pointer-events: none; }
 
-.moon { background: radial-gradient(closest-side, rgba(244, 239, 208, 0.32), rgba(201, 207, 234, 0.12) 35%, rgba(201, 207, 234, 0)); }
-.moon span {
+/*
+ * The moon is the real one: in the phase it is in tonight, and turned the way
+ * it is seen from where the family is. Its glow is strong when it is full and
+ * all but gone when it is new.
+ *
+ * It is a dark disc with the lit part drawn over it, and the grey seas showing
+ * where the light falls. The dark part is never quite the colour of the sky:
+ * on a clear night the whole disc can just be made out. The outline of the
+ * lit part, which way it is turned and how strong the glow is are handed over
+ * by the drawing code.
+ */
+.moon { width: 0; height: 0; }
+.moon .halo {
   position: absolute;
-  inset: 39%;
-  border-radius: 50%;
-  background: radial-gradient(circle at 42% 40%, #FBF6DD, #E4DDB8);
-  opacity: 0.94;
+  left: calc(var(--disc) * -2.6);
+  top: calc(var(--disc) * -2.6);
+  width: calc(var(--disc) * 5.2);
+  height: calc(var(--disc) * 5.2);
+  background: radial-gradient(closest-side, rgba(244, 239, 208, 0.3), rgba(201, 207, 234, 0.11) 34%, rgba(201, 207, 234, 0));
+  opacity: var(--glow, 0.6);
 }
+/* The drawing is 120 across for a disc of 118, which leaves the edge room to be smooth */
+.moon .disc { position: absolute; left: calc(var(--disc) * -0.5085); top: calc(var(--disc) * -0.5085); width: calc(var(--disc) * 1.017); height: calc(var(--disc) * 1.017); }
+.moon .unlit { fill: #141C35; }
+.moon .lit { fill: url(#moonFace); }
+.moon .seas { fill: #8E8A74; opacity: 0.2; }
+/* Low over the horizon it is amber, as a rising moon is */
+.moon-middle { stop-color: color-mix(in srgb, #F4D9A0 calc(var(--low, 0) * 100%), #F8F4DE); }
+.moon-edge { stop-color: color-mix(in srgb, #E2BE80 calc(var(--low, 0) * 100%), #E4DDBB); }
 
-.stars { overflow: visible; fill: #E7EEF0; }
-.twinkle { border-radius: 50%; background: #E7EEF0; }
+/* One sheet of stars about its own middle, and the few that twinkle laid over it. Each is placed and sized by how large the sheet is drawn. */
+.starfield { width: 0; height: 0; }
+.stars { position: absolute; left: calc(var(--star) * var(--w) * -0.5px); top: calc(var(--star) * var(--h) * -0.5px); width: calc(var(--star) * var(--w) * 1px); height: calc(var(--star) * var(--h) * 1px); fill: #E7EEF0; }
+.twinkle { position: absolute; left: calc(var(--star) * (var(--x) - var(--r)) * 1px); top: calc(var(--star) * (var(--y) - var(--r)) * 1px); width: calc(var(--star) * var(--r) * 2px); height: calc(var(--star) * var(--r) * 2px); border-radius: 50%; background: #E7EEF0; }
 :root[data-theme="dark"] .twinkle { animation: twinkle 4.5s ease-in-out infinite alternate; }
 @keyframes twinkle { from { opacity: 0.15; } to { opacity: 0.9; } }
 

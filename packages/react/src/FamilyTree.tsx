@@ -3,11 +3,12 @@
 /*
  * The family tree as one React component.
  *
- * React renders the stage: the two skies, the year in the sky, and the empty
- * drawing the tree goes into. Everything on the tree itself is then drawn by
- * the engine, by hand and outside React, because it changes on every frame.
- * Props are handed to the engine as they change, and what happens on the tree
- * comes back through the callbacks.
+ * React renders the stage: the two skies, the year in the sky, an empty layer
+ * for the sun, the moon and the stars, and the empty drawing the tree goes
+ * into. Everything on the tree itself is then drawn by the engine, by hand
+ * and outside React, because it changes on every frame. Props are handed to
+ * the engine as they change, and what happens on the tree comes back through
+ * the callbacks.
  *
  * The markup keeps the ids that tree.css draws by, so a page holds one tree.
  * Author: George Khananaev
@@ -19,6 +20,7 @@ import type { PersonLeaf, Relation, TreePerson } from '@reactive-family-tree/cor
 import { FACE_RADIUS, TreeEngine } from './engine';
 import type { BranchState, TreeData, TreeInsets, YearRange } from './engine';
 import { THIS_YEAR } from './leaf';
+import type { Place } from './sky';
 
 export interface FamilyTreeProps {
   data: TreeData;
@@ -28,6 +30,10 @@ export interface FamilyTreeProps {
   focusId?: string | null;
   /* The year being shown. Defaults to this year. */
   year?: number;
+  /* The years are being played through. The moon, which is tonight's, steps out of the sky until they stop. */
+  playing?: boolean;
+  /* Where the family is. The sun and the moon are drawn as they stand over that place right now. Without one, the moon is seen from the north. */
+  place?: Place | null;
   editing?: boolean;
   selectedId?: string | null;
   /* Search: these keep their colour, everyone else steps back. */
@@ -107,15 +113,15 @@ const DEFS = (
  * its <defs>. An engine leaves what it drew behind when it is destroyed, and
  * the next one, given the same markup, would draw a second tree over it.
  */
-function clearDrawing(world: HTMLElement, svg: SVGSVGElement): void {
+function clearDrawing(stage: HTMLElement, world: HTMLElement, svg: SVGSVGElement): void {
   for (const child of [...svg.children]) if (child.localName !== 'defs') child.remove();
   for (const name of ['class', 'viewBox', 'width', 'height', 'data-zoom']) svg.removeAttribute(name);
-  for (const side of world.querySelectorAll('.behind, .ahead')) side.replaceChildren();
+  for (const layer of stage.querySelectorAll('.heavens, .behind, .ahead')) layer.replaceChildren();
   world.removeAttribute('style');
 }
 
 export function FamilyTree({
-  data, viewerId = null, focusId = null, year = THIS_YEAR, editing = false, selectedId = null, matches = null, route = null, tints = null,
+  data, viewerId = null, focusId = null, year = THIS_YEAR, playing = false, place = null, editing = false, selectedId = null, matches = null, route = null, tints = null,
   faces = false, portraitOf, insets, label = 'The family tree', className, onSelect, onAdd, onHold, onHoldMove, onHoldEnd, onMoved, ref,
 }: FamilyTreeProps): ReactElement {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -149,7 +155,7 @@ export function FamilyTree({
     return () => {
       engine.destroy();
       engineRef.current = null;
-      clearDrawing(world, svg);
+      clearDrawing(stage, world, svg);
     };
   }, []);
 
@@ -167,6 +173,12 @@ export function FamilyTree({
   useEffect(() => {
     engineRef.current?.setYear(year);
   }, [year]);
+
+  // Keyed on the two numbers and not on the object that holds them: the same place in a new object is not a new place
+  const latitude = place?.latitude ?? null, longitude = place?.longitude ?? null;
+  useEffect(() => {
+    engineRef.current?.setPlace(latitude === null || longitude === null ? null : { latitude, longitude });
+  }, [latitude, longitude]);
 
   const right = insets?.right ?? 0, top = insets?.top ?? 0;
   useEffect(() => {
@@ -235,6 +247,8 @@ export function FamilyTree({
       <div className="trellis" aria-hidden="true" />
       {/* Time travel: the year stands in the sky while the slider is away from today */}
       <div id="yearGhost" className={year < THIS_YEAR ? 'year-ghost on' : 'year-ghost'} aria-hidden="true">{year}</div>
+      {/* The sun, the moon and the stars: far things, which the camera does not carry */}
+      <div className={playing ? 'heavens playing' : 'heavens'} aria-hidden="true" />
       <div id="world" ref={worldRef}>
         <div className="behind" aria-hidden="true" />
         <svg id="tree" ref={svgRef} aria-label={label}>{DEFS}</svg>
