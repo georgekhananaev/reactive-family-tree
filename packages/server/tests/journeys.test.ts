@@ -1,0 +1,306 @@
+/*
+ * The journeys of the plan, end to end through the web API and the sign-in
+ * library, against a real database: who sees what, who may change what,
+ * suggestions and review, undo, drafts, invitations and data in and out.
+ */
+
+import type { Op } from '@reactive-family-tree/core';
+import { afterAll, beforeAll, expect, test } from 'vitest';
+
+import { browser, startDemo } from '../src/testing';
+import type { Demo } from '../src/testing';
+
+let demo: Demo;
+beforeAll(async () => { demo = await startDemo(); });
+afterAll(() => demo.close());
+
+const rename = (person: string, given: string): Op[] => [{ type: 'person.update', person, set: { given } }];
+const newChild = (union: string, given: string): Op[] => [
+  { type: 'person.create', ref: '$kid', set: { given, family: 'Test', living: 'yes' } },
+  { type: 'fact.add', subject: { type: 'person', id: '$kid' }, set: { type: 'birth', date: { kind: 'exact', from: '2020' } } },
+  { type: 'child.link', union, child: '$kid' },
+];
+/* What the API sends, read loosely. */
+interface Leaf { id: string; given?: string; masked?: boolean; pending?: { status: string } | null }
+interface Shown { id: string; message: string; status: string; lines: { text: string; fields: { was?: string; to: string }[] }[] }
+
+test('a visitor sees the shape of the tree but nothing about the living', async () => {
+  const visitor = browser(demo.app);
+  const { data: tree } = await visitor.get('/api/tree');
+  const masked = tree.people.filter((p: Leaf) => p.masked);
+  expect(tree.people.length).toBe(50);
+  expect(masked.length).toBe(39);
+  for (const p of masked) expect(Object.keys(p).sort(), 'a masked person carries nothing but a placeholder').toEqual(['id', 'masked']);
+  expect(tree.people.some((p: Leaf) => p.given === 'Elias'), 'people who have died are shown').toBe(true);
+  expect(JSON.stringify(tree), 'no living name anywhere in what a visitor receives').not.toContain('Sophie');
+
+  expect((await visitor.get(`/api/people/${demo.idOf('Sophie')}`)).status).toBe(404);
+  expect((await visitor.get('/api/people?q=sophie')).data.people.length).toBe(0);
+  expect((await visitor.get('/api/people?q=elias')).data.people.length).toBe(1);
+  expect((await visitor.get('/api/edits?which=activity')).status).toBe(401);
+  expect((await visitor.get('/api/members')).status).toBe(401);
+});
+
+test('a private tree shows a visitor nothing at all', async () => {
+  const owner = browser(demo.app);
+  await owner.signInAs('helen');
+  await owner.patch('/api/settings', { visibility: 'private' });
+  const visitor = browser(demo.app);
+  const { data: tree } = await visitor.get('/api/tree');
+  expect(tree.closed).toBe(true);
+  expect(tree.people.length).toBe(0);
+  expect((await visitor.get(`/api/people/${demo.idOf('Elias')}`)).status).toBe(403);
+  expect((await visitor.get(`/api/relationship?from=${demo.idOf('Elias')}&to=${demo.idOf('Ada', 'Marlow')}`)).status, 'not even how two people are related').toBe(404);
+  await owner.patch('/api/settings', { visibility: 'public_masked' });
+});
+
+test('edits inside your branch publish at once, edits elsewhere become suggestions', async () => {
+  const margaret = browser(demo.app);
+  await margaret.signInAs('margaret');
+  const before = (await margaret.get('/api/tree')).data;
+
+  const inside = await margaret.edit(newChild(demo.unionOf(demo.idOf('Clara')), 'Robin'));
+  expect(inside.data.status).toBe('applied');
+  const tree = (await margaret.get('/api/tree')).data;
+  expect(tree.seq).toBe(before.seq + 1);
+  expect(tree.people.some((p: Leaf) => p.given === 'Robin' && !p.pending)).toBe(true);
+
+  const outside = await margaret.edit(rename(demo.idOf('Walter'), 'Walt'));
+  expect(outside.data.status).toBe('suggested');
+  expect((await margaret.get('/api/tree')).data.seq, 'a suggestion does not change the tree').toBe(tree.seq);
+  // the button label is known in advance
+  expect((await margaret.edit(rename(demo.idOf('Walter'), 'W'), { mode: 'dry' })).data.status).toBe('suggested');
+  expect((await margaret.edit(rename(demo.idOf('Clara'), 'Clara'), { mode: 'dry' })).data.status).toBe('applied');
+
+  const daniel = browser(demo.app);
+  await daniel.signInAs('daniel');
+  expect((await daniel.edit(rename(demo.idOf('Daniel'), 'Dan'))).data.status, 'a member can always edit their own leaf').toBe('applied');
+  expect((await daniel.edit(rename(demo.idOf('Nora'), 'N'))).data.status).toBe('suggested');
+  await daniel.edit(rename(demo.idOf('Daniel'), 'Daniel'));
+});
+
+test('a suggestion reaches the right reviewers and is approved, adjusted or declined', async () => {
+  const karl = browser(demo.app);
+  await karl.signInAs('karl');
+  const queue: Shown[] = (await karl.get('/api/edits?which=review')).data.edits;
+  expect(queue.map((e) => e.message), 'a steward reviews only what lands in his branch').toEqual(['Add Lena, Karl and Ines’s youngest']);
+  const waiting = queue[0] as Shown;
+  expect((await karl.get('/api/tree')).data.people.some((p: Leaf) => p.given === 'Lena' && p.pending), 'shown on his tree in pencil').toBe(true);
+
+  const sophie = browser(demo.app);
+  await sophie.signInAs('sophie');
+  expect((await sophie.post(`/api/edits/${waiting.id}/review`, { action: 'approve' })).status, 'you cannot approve your own suggestion').toBe(403);
+
+  const approved = await karl.post(`/api/edits/${waiting.id}/review`, { action: 'approve' });
+  expect(approved.data.status).toBe('applied');
+  expect(approved.data.edit.author, 'credit stays with the person who suggested it').toBe('Sophie Stein');
+  expect(approved.data.edit.reviewedBy).toBe('Karl Lindqvist');
+  expect((await sophie.get('/api/tree')).data.people.some((p: Leaf) => p.given === 'Lena' && !p.pending)).toBe(true);
+  expect((await sophie.get('/api/notifications')).data.notifications.some((n: { kind: string }) => n.kind === 'approved')).toBe(true);
+
+  const peter = browser(demo.app);
+  await peter.signInAs('peter');
+  const forAdmin: Shown[] = (await peter.get('/api/edits?which=review')).data.edits;
+  const birthday = forAdmin.find((e) => e.message.startsWith('Edith')) as Shown;
+  expect(birthday.lines[0]?.fields[0]?.was).toBe('1930');
+  expect(birthday.lines[0]?.fields[0]?.to).toBe('12 May 1930');
+  expect((await peter.post(`/api/edits/${birthday.id}/review`, { action: 'decline' })).status, 'declining needs a reason').toBe(400);
+  const declined = await peter.post(`/api/edits/${birthday.id}/review`, { action: 'decline', note: 'The parish record says 14 May.' });
+  expect(declined.data.status).toBe('declined');
+
+  const walter = forAdmin.find((e) => e.lines[0]?.text.includes('Walter')) as Shown;
+  const adjusted = await peter.post(`/api/edits/${walter.id}/review`, { action: 'approve', ops: rename(demo.idOf('Walter'), 'Walter J.') });
+  expect(adjusted.data.status).toBe('applied');
+  expect((await peter.get(`/api/people/${demo.idOf('Walter')}`)).data.given).toBe('Walter J.');
+});
+
+test('every edit can be undone, and undo refuses to trample later changes', async () => {
+  const peter = browser(demo.app);
+  await peter.signInAs('peter');
+  const first = await peter.edit(rename(demo.idOf('Hana'), 'Hanako'));
+  const second = await peter.edit(rename(demo.idOf('Hana'), 'Hanna'));
+
+  const blocked = await peter.post(`/api/edits/${first.data.editId}/revert`);
+  expect(blocked.status, 'a later edit changed the same person').toBe(409);
+  expect((await peter.post(`/api/edits/${second.data.editId}/revert`)).data.status).toBe('applied');
+  expect((await peter.post(`/api/edits/${first.data.editId}/revert`)).data.status).toBe('applied');
+  expect((await peter.get(`/api/people/${demo.idOf('Hana')}`)).data.given).toBe('Hana');
+
+  const history: Shown[] = (await peter.get(`/api/edits?which=activity&person=${demo.idOf('Hana')}`)).data.edits;
+  expect(history.filter((e) => e.status === 'reverted').length, 'nothing is erased from history').toBe(2);
+  expect(history.filter((e) => e.message.startsWith('Undo')).length).toBe(2);
+});
+
+test('edits that break the family are refused with a reason', async () => {
+  const peter = browser(demo.app);
+  await peter.signInAs('peter');
+  const dead = await peter.edit([{ type: 'fact.add', subject: { type: 'person', id: demo.idOf('Sophie') }, set: { type: 'death', date: { kind: 'exact', from: '1950' } } }]);
+  expect(dead.status).toBe(422);
+  expect(dead.data.error).toMatch(/cannot have died/);
+
+  const loop = await peter.edit([{ type: 'child.link', union: demo.unionOf(demo.idOf('Clara')), child: demo.idOf('Margaret') }]);
+  expect(loop.status).toBe(422);
+  expect(loop.data.error).toMatch(/own ancestor/);
+  expect((await peter.edit([{ type: 'person.update', person: demo.idOf('Sophie'), set: { sex: 'robot' } }] as unknown as Op[])).status).toBe(422);
+});
+
+test('only a living person can make themselves public', async () => {
+  const helen = browser(demo.app);
+  await helen.signInAs('helen');
+  const sophieId = demo.idOf('Sophie');
+  const refused = await helen.edit([{ type: 'person.update', person: sophieId, set: { privacy: 'public' } }]);
+  expect(refused.status).toBe(403);
+  await helen.patch('/api/settings', { visibility: 'public' });
+
+  const visitor = browser(demo.app);
+  expect((await visitor.get(`/api/people/${sophieId}`)).status).toBe(404);
+  const sophie = browser(demo.app);
+  await sophie.signInAs('sophie');
+  expect((await sophie.edit([{ type: 'person.update', person: sophieId, set: { privacy: 'public' } }])).data.status).toBe('applied');
+  expect((await visitor.get(`/api/people/${sophieId}`)).data.name).toBe('Sophie Stein');
+
+  await sophie.edit([{ type: 'person.update', person: sophieId, set: { privacy: 'default' } }]);
+  expect((await visitor.get(`/api/people/${sophieId}`)).status, 'consent ends when she changes her mind').toBe(404);
+  await helen.patch('/api/settings', { visibility: 'public_masked' });
+});
+
+test('removing goes to the compost, and restoring brings a person back', async () => {
+  const nora = browser(demo.app);
+  await nora.signInAs('nora');
+  const leo = demo.idOf('Leo');
+  expect((await nora.edit([{ type: 'person.remove', person: leo }])).data.status).toBe('applied');
+  expect((await nora.get('/api/tree')).data.people.some((p: Leaf) => p.id === leo)).toBe(false);
+  expect((await nora.edit([{ type: 'person.remove', person: demo.idOf('Sam') }])).data.status, 'someone with children needs an admin').toBe('suggested');
+
+  const helen = browser(demo.app);
+  await helen.signInAs('helen');
+  expect((await helen.get('/api/compost')).data.people.some((p: Leaf) => p.id === leo)).toBe(true);
+  expect((await helen.edit([{ type: 'person.restore', person: leo }])).data.status).toBe('applied');
+  expect((await nora.get('/api/tree')).data.people.some((p: Leaf) => p.id === leo)).toBe(true);
+  expect((await nora.get('/api/compost')).status).toBe(403);
+});
+
+test('a person in the compost can be removed for good, and the sweep does it after thirty days', async () => {
+  const helen = browser(demo.app);
+  await helen.signInAs('helen');
+  const max = demo.idOf('Max');
+  await helen.edit([{ type: 'person.remove', person: max }]);
+  expect(await demo.app.edits.sweepCompost(), 'nothing is old enough yet').toBe(0);
+  expect((await helen.post(`/api/compost/${max}/purge`)).status).toBe(200);
+  expect((await helen.get('/api/compost')).data.people.some((p: Leaf) => p.id === max)).toBe(false);
+  expect(demo.app.store.state.people.has(max)).toBe(false);
+  expect([...demo.app.store.state.facts.values()].some((fact) => fact.subject.id === max), 'their facts go with them').toBe(false);
+});
+
+test('an AI draft is private until its owner applies it, whole or in part', async () => {
+  const margaret = browser(demo.app);
+  await margaret.signInAs('margaret');
+  const drafts = (await margaret.get('/api/edits?which=mine')).data.edits.filter((e: Shown) => e.status === 'draft');
+  expect(drafts.length).toBe(1);
+  expect(drafts[0].origin).toBe('mcp');
+  expect(drafts[0].client).toBe('Claude on my laptop');
+  expect((await margaret.get('/api/tree')).data.people.some((p: Leaf) => p.given === 'Juno' && p.pending?.status === 'draft')).toBe(true);
+
+  const helen = browser(demo.app);
+  await helen.signInAs('helen');
+  expect((await helen.get('/api/tree')).data.people.some((p: Leaf) => p.given === 'Juno'), 'nobody else sees a draft, not even the owner of the tree').toBe(false);
+  expect((await helen.get(`/api/edits/${drafts[0].id}`)).status).toBe(404);
+
+  // apply only the link of the baby: the baby and nothing else comes along, the birthday fix stays in the draft
+  const part = await margaret.post(`/api/edits/${drafts[0].id}/apply`, { indexes: [2] });
+  expect(part.data.status).toBe('applied');
+  expect(part.data.remaining).toBe(2);
+  expect((await helen.get('/api/tree')).data.people.some((p: Leaf) => p.given === 'Juno' && !p.pending)).toBe(true);
+  const rest = await margaret.post(`/api/edits/${drafts[0].id}/apply`, {});
+  expect(rest.data.status).toBe('applied');
+  expect(rest.data.remaining).toBe(0);
+  expect(rest.data.edit.origin, 'history remembers it came from an AI').toBe('mcp');
+});
+
+test('invitations and sign-in links work once', async () => {
+  const helen = browser(demo.app);
+  await helen.signInAs('helen');
+  const invite = (await helen.post('/api/invites', { email: 'elin@marlow.example', personId: demo.idOf('Elin'), role: 'member', grantBranch: true })).data;
+  expect(invite.emailedTo, 'no email is set up here, so the link is passed on by hand').toBeNull();
+  const token = new URL(invite.link).searchParams.get('invite');
+
+  const elin = browser(demo.app);
+  expect((await elin.get(`/api/invites/open?token=${token}`)).data.personName).toBe('Elin Lindqvist');
+  expect((await elin.post('/api/auth/family/accept-invite', { token, name: 'Elin Lindqvist', email: 'elin@marlow.example' })).status).toBe(200);
+  const session = (await elin.get('/api/session')).data;
+  expect(session.user.personId).toBe(demo.idOf('Elin'));
+  expect(session.user.anchors, 'invited as herself, she looks after her own branch').toEqual([demo.idOf('Elin')]);
+  expect((await browser(demo.app).post('/api/auth/family/accept-invite', { token, name: 'Mallory', email: 'm@example.com' })).status).toBe(400);
+
+  // An emailed link. In demo mode the page that asked may fetch it once, as there is no mailbox to read.
+  const asker = browser(demo.app);
+  await asker.post('/api/auth/sign-in/magic-link', { email: 'elin@marlow.example', callbackURL: '/' });
+  const link = (await asker.get('/api/demo/link?email=elin@marlow.example')).data.link as string;
+  expect(link).toContain('/api/auth/magic-link/verify');
+  expect((await asker.get('/api/demo/link?email=elin@marlow.example')).data.link, 'handed over once').toBeNull();
+  const path = link.slice(new URL(link).origin.length);
+  const again = browser(demo.app);
+  await again.get(path);
+  expect((await again.get('/api/session')).data.user.name).toBe('Elin Lindqvist');
+  const replay = browser(demo.app);
+  await replay.get(path);
+  expect((await replay.get('/api/session')).data.user, 'a link works once').toBeNull();
+
+  // Nobody can make an account for themselves by asking for a link
+  const stranger = browser(demo.app);
+  await stranger.post('/api/auth/sign-in/magic-link', { email: 'nobody@example.com', callbackURL: '/' });
+  const strangerLink = (await stranger.get('/api/demo/link?email=nobody@example.com')).data.link as string | null;
+  if (strangerLink) await stranger.get(strangerLink.slice(new URL(strangerLink).origin.length));
+  expect((await stranger.get('/api/session')).data.user).toBeNull();
+
+  // stewards invite within their branch only, and only an owner makes owners
+  const karl = browser(demo.app);
+  await karl.signInAs('karl');
+  expect((await karl.post('/api/invites', { personId: demo.idOf('Vera') })).status).toBe(200);
+  expect((await karl.post('/api/invites', { personId: demo.idOf('Iris') })).status).toBe(403);
+  const peter = browser(demo.app);
+  await peter.signInAs('peter');
+  const members: { id: string; name: string; role: string }[] = (await peter.get('/api/members')).data.members;
+  const idOfMember = (test: (m: { name: string; role: string }) => boolean) => (members.find(test) as { id: string }).id;
+  expect((await peter.patch(`/api/members/${idOfMember((m) => m.name === 'Karl Lindqvist')}`, { role: 'owner' })).status).toBe(403);
+  expect((await helen.patch(`/api/members/${idOfMember((m) => m.role === 'owner')}`, { role: 'member' })).status, 'a tree always has an owner').toBe(400);
+});
+
+test('the family can leave with all its data, and come back', async () => {
+  const helen = browser(demo.app);
+  await helen.signInAs('helen');
+  const gedcom: string = (await helen.get('/api/export/gedcom')).data;
+  expect(gedcom).toMatch(/1 NAME Ada \/Finch\//);
+  expect(gedcom).toMatch(/2 DATE ABT 1955/);
+  const people = (await helen.get('/api/tree')).data.people.length;
+  expect(gedcom.match(/ INDI$/gm)?.length).toBe(people);
+
+  // importing stages a draft the admin previews before anything is written
+  const staged = (await helen.post('/api/import/gedcom', { text: gedcom })).data;
+  expect(staged.status).toBe('draft');
+  expect(staged.people).toBe(people);
+  expect((await helen.get('/api/tree')).data.people.filter((p: Leaf) => !p.pending).length).toBe(people);
+  expect(staged.warnings.some((w: { code: string }) => w.code === 'possible_duplicate'), 'importing the same family again is noticed').toBe(true);
+  await helen.post(`/api/edits/${staged.editId}/discard`);
+
+  const backup = (await helen.get('/api/export/backup')).data;
+  expect(backup.format).toBe('reactive-family-tree-backup');
+  expect(JSON.stringify(backup), 'the secret that signs sessions never leaves in a backup').not.toContain('auth_secret');
+  await helen.edit(rename(demo.idOf('Marta'), 'Changed'));
+  expect((await browser(demo.app).post('/api/import/backup', { backup })).status).toBe(401);
+  expect((await helen.post('/api/import/backup', { backup })).status).toBe(200);
+  await helen.signInAs('helen');
+  expect((await helen.get(`/api/people/${demo.idOf('Marta')}`)).data.given).toBe('Marta');
+  expect((await helen.patch('/api/settings', { livingAge: 5 })).status).toBe(400);
+});
+
+test('the family in memory matches what is stored, after everything above', async () => {
+  const before = demo.app.store.state;
+  const count = (state: typeof before) => ({ people: state.people.size, unions: state.unions.size, facts: state.facts.size, memories: state.memories.size });
+  const remembered = { counts: count(before), elias: before.people.get(demo.idOf('Elias')), union: before.unions.get(demo.unionOf(demo.idOf('Elias'))) };
+  await demo.app.store.load();
+  const reloaded = demo.app.store.state;
+  expect(count(reloaded)).toEqual(remembered.counts);
+  expect(reloaded.people.get(demo.idOf('Elias'))).toEqual(remembered.elias);
+  expect(reloaded.unions.get(demo.unionOf(demo.idOf('Elias'))), 'partners and children come back in the same order').toEqual(remembered.union);
+});

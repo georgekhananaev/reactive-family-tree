@@ -1,0 +1,24 @@
+{
+  "name": "@reactive-family-tree/db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Database schema, migrations and client.",
+  "author": "George Khananaev",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "generate": "drizzle-kit generate && node scripts/bundle-migrations.mjs"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "@reactive-family-tree/core": "workspace:*",
+    "drizzle-orm": "^0.45.4"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.11"
+  }
+}

@@ -1,0 +1,531 @@
+/*
+ * Reactive Family Tree: design prototype, "Morning ink".
+ * One design, two appearances. Every colour is a custom property, so the
+ * light and dark appearances differ only in the two token blocks below.
+ * Author: George Khananaev
+ */
+
+/* ---------- Light: ink and watercolour on white ---------- */
+
+:root {
+  color-scheme: light;
+  --display: "Alegreya", Georgia, serif;
+  --ui: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+
+  --page: #FFFFFF;
+  --text: #14261F;
+  --muted: #57606A;
+  --halo: #FDFEFD;
+  --action: #12708A;
+  --on-action: #FFFFFF;
+  --panel: rgba(255, 255, 255, 0.95);
+  --card: #FFFFFF;
+  --card-shadow: 0 18px 40px -24px rgba(20, 38, 31, 0.5);
+  --line: rgba(20, 38, 31, 0.16);
+
+  --bark: #3A3028;
+  --root-opacity: 0.3;
+  --leaf-0: #2F6B4F;
+  --leaf-1: #3A7853;
+  --leaf-2: #508C58;
+  --leaf-3: #6FA560;
+  --leaf-4: #93BF6E;
+  --gold-0: #C9992E;
+  --gold-1: #BD8A2A;
+  --gold-2: #D4A742;
+  --leaf-edge: #14261F;
+  --leaf-edge-opacity: 0.5;
+  --vein: #14261F;
+  --vein-opacity: 0.34;
+  --gold-vein: #5A3F0C;
+  --wash-light: #FFFFFF;
+  --wash-shade: #14261F;
+  --glow-opacity: 0;
+  --ghost-fill: rgba(255, 255, 255, 0.65);
+  --pencil: #6E7781;
+  --hatch-paper: #FFFFFF;
+  --petal: #E58FA6;
+  --petal-edge: #A9506A;
+  --blossom-heart: #C9992E;
+  --bud: #8DBF6A;
+  --bud-edge: #14261F;
+  --bud-text: #14261F;
+  --ground: #3A3028;
+  --grass: #2F6B4F;
+}
+
+/* ---------- Dark: the same tree after sunset ---------- */
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --page: #0C1322;
+  --text: #E7EEF0;
+  --muted: #A9B4C0;
+  --halo: #0E1628;
+  --action: #7CCDE0;
+  --on-action: #0C1322;
+  --panel: rgba(27, 39, 64, 0.94);
+  --card: #1B2740;
+  --card-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.75);
+  --line: rgba(231, 238, 240, 0.18);
+
+  --bark: #8491B4;
+  --root-opacity: 0.22;
+  --leaf-0: #8FD0A8;
+  --leaf-1: #A3D9B5;
+  --leaf-2: #BFE3C8;
+  --leaf-3: #CDEBCB;
+  --leaf-4: #DCF3D2;
+  --gold-0: #E3C77A;
+  --gold-1: #D9B968;
+  --gold-2: #EBD08C;
+  --leaf-edge: #F1FBF3;
+  --leaf-edge-opacity: 0.5;
+  --vein: #0C1322;
+  --vein-opacity: 0.32;
+  --gold-vein: #4E3B0E;
+  --wash-light: #FFFFFF;
+  --wash-shade: #0C1322;
+  --glow-opacity: 0.5;
+  --ghost-fill: rgba(231, 238, 240, 0.06);
+  --pencil: #A9B4C0;
+  --hatch-paper: #1B2740;
+  --petal: #F2A7BA;
+  --petal-edge: #FBD5DE;
+  --blossom-heart: #F3D36B;
+  --bud: #1B2740;
+  --bud-edge: #7CCDE0;
+  --bud-text: #7CCDE0;
+  --ground: #8491B4;
+  --grass: #5E9C7C;
+}
+
+/* ---------- Page ---------- */
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; }
+
+body {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background-color: var(--page);
+  color: var(--text);
+  transition: color 0.4s, background-color 0.4s;
+  font-family: var(--ui);
+  font-size: 1rem;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+#stage.dragging { cursor: grabbing; }
+
+/* Two skies, one above the other. Changing appearance fades the night sky in or out. */
+.sky { position: absolute; inset: 0; pointer-events: none; }
+/* The paper grain is part of the day sky's own picture, drawn once and never again */
+.sky-light {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .28 0 0 0 0 .24 0 0 0 .1 0'/%3E%3C/filter%3E%3Crect width='260' height='260' filter='url(%23n)'/%3E%3C/svg%3E"),
+    linear-gradient(#EEF4F4 0%, #FFFFFF 48%, #F6F8F1 100%);
+}
+.sky-dark {
+  background: radial-gradient(130% 85% at 50% 108%, #2B3263 0%, #1A2444 34%, #111A30 62%, #0C1322 100%);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+:root[data-theme="dark"] .sky-dark { opacity: 1; }
+
+/* Changing appearance. Where the browser can, the old and new pictures of the
+   page are cross-faded by the graphics card: slow, complete, and smooth however
+   much is on the tree. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 1.5s;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+}
+
+/* During that cross-fade the colours inside the new picture switch at once.
+   The sun, moon and stars, and the switch's own thumb, still take their time. */
+.theme-cut *:not(.only-light):not(.only-dark),
+.theme-cut *::after {
+  transition: none !important;
+}
+
+/* Where it cannot, every colour drifts to its new value instead.
+   Either way the sun, moon, stars and fireflies keep their own, slower pace. */
+.theme-shift *:not(.only-light):not(.only-dark),
+.theme-shift *::before,
+.theme-shift *::after {
+  transition-property: fill, stroke, color, background-color, border-color, opacity, fill-opacity, stroke-opacity, stop-color, box-shadow, transform !important;
+  transition-duration: 1.6s !important;
+  transition-timing-function: cubic-bezier(0.45, 0, 0.2, 1) !important;
+  transition-delay: 0s !important;
+}
+
+/* The world holds everything that moves with the camera, and the camera is a
+   transform on it. Keeping it on its own layer lets the graphics card slide and
+   scale it without redrawing the tree. */
+#world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+#world .behind, #world .ahead { position: absolute; inset: 0; pointer-events: none; }
+#world .behind > *, #world .ahead > * { position: absolute; }
+
+#tree {
+  position: relative;
+  display: block;
+  overflow: visible;
+}
+
+/* ---------- The tree ---------- */
+
+/* Gradient and pattern colours follow the appearance */
+.wash-light { stop-color: var(--wash-light); }
+.wash-shade { stop-color: var(--wash-shade); }
+.hatch-paper { fill: var(--hatch-paper); fill-opacity: 0.8; }
+.hatch-line { stroke: var(--pencil); stroke-width: 1.1; }
+
+.branch, .root { fill: var(--bark); transition: fill 0.35s; }
+.layer-roots { opacity: var(--root-opacity); }
+.branch.lit { fill: var(--action); }
+
+.leaf-node, .bud { cursor: pointer; outline: none; }
+
+.glow { opacity: var(--glow-opacity); pointer-events: none; transition: opacity 0.4s; }
+.glow.warm, .state-gone .glow.cool { display: none; }
+.state-gone .glow.warm { display: inline; }
+.stem { fill: none; stroke: var(--bark); stroke-width: 1.7; stroke-linecap: round; transition: stroke 0.35s; }
+.blade {
+  fill-opacity: 0.92;
+  stroke: var(--leaf-edge);
+  stroke-opacity: var(--leaf-edge-opacity);
+  stroke-width: 1;
+  transition: fill 0.9s, stroke 0.2s, stroke-width 0.2s;
+}
+.blade.g0 { fill: var(--leaf-0); }
+.blade.g1 { fill: var(--leaf-1); }
+.blade.g2 { fill: var(--leaf-2); }
+.blade.g3 { fill: var(--leaf-3); }
+.blade.g4 { fill: var(--leaf-4); }
+.wash { pointer-events: none; }
+.vein { fill: none; stroke: var(--vein); stroke-opacity: var(--vein-opacity); stroke-width: 0.8; stroke-linecap: round; transition: stroke 0.9s; }
+
+/* Remembered: the leaf turns gold and stays in its place */
+.state-gone .blade.au0 { fill: var(--gold-0); }
+.state-gone .blade.au1 { fill: var(--gold-1); }
+.state-gone .blade.au2 { fill: var(--gold-2); }
+.state-gone .vein { stroke: var(--gold-vein); stroke-opacity: 0.5; }
+
+/* Unknown: an outline waiting for a name */
+.state-ghost .blade { fill: var(--ghost-fill); stroke-dasharray: 3.5 3.5; stroke-opacity: 0.75; }
+.state-ghost .wash, .state-ghost .vein, .state-ghost .glow { display: none; }
+
+/* Suggested: pencil, until someone approves it */
+.hatch { display: none; pointer-events: none; }
+.state-pending .hatch { display: inline; }
+.state-pending .blade { fill: none; stroke: var(--pencil); stroke-opacity: 1; stroke-dasharray: 5 3; stroke-width: 1.3; }
+.state-pending .stem { stroke: var(--pencil); stroke-dasharray: 3 2; }
+.state-pending .wash, .state-pending .vein, .state-pending .glow { display: none; }
+
+.leaf-node.selected .blade { stroke: var(--action); stroke-opacity: 1; stroke-width: 3; }
+.leaf-node.selected .glow { opacity: calc(var(--glow-opacity) * 2); }
+@media (hover: hover) {
+  .leaf-node:hover .blade { stroke-opacity: 0.95; stroke-width: 1.6; }
+}
+.leaf-node:focus-visible .blade, .bud:focus-visible .bud-shape { stroke: var(--action); stroke-opacity: 1; stroke-width: 3; }
+
+.petal { fill: var(--petal); fill-opacity: 0.94; stroke: var(--petal-edge); stroke-width: 0.6; transition: fill 0.4s, stroke 0.4s; }
+.blossom-heart { fill: var(--blossom-heart); }
+
+.bud-shape { fill: var(--bud); stroke: var(--bud-edge); stroke-width: 1.5; transition: fill 0.4s, stroke 0.4s; }
+.bud-count { font: 700 16px var(--ui); fill: var(--bud-text); pointer-events: none; }
+
+.hit { fill: transparent; stroke: transparent; stroke-width: 18px; pointer-events: all; }
+
+/* Growth and wind */
+.unfurl {
+  transform-origin: 0 0;
+  transform: scale(0.05) rotate(-28deg);
+  opacity: 0;
+  transition: transform 0.7s cubic-bezier(0.2, 1.4, 0.3, 1), opacity 0.25s;
+}
+.on > .unfurl { transform: none; opacity: 1; }
+
+/* A leaf leans toward you when you point at it, and a little more when chosen */
+@media (hover: hover) {
+  .leaf-node.on:hover > .unfurl { transform: scale(1.07); }
+  .bud.on:hover > .unfurl { transform: scale(1.12); }
+}
+.leaf-node.on.selected > .unfurl { transform: scale(1.16); }
+
+.sway { transform-origin: 0 0; }
+/* Wind comes as a gust that crosses the tree, each leaf stirring in its turn.
+   Between gusts the tree is still, and a still tree costs nothing to show. */
+#tree.gust .sway { animation: gust 2.8s ease-in-out var(--dl, 0s) 1 both; }
+@keyframes gust {
+  0% { transform: rotate(0deg); }
+  18% { transform: rotate(3.4deg); }
+  42% { transform: rotate(-2.1deg); }
+  66% { transform: rotate(1.2deg); }
+  84% { transform: rotate(-0.5deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* Names */
+.label { opacity: 0; pointer-events: none; transition: opacity 0.4s 0.25s; }
+.label.on { opacity: 1; }
+.label text { paint-order: stroke; stroke: var(--halo); stroke-width: 4.5px; stroke-linejoin: round; }
+.label .name { font: 500 22px var(--display); fill: var(--text); transition: fill 0.4s, stroke 0.4s; }
+.label .years { font: 400 14.5px var(--ui); fill: var(--muted); stroke-width: 3.5px; transition: fill 0.4s, stroke 0.4s, opacity 0.45s; }
+
+/* Zoom is meaning: far away the names fade back and the shape of the tree remains */
+#tree[data-zoom="mid"] .years, #tree[data-zoom="far"] .years { opacity: 0; }
+#tree[data-zoom="far"] .label.on { opacity: 0; transition-delay: 0s; }
+
+/* ---------- Surroundings ---------- */
+
+/* Day things and night things trade places slowly: one fades as the other arrives */
+.only-light, .only-dark { transition: opacity 2s ease-in-out, transform 2.6s cubic-bezier(0.3, 0, 0.15, 1); pointer-events: none; }
+.only-dark { opacity: 0; }
+:root[data-theme="dark"] .only-dark { opacity: 1; }
+:root[data-theme="dark"] .only-light { opacity: 0; }
+
+/* The sun sets as the moon rises, and the other way round */
+.moon { transform: translateY(300px); }
+:root[data-theme="dark"] .moon { transform: none; }
+:root[data-theme="dark"] .sun { transform: translateY(300px); }
+
+.ground { fill: none; stroke: var(--ground); stroke-opacity: 0.55; stroke-width: 1.4; stroke-linecap: round; transition: stroke 0.4s; }
+.grass { fill: none; stroke: var(--grass); stroke-opacity: 0.6; stroke-width: 1.3; stroke-linecap: round; transition: stroke 0.4s; }
+
+/* The sky's furniture: ordinary elements, so fading and moving them is free */
+.sun { background: radial-gradient(closest-side, rgba(255, 243, 209, 0.95), rgba(255, 243, 209, 0.38) 40%, rgba(255, 243, 209, 0)); }
+.canopy-wash { background: radial-gradient(closest-side, rgba(141, 191, 106, 0.2), rgba(141, 191, 106, 0)); }
+.soil { background: radial-gradient(closest-side, rgba(107, 90, 62, 0.3), rgba(124, 138, 82, 0.14) 60%, rgba(124, 138, 82, 0)); }
+
+.moon { background: radial-gradient(closest-side, rgba(244, 239, 208, 0.32), rgba(201, 207, 234, 0.12) 35%, rgba(201, 207, 234, 0)); }
+.moon span {
+  position: absolute;
+  inset: 39%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 42% 40%, #FBF6DD, #E4DDB8);
+  opacity: 0.94;
+}
+
+.stars { overflow: visible; fill: #E7EEF0; }
+.twinkle { border-radius: 50%; background: #E7EEF0; }
+:root[data-theme="dark"] .twinkle { animation: twinkle 4.5s ease-in-out infinite alternate; }
+@keyframes twinkle { from { opacity: 0.15; } to { opacity: 0.9; } }
+
+.fly b {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #FFF1B8 0 16%, rgba(243, 211, 107, 0.55) 18%, rgba(243, 211, 107, 0.16) 50%, rgba(243, 211, 107, 0));
+}
+:root[data-theme="dark"] .fly { animation: drift var(--t) ease-in-out var(--d) infinite alternate; }
+:root[data-theme="dark"] .fly b { animation: blink 3.4s ease-in-out var(--d) infinite; }
+@keyframes drift { to { transform: translate(var(--dx), var(--dy)); } }
+@keyframes blink { 0%, 100% { opacity: 0.1; } 50% { opacity: 1; } }
+
+/* ---------- Controls ---------- */
+
+.top {
+  position: absolute;
+  inset: 0 0 auto 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: calc(16px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 0 calc(20px + env(safe-area-inset-left));
+  pointer-events: none;
+}
+.top > * { pointer-events: auto; }
+
+.title h1 { margin: 0; font: 700 1.75rem/1.05 var(--display); }
+.title p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.9375rem; transition: color 0.4s; }
+
+/* The controls arrive quietly once, while the tree is growing */
+.top, .timebar, .hint { animation: arrive 0.9s 0.35s both; }
+@keyframes arrive { from { opacity: 0; } }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  transition: background-color 0.4s, border-color 0.4s;
+}
+
+button {
+  font: inherit;
+  font-size: 0.9375rem;
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  transition: background-color 0.25s, color 0.25s, border-color 0.25s, transform 0.18s cubic-bezier(0.2, 1.4, 0.3, 1), filter 0.25s;
+}
+button:active { transform: scale(0.95); }
+@media (hover: hover) {
+  button:hover { background-color: color-mix(in srgb, var(--action) 12%, transparent); border-color: var(--action); }
+  button.primary:hover { background-color: var(--action); filter: brightness(1.1); }
+  button.link:hover { background-color: transparent; }
+}
+button.primary { background: var(--action); color: var(--on-action); border-color: transparent; font-weight: 500; }
+button.link { min-height: 0; padding: 6px 0; border: 0; color: var(--action); text-decoration: underline; text-underline-offset: 3px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+
+/* Light or dark: a thumb slides under the chosen word */
+.appearance { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 3px; }
+.appearance::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 10px;
+  background: var(--action);
+  transition: transform 0.5s cubic-bezier(0.3, 1.2, 0.3, 1), background-color 0.4s;
+}
+:root[data-theme="dark"] .appearance::before { transform: translateX(100%); }
+.appearance button { position: relative; min-height: 38px; min-width: 62px; border: 0; border-radius: 10px; padding: 0 14px; }
+.appearance button:hover, .appearance button:active { background-color: transparent; transform: none; }
+.appearance button[aria-pressed="true"] { color: var(--on-action); font-weight: 500; }
+
+/* Year slider */
+.timebar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(760px, calc(100% - 24px));
+  padding: 8px 10px;
+}
+.timebar output { min-width: 3.4ch; text-align: center; font: 700 1.4rem/1 var(--display); font-variant-numeric: tabular-nums; }
+.timebar input[type="range"] { flex: 1; min-width: 60px; height: 44px; margin: 0; accent-color: var(--action); touch-action: pan-y; }
+
+.hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  margin: 0;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--muted);
+  pointer-events: none;
+  transition: opacity 0.9s, color 0.4s;
+}
+/* Once you have touched the tree, the hint has done its job */
+.used .hint { opacity: 0; animation: none; }
+
+/* ---------- Person card ---------- */
+
+#card {
+  position: absolute;
+  width: min(336px, calc(100% - 24px));
+  padding: 20px 20px 16px;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--card-shadow);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: transform 0.34s cubic-bezier(0.2, 1.2, 0.3, 1), opacity 0.22s, background-color 0.4s, border-color 0.4s, color 0.4s;
+}
+#card.open { opacity: 1; transform: none; }
+#card[hidden] { display: none; }
+
+#card .close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 44px;
+  padding: 0;
+  border: 0;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--muted);
+}
+#card .head { display: flex; align-items: center; gap: 14px; padding-right: 30px; }
+#card .medal { flex: none; width: 60px; height: 60px; border-radius: 50%; background: var(--halo); border: 1px solid var(--line); overflow: hidden; }
+#card .medal svg { width: 100%; height: 100%; display: block; }
+#card h2 { margin: 0; font: 700 1.5rem/1.15 var(--display); }
+#card .born-as { margin: 1px 0 0; color: var(--muted); font-style: italic; }
+#card .life { margin: 2px 0 0; color: var(--muted); }
+#card .facts { margin: 14px 0 16px; padding: 0; list-style: none; }
+#card .facts li { padding: 3px 0; }
+#card .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#card .fix { margin: 10px 0 0; }
+
+/* ---------- Phones ---------- */
+
+@media (max-width: 640px) {
+  .top { padding-top: calc(10px + env(safe-area-inset-top)); padding-left: calc(14px + env(safe-area-inset-left)); padding-right: calc(12px + env(safe-area-inset-right)); }
+  .title h1 { font-size: 1.375rem; }
+  .title p { font-size: 0.8125rem; }
+  .hint { display: none; }
+  .timebar { gap: 6px; padding: 6px; bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .timebar button { padding: 0 11px; }
+  .timebar output { font-size: 1.2rem; }
+  #replay { display: none; }
+
+  /* The card becomes a sheet that rises from the bottom, above the year slider */
+  #card {
+    left: 10px;
+    right: 10px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    width: auto;
+    max-height: 56%;
+    overflow-y: auto;
+    padding: 16px 16px 12px;
+    transform: translateY(24px);
+    transform-origin: 50% 100%;
+  }
+  #card .actions button { flex: 1; }
+}
+
+/* Short landscape phones: keep the controls out of the tree's way */
+@media (max-height: 480px) {
+  .title p, .hint { display: none; }
+  .title h1 { font-size: 1.25rem; }
+}
+
+/* ---------- Reduced motion, and the #still address option ---------- */
+
+.still .sway, .still .fly, .still .fly b, .still .twinkle, .still .top, .still .timebar, .still .hint { animation: none !important; }
+.still *, .still *::before, .still *::after { transition: none !important; }
+.still .fly b { opacity: 0.8; }
+.still .unfurl { transform: none; transition: none; }
+.still .blade, .still .branch { transition: none; }
+.still .label { transition: none; }
+.still #card { transform: none; transition: none; }

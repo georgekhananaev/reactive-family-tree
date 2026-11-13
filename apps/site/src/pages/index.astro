@@ -1,0 +1,107 @@
+---
+/*
+ * Home. It opens on the live tree, growing as the page loads. Then one
+ * sentence, two actions, and three things the app does.
+ * Author: George Khananaev
+ */
+
+import { DemoTree } from '../components/DemoTree';
+import Masthead from '../components/Masthead.astro';
+import Site from '../layouts/Site.astro';
+import { demoFamily } from '../lib/demo-family';
+import { AUTHOR, SITE_NAME } from '../lib/site.mjs';
+
+const description = 'An open-source family tree drawn as a living tree. Host it for your family, let relatives look after their own branches, and connect the AI you already use.';
+
+// Counted from the family itself, so the page cannot say a number that is not true
+const family = demoFamily();
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: SITE_NAME,
+  description,
+  url: new URL('/', Astro.site).href,
+  applicationCategory: 'LifestyleApplication',
+  operatingSystem: 'Web',
+  license: 'https://opensource.org/license/mit',
+  isAccessibleForFree: true,
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  author: { '@type': 'Person', name: AUTHOR },
+};
+---
+
+<Site title={`${SITE_NAME}: a family tree drawn as a living tree`} description={description} structuredData={structuredData}>
+  <Masthead wordmark links={[{ href: '/demo/', label: 'Demo' }, { href: '/docs/', label: 'Docs' }]} />
+
+  <main>
+    <div class="hero">
+      <DemoTree client:load />
+    </div>
+
+    <section class="sheet intro">
+      <h1>{SITE_NAME} is an open-source family tree, drawn as a living tree, for a family to host and look after together.</h1>
+      <p class="actions">
+        <a class="action primary" href="/demo/">Try the demo</a>
+        <a class="action" href="/docs/run-your-own/">Run your own</a>
+      </p>
+      <p class="note">
+        The tree above is live. It shows the {family.name}, {family.tree.people.length} made-up people. Drag it, or choose a leaf.
+      </p>
+    </section>
+
+    <div class="sheet">
+      <section class="way">
+        <h2>Add someone by pulling a twig out of a leaf</h2>
+        <div>
+          <p>
+            Turn on edit mode and choose a person. Small buds appear around their leaf for the relatives you can add: a child, a partner, a
+            parent, a sibling. Tap a bud, or pull it out, and a pencil twig follows your finger with a new leaf at its tip.
+          </p>
+          <p>Let go, type a name, and the new relative grows into the tree. Inside your own branch the change is published at once, and you can undo it.</p>
+        </div>
+      </section>
+
+      <section class="way">
+        <h2>A suggestion starts in pencil and turns to ink</h2>
+        <div>
+          <p>
+            A relative who is signed in can suggest a change anywhere on the tree, even where they cannot edit. A suggested new person is drawn
+            in pencil, and only the people who can review it see it, along with whoever suggested it.
+          </p>
+          <p>When that branch’s steward or an admin approves it, the pencil leaf turns to ink for everyone.</p>
+          <p><a href="/docs/who-can-do-what/">Who can do what</a> has the full rules.</p>
+        </div>
+      </section>
+
+      <section class="way">
+        <h2>Your own AI drafts changes, and they wait in pencil</h2>
+        <div>
+          <p>
+            The app has an MCP server built in, so each relative can connect the AI assistant they already use. It can read what they can read and
+            change what they can change, and no more.
+          </p>
+          <p>
+            By default its changes arrive as a private draft. The people it adds are drawn in pencil on that relative’s own tree, and nothing is
+            published until they look the draft over and apply it. The app never calls an AI model itself.
+          </p>
+          <p><a href="/docs/connect-your-ai/">Connect your AI</a> shows how.</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="sheet">
+    <div class="site-footer">
+      <nav aria-label="Docs">
+        <a href="/docs/run-your-own/">Run your own</a>
+        <a href="/docs/who-can-do-what/">Who can do what</a>
+        <a href="/docs/privacy/">Privacy</a>
+        <a href="/docs/connect-your-ai/">Connect your AI</a>
+        <a href="/docs/react-package/">The React package</a>
+        <a href="/docs/contributing/">Contributing</a>
+      </nav>
+      <p>{SITE_NAME} is open source under the MIT license. Made by {AUTHOR}.</p>
+    </div>
+  </footer>
+</Site>

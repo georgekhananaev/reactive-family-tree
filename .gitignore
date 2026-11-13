@@ -1,0 +1,16 @@
+node_modules/
+.next/
+.turbo/
+.astro/
+dist/
+data/
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.local
+.DS_Store
+coverage/
+*.tsbuildinfo
+# Written by Next.js on every dev start and build
+next-env.d.ts

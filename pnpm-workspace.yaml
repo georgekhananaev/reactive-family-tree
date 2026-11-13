@@ -1,0 +1,22 @@
+packages:
+  - apps/*
+  - packages/*
+# Packages allowed to run their install scripts
+allowBuilds:
+  esbuild: true
+  sharp: true
+minimumReleaseAgeExclude:
+  - '@better-auth/cimd@1.7.22'
+  - '@better-auth/core@1.7.22'
+  - '@better-auth/drizzle-adapter@1.7.22'
+  - '@better-auth/kysely-adapter@1.7.22'
+  - '@better-auth/mcp@1.7.22'
+  - '@better-auth/memory-adapter@1.7.22'
+  - '@better-auth/mongo-adapter@1.7.22'
+  - '@better-auth/oauth-provider@1.7.22'
+  - '@better-auth/passkey@1.7.22'
+  - '@better-auth/prisma-adapter@1.7.22'
+  - '@better-auth/telemetry@1.7.22'
+  - better-auth@1.7.22
+  - prettier@3.10.1
+  - '@astrojs/starlight@0.42.11'

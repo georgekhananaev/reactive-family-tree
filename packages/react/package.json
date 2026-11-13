@@ -1,0 +1,32 @@
+{
+  "name": "reactive-family-tree",
+  "version": "0.1.0",
+  "description": "A family tree drawn as a living tree: ink branches, watercolour leaves, growth, gestures. One React component.",
+  "author": "George Khananaev",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./tree.css": "./src/tree.css"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "dependencies": {
+    "@reactive-family-tree/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "react": "^19.3.1"
+  }
+}

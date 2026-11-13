@@ -1,0 +1,161 @@
+/*
+ * The home page and the demo page. The tree is the one bold thing on them.
+ * Everything here stays quiet: ink on white, one action colour, text set
+ * left in a column narrow enough to read.
+ * Author: George Khananaev
+ */
+
+@import './tokens.css';
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html[data-theme="dark"] { color-scheme: dark; }
+
+body {
+  margin: 0;
+  background-color: var(--page);
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 1.125rem;
+  font-variant-numeric: lining-nums;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* No line of a paragraph is left with one word on it */
+p { text-wrap: pretty; }
+
+a {
+  color: var(--action);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+@media (hover: hover) {
+  a:hover { text-decoration-thickness: 2px; }
+}
+a:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; border-radius: 2px; }
+
+/* ---------- The links over the top of the tree ---------- */
+
+/* The tree keeps this band clear, as it does for the app's own top bar. Only the links take the pointer: the rest still drags the tree. */
+.masthead {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: calc(12px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 0 calc(20px + env(safe-area-inset-left));
+  pointer-events: none;
+}
+.masthead > * { pointer-events: auto; }
+
+.wordmark { color: var(--text); font: 700 1.25rem/1.2 var(--display); text-decoration: none; }
+
+.site-nav { display: flex; margin-left: auto; }
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 0.75rem;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .wordmark:hover, .site-nav a:hover { color: var(--action); }
+}
+
+/* ---------- Home: the tree, then what it is ---------- */
+
+.hero {
+  position: relative;
+  --tree-height: clamp(24rem, 78svh, 56rem);
+}
+/* The tree's sky lets go into the page instead of ending at an edge */
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 4.5rem;
+  background: linear-gradient(to bottom, transparent, var(--page));
+  pointer-events: none;
+}
+
+.sheet {
+  max-width: 56rem;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 5vw, 3rem);
+}
+
+.intro { position: relative; margin-top: -1.25rem; padding-bottom: 3.5rem; }
+.intro h1 {
+  margin: 0;
+  font: 600 clamp(1.5rem, 1.05rem + 1.9vw, 2.125rem)/1.22 var(--display);
+  text-wrap: balance;
+}
+.intro .note { max-width: var(--measure); margin: 1.25rem 0 0; color: var(--muted); font-size: 1rem; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.5rem 0 0; }
+.action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 1.125rem;
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  transition: background-color 0.25s, border-color 0.25s, filter 0.25s;
+}
+.action.primary { background-color: var(--action); border-color: transparent; color: var(--on-action); }
+@media (hover: hover) {
+  .action:hover { background-color: color-mix(in srgb, var(--action) 12%, transparent); border-color: var(--action); }
+  .action.primary:hover { background-color: var(--action); border-color: transparent; filter: brightness(1.1); }
+}
+
+/* Three things it does, each a heading beside a few plain sentences */
+.way {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  column-gap: clamp(1.5rem, 5vw, 3.5rem);
+  padding-block: 2.25rem;
+  border-top: 1px solid var(--line);
+}
+.way h2 { margin: 0; font: 600 1.375rem/1.25 var(--display); text-wrap: balance; }
+.way p { max-width: var(--measure); margin: 0; }
+.way p + p { margin-top: 0.75rem; }
+
+.site-footer {
+  margin-top: 1.75rem;
+  padding-block: 2rem 3rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 1rem;
+}
+.site-footer nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; margin-bottom: 1rem; }
+.site-footer p { max-width: var(--measure); margin: 0; }
+
+@media (max-width: 46rem) {
+  .way { grid-template-columns: minmax(0, 1fr); row-gap: 0.75rem; padding-block: 1.75rem; }
+}
+
+@media (max-width: 640px) {
+  .masthead { padding-left: calc(14px + env(safe-area-inset-left)); padding-right: calc(6px + env(safe-area-inset-right)); }
+  .wordmark { font-size: 1.125rem; }
+  /* A little less tree on a phone, so the sentence and both actions are on the first screen too */
+  .hero { --tree-height: clamp(22rem, 70svh, 40rem); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action { transition: none; }
+}

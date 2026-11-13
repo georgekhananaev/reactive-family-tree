@@ -1,0 +1,24 @@
+---
+/*
+ * The few links that lie over the top of the tree, in the band the tree keeps
+ * clear for them.
+ * Author: George Khananaev
+ */
+
+import { SITE_NAME } from '../lib/site.mjs';
+
+interface Props {
+  /* Show the site's name at the left. The demo page has the family's name there instead. */
+  wordmark?: boolean;
+  links: readonly { href: string; label: string }[];
+}
+
+const { wordmark = false, links } = Astro.props;
+---
+
+<header class="masthead">
+  {wordmark && <a class="wordmark" href="/">{SITE_NAME}</a>}
+  <nav class="site-nav" aria-label="Site">
+    {links.map(({ href, label }) => <a href={href}>{label}</a>)}
+  </nav>
+</header>

@@ -1,0 +1,26 @@
+{
+  "name": "@reactive-family-tree/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The MCP server: tools, resources and prompts for a relative's own AI.",
+  "author": "George Khananaev",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.4.0",
+    "@reactive-family-tree/core": "workspace:*",
+    "@reactive-family-tree/gedcom": "workspace:*",
+    "@reactive-family-tree/server": "workspace:*",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.4.0"
+  }
+}

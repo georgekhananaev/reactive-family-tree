@@ -1,0 +1,33 @@
+{
+  "name": "@reactive-family-tree/server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Services: edits, permissions, privacy, members, realtime, email. The one write path.",
+  "author": "George Khananaev",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@better-auth/cimd": "^1.7.22",
+    "@better-auth/mcp": "^1.7.22",
+    "@better-auth/passkey": "^1.7.22",
+    "@reactive-family-tree/core": "workspace:*",
+    "@reactive-family-tree/db": "workspace:*",
+    "@reactive-family-tree/demo-data": "workspace:*",
+    "@reactive-family-tree/gedcom": "workspace:*",
+    "better-auth": "^1.7.22",
+    "drizzle-orm": "^0.45.4",
+    "nodemailer": "^10.5.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^8.0.2"
+  }
+}

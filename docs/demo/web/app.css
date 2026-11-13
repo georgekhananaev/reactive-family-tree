@@ -1,0 +1,665 @@
+/*
+ * The app around the tree: tools, the person card, the side panel, forms.
+ * The tree itself and all colours come from tree.css, the approved design.
+ * Everything here stays quiet so the tree remains the one bold thing.
+ */
+
+/* Hidden means hidden, whatever layout an element has when shown */
+[hidden] { display: none !important; }
+
+/* The width of an open side panel on a wide screen. The controls keep clear of it. */
+body { --inset: 0px; --slide: 0.36s cubic-bezier(0.2, 0.9, 0.3, 1); }
+
+/* ---------- Tree additions for a live, editable family ---------- */
+
+#stage { -webkit-touch-callout: none; }
+.branch, .root { transition: fill 0.35s, opacity 0.3s; }
+
+.you-ring, .tint-ring { fill: none; display: none; pointer-events: none; }
+.leaf-node.you .you-ring { display: inline; stroke: var(--action); stroke-width: 2; stroke-dasharray: 2 5; stroke-linecap: round; }
+.leaf-node.tinted .tint-ring { display: inline; stroke: var(--tint); stroke-width: 6; stroke-opacity: 0.75; }
+
+/* A living relative this viewer may not see: a plain leaf that says nothing */
+.state-masked .blade { fill: var(--ghost-fill); stroke-opacity: 0.45; }
+.state-masked .wash, .state-masked .vein, .state-masked .glow { display: none; }
+
+/* In edit mode, what you cannot publish directly steps back a little */
+#tree.editing .leaf-node.outside > .unfurl { opacity: 0.55; }
+#tree.editing .leaf-node.outside.selected > .unfurl { opacity: 1; }
+
+.handle { cursor: pointer; outline: none; }
+.handle-shape { fill: var(--card); stroke: var(--action); stroke-width: 2; transition: fill 0.2s, transform 0.2s cubic-bezier(0.2, 1.4, 0.3, 1); }
+.handle-plus { fill: none; stroke: var(--action); stroke-width: 2.4; stroke-linecap: round; pointer-events: none; }
+.handle-label { font: 600 15px var(--ui); fill: var(--text); paint-order: stroke; stroke: var(--halo); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.handle:hover .handle-shape, .handle:focus-visible .handle-shape { fill: var(--action); }
+.handle:hover .handle-plus, .handle:focus-visible .handle-plus { stroke: var(--on-action); }
+.handle { animation: arrive 0.35s both; }
+
+/* Pulling a + bud draws a pencil twig with the new leaf at its tip */
+.twig { fill: none; stroke: var(--pencil); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 6 5; pointer-events: none; }
+.twig-tip { opacity: 0; pointer-events: none; transition: opacity 0.15s; }
+.twig-tip.on { opacity: 1; }
+.twig-leaf { fill: var(--leaf-3); fill-opacity: 0.4; stroke: var(--pencil); stroke-width: 2.4; stroke-dasharray: 6 4; }
+
+/* A ripple leaves a leaf when it is chosen */
+.pulse { fill: none; stroke: var(--action); stroke-width: 2; opacity: 0; pointer-events: none; transform-box: fill-box; transform-origin: center; }
+.leaf-node.selected:not(.kept) .pulse { animation: ripple 0.8s cubic-bezier(0.2, 0.7, 0.3, 1); }
+@keyframes ripple { from { opacity: 0.7; transform: scale(0.6); } to { opacity: 0; transform: scale(1.9); } }
+
+/* Someone new on the tree, or the two ends of a connection being shown: the leaf glints */
+.leaf-node.glint .pulse { stroke: var(--gold-0); stroke-width: 3; animation: ripple 1.3s cubic-bezier(0.2, 0.7, 0.3, 1) 0.15s 2; }
+.leaf-node.glint .glow { opacity: 0.95; }
+
+/* A leaf that has left the tree lets go and drifts down. A pencilled one is rubbed out. */
+.falling, .erased { pointer-events: none; }
+.falling { animation: fall 1.25s cubic-bezier(0.5, 0, 0.9, 0.6) both; }
+.falling .unfurl { animation: tumble 1.25s ease-in both; }
+.erased { animation: rub-out 0.9s both; }
+@keyframes fall { to { transform: translate(36px, 250px); opacity: 0; } }
+@keyframes tumble { to { transform: rotate(150deg) scale(0.8); } }
+@keyframes rub-out { 30% { opacity: 0.45; } 45% { opacity: 0.7; } 100% { opacity: 0; } }
+
+/* A pencilled leaf that has been approved turns to ink */
+.leaf-node.inked .blade { animation: ink 1.5s ease-out; }
+.leaf-node.inked .wash, .leaf-node.inked .vein { animation: arrive 1.5s ease-out; }
+@keyframes ink { from { fill-opacity: 0; stroke: var(--pencil); stroke-opacity: 1; } }
+
+/* Searching: the people found keep their colour and their names, everyone else steps back */
+#tree.searching .branch, #tree.searching .blossom { opacity: 0.3; }
+#tree.searching .leaf-node.on:not(.match) > .unfurl { opacity: 0.18; }
+#tree.searching .leaf-node.on.match > .unfurl { transform: scale(1.14); }
+#tree.searching .label.on:not(.match) { opacity: 0.1; }
+#tree.searching .label.on.match { opacity: 1; }
+#tree.searching[data-zoom="far"] .label.on:not(.match) { opacity: 0; }
+
+/* The way between two relatives, lit one branch after another */
+.branch.route { fill: var(--action); }
+
+/* ---------- Behind and over the tree ---------- */
+
+/* The tree fades out under the controls instead of running into them */
+.scrim { position: absolute; left: 0; right: 0; height: 116px; pointer-events: none; }
+.scrim-top { top: 0; background: linear-gradient(color-mix(in srgb, var(--page) 86%, transparent), transparent); }
+.scrim-bottom { bottom: 0; background: linear-gradient(transparent, color-mix(in srgb, var(--page) 86%, transparent)); }
+
+/* Time travel: the year stands in the sky while the slider is away from today */
+.year-ghost {
+  position: absolute;
+  top: 11%;
+  left: calc((100% - var(--inset)) / 2);
+  transform: translateX(-50%);
+  font: 700 clamp(5.5rem, 21vw, 15rem)/1 var(--display);
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.7s, left var(--slide);
+}
+.year-ghost.on { opacity: 0.07; }
+
+/* Edit mode: a faint trellis behind the tree says the gardening has begun */
+.trellis {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background-image:
+    repeating-linear-gradient(45deg, var(--line) 0 1px, transparent 1px 36px),
+    repeating-linear-gradient(-45deg, var(--line) 0 1px, transparent 1px 36px);
+  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 20%, transparent 78%);
+  mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 20%, transparent 78%);
+  transition: opacity 0.5s;
+}
+#stage.editing .trellis { opacity: 0.75; }
+
+/* ---------- Tools in the top bar ---------- */
+
+.top { padding-right: calc(20px + var(--inset) + env(safe-area-inset-right)); transition: padding-right var(--slide); }
+.title .note { margin: 0.3rem 0 0; font-size: 0.875rem; color: var(--muted); }
+.title .note .link { padding: 0; font-size: inherit; }
+
+.tools { display: flex; align-items: center; gap: 8px; }
+.tool {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border-radius: 12px;
+  max-width: 190px;
+}
+.tool span { overflow: hidden; text-overflow: ellipsis; }
+.tool.icon { width: 44px; padding: 0; justify-content: center; }
+.tool svg, svg.icon { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.tool[aria-pressed="true"], .tool[aria-pressed="true"]:hover { background: var(--action); color: var(--on-action); border-color: transparent; }
+#menuOpen:not(.primary) { padding-left: 7px; }
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--action);
+  color: var(--on-action);
+  font: 700 0.75rem/20px var(--ui);
+  text-align: center;
+}
+.avatar {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--action) 16%, transparent);
+  color: var(--action);
+  font: 700 0.75rem/1 var(--ui);
+  letter-spacing: 0.02em;
+}
+
+/* Small panels that open from a tool: they drop from the corner they belong to */
+.menu, .search {
+  position: absolute;
+  top: calc(68px + env(safe-area-inset-top));
+  right: calc(20px + var(--inset) + env(safe-area-inset-right));
+  width: min(300px, calc(100% - 24px));
+  padding: 8px;
+  z-index: 30;
+  background: var(--card);        /* solid: names on the tree must not show through a list */
+  box-shadow: var(--card-shadow);
+  opacity: 0;
+  transform: translateY(-8px) scale(0.97);
+  transform-origin: 100% 0;
+  transition: opacity 0.16s, transform 0.2s cubic-bezier(0.2, 1.2, 0.3, 1), background-color 0.4s, border-color 0.4s;
+}
+.menu.open, .search.open { opacity: 1; transform: none; }
+.menu [role="menuitem"] { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; border-radius: 8px; }
+.menu [role="menuitem"] svg { color: var(--muted); transition: color 0.25s; }
+.menu [role="menuitem"]:hover svg, .menu [role="menuitem"]:focus-visible svg { color: var(--action); }
+.menu hr { margin: 6px 0; border: 0; border-top: 1px solid var(--line); }
+.menu .who { display: flex; align-items: center; gap: 12px; padding: 8px 12px 12px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
+.menu .who .avatar { width: 38px; height: 38px; font-size: 0.875rem; }
+.menu .who strong { display: block; }
+.menu .who small { color: var(--muted); }
+.menu .appearance { margin: 8px 6px; border: 1px solid var(--line); border-radius: 13px; }
+.search { width: min(380px, calc(100% - 24px)); }
+.search ul { margin: 6px 0 0; padding: 0; list-style: none; max-height: 50vh; overflow-y: auto; }
+.search li button { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; width: 100%; border: 0; border-radius: 8px; text-align: left; }
+.search li small { color: var(--muted); }
+.search li.empty { padding: 14px 10px; }
+.search-keys { margin: 8px 6px 2px; font-size: 0.8125rem; color: var(--muted); }
+@media (hover: none) { .search-keys { display: none; } }
+mark { padding: 0 1px; border-radius: 3px; background: color-mix(in srgb, var(--gold-0) 38%, transparent); color: inherit; }
+
+/* One line across the top while something is being shown or done, with a way out */
+.banner {
+  position: absolute;
+  top: calc(72px + env(safe-area-inset-top));
+  left: 12px;
+  right: calc(12px + var(--inset));
+  width: fit-content;
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 8px 8px 16px;
+  z-index: 20;
+  background: var(--card);
+  box-shadow: var(--card-shadow);
+  animation: banner-in 0.35s cubic-bezier(0.2, 1.2, 0.3, 1) both;
+}
+.banner small { display: block; margin-top: 1px; font-size: 0.875rem; color: var(--muted); }
+@keyframes banner-in { from { opacity: 0; transform: translateY(-10px); } }
+
+/* ---------- Year slider and the view buttons ---------- */
+
+button.round { flex: none; display: inline-grid; place-items: center; width: 44px; padding: 0; border: 0; border-radius: 10px; }
+
+.timebar {
+  left: calc((100% - var(--inset)) / 2);
+  width: min(760px, calc(100% - var(--inset) - 24px));
+  transition: left var(--slide), width var(--slide), background-color 0.4s, border-color 0.4s;
+}
+.timebar input[type="range"] { -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
+.timebar input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--action) var(--filled, 100%), var(--line) var(--filled, 100%));
+}
+.timebar input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -8px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid var(--action);
+  box-shadow: 0 2px 6px -2px rgba(20, 38, 31, 0.5);
+  transition: transform 0.18s cubic-bezier(0.2, 1.4, 0.3, 1);
+}
+.timebar input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.12); }
+.timebar input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.28); }
+.timebar input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+.timebar input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--action); }
+.timebar input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--card); border: 2px solid var(--action); }
+.timebar input[type="range"]:focus-visible { outline: none; }
+.timebar input[type="range"]:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--action); outline-offset: 2px; }
+.timebar input[type="range"]:focus-visible::-moz-range-thumb { outline: 2px solid var(--action); outline-offset: 2px; }
+
+.zoom {
+  position: absolute;
+  right: calc(14px + var(--inset) + env(safe-area-inset-right));
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px;
+  z-index: 4;
+  animation: arrive 0.9s 0.35s both;
+  transition: right var(--slide), bottom var(--slide), background-color 0.4s, border-color 0.4s;
+}
+/* Where there is no room beside the year slider, the view buttons sit above it */
+.tight .zoom { bottom: calc(88px + env(safe-area-inset-bottom)); }
+
+/* ---------- The ring of actions around a leaf ---------- */
+
+.petal-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Everything but the leaf steps back a little */
+  background: radial-gradient(circle at var(--x) var(--y), transparent 0 40px, color-mix(in srgb, var(--page) 80%, transparent) 130px);
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+.petal-menu.open { opacity: 1; }
+.petal-menu::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--x) - 92px);
+  top: calc(var(--y) - 92px);
+  width: 184px;
+  height: 184px;
+  border-radius: 50%;
+  border: 1px dashed var(--line);
+  pointer-events: none;
+  transform: scale(0.5);
+  transition: transform 0.3s cubic-bezier(0.2, 1.3, 0.3, 1);
+}
+.petal-menu.open::before { transform: none; }
+.petal-item {
+  position: absolute;
+  left: calc(var(--x) - 28px);
+  top: calc(var(--y) - 28px);
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 20px -10px rgba(20, 38, 31, 0.55);
+  opacity: 0;
+  transform: scale(0.3);
+  transition: transform 0.16s, opacity 0.14s, background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+.petal-menu.open .petal-item {
+  opacity: 1;
+  transform: translate(var(--dx), var(--dy));
+  animation: petal-out 0.36s cubic-bezier(0.2, 1.35, 0.3, 1) calc(var(--i) * 22ms) backwards;
+}
+@keyframes petal-out { from { opacity: 0; transform: scale(0.3); } }
+.petal-item svg { width: 24px; height: 24px; }
+.petal-item span {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 96px;
+  padding: 2px 8px;
+  border-radius: 9px;
+  background: var(--card);
+  box-shadow: 0 0 0 1px var(--line);
+  white-space: normal;
+  text-align: center;
+  font: 600 0.8125rem/1.2 var(--ui);
+  color: var(--text);
+  pointer-events: none;
+}
+/* The top petal is named above, so the leaf in the middle stays clear */
+.petal-item:first-child span { top: auto; bottom: calc(100% + 6px); }
+.petal-menu.open .petal-item.hot, .petal-menu.open .petal-item:hover, .petal-item:focus-visible { background: var(--action); color: var(--on-action); border-color: transparent; }
+.petal-menu.open .petal-item:hover { transform: translate(var(--dx), var(--dy)) scale(1.08); }
+.petal-menu.open .petal-item.hot { transform: translate(var(--dx), var(--dy)) scale(1.2); }
+
+/* ---------- Forms ---------- */
+
+label { display: block; font-size: 0.9375rem; color: var(--muted); }
+label > input, label > select, label > textarea { margin-top: 3px; }
+input[type="text"], input[type="email"], input[type="search"], select, textarea {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 11px;
+  font: inherit;
+  color: var(--text);
+  background: var(--halo);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  transition: border-color 0.2s, background-color 0.4s;
+}
+textarea { min-height: 96px; resize: vertical; line-height: 1.45; }
+textarea.short { min-height: 62px; }
+
+/* Dropdowns draw their own arrow, set in from the border with room to breathe */
+:root { --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2357606A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6l4.5 4.5L12.5 6'/%3E%3C/svg%3E"); }
+:root[data-theme="dark"] { --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23A9B4C0' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 6l4.5 4.5L12.5 6'/%3E%3C/svg%3E"); }
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 40px;
+  background-image: var(--chevron);
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px 16px;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--action); outline-offset: 1px; border-color: transparent; }
+@media (hover: hover) {
+  input[type="text"]:hover, input[type="email"]:hover, input[type="search"]:hover, select:hover, textarea:hover { border-color: color-mix(in srgb, var(--action) 55%, var(--line)); }
+}
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.fields .wide { grid-column: 1 / -1; }
+.review-fields { margin-top: 12px; }
+/* How a typed date was understood */
+.reads { display: block; margin-top: 3px; font-size: 0.8125rem; color: var(--action); }
+.reads:empty { display: none; }
+.check { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--text); font-size: 1rem; }
+.check input { width: 20px; height: 20px; accent-color: var(--action); }
+.form-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.hint-line { margin: 8px 0 0; font-size: 0.9375rem; color: var(--muted); }
+button.danger { color: #B4432E; }
+:root[data-theme="dark"] button.danger { color: #F0907C; }
+button.small { min-height: 34px; padding: 0 10px; font-size: 0.9375rem; }
+button[disabled] { opacity: 0.5; cursor: default; }
+
+/* Scrollbars inside the card and panels stay thin and quiet */
+.card-body, .drawer-body, .search ul { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+
+/* ---------- Person card ---------- */
+
+#card {
+  display: flex;
+  flex-direction: column;
+  width: min(380px, calc(100% - 24px));
+  max-height: calc(100% - 180px);
+  padding: 0;
+  overflow: hidden;
+  outline: none;
+  z-index: 15;
+}
+/* Once it has opened, the card follows its leaf in a glide and not a jump */
+#card.settled {
+  transition: transform 0.34s cubic-bezier(0.2, 1.2, 0.3, 1), opacity 0.22s, left 0.32s cubic-bezier(0.2, 0.9, 0.3, 1), top 0.32s cubic-bezier(0.2, 0.9, 0.3, 1),
+    background-color 0.4s, border-color 0.4s, color 0.4s;
+}
+#card .close { z-index: 2; }
+.card-grab { display: none; }
+.card-body { flex: 1; min-height: 0; padding: 0 20px 16px; overflow-y: auto; overscroll-behavior: contain; transition: opacity 0.2s; }
+.card-body.swap { animation: card-swap 0.26s ease-out; }
+@keyframes card-swap { from { opacity: 0; transform: translateY(6px); } }
+#card.loading .card-body { opacity: 0.45; pointer-events: none; }
+
+/* Who the card is about stays in view while the rest scrolls beneath */
+#card .head { position: sticky; top: 0; z-index: 1; margin: 0 -20px; padding: 20px 52px 12px 20px; background: var(--card); transition: background-color 0.4s; }
+#card .head::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 12px; background: linear-gradient(var(--card), transparent); pointer-events: none; }
+#card .kin { margin: 2px 0 0; }
+#card .kin .link { padding: 0; font-weight: 500; }
+#card h3 { margin: 18px 0 6px; font: 700 1rem var(--display); }
+#card .life { font-size: 1rem; }
+#card .facts li { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+#card .facts .kind { color: var(--muted); font-size: 0.9375rem; min-width: 5.5em; }
+#card .facts .what { flex: 1; }
+#card .story { margin: 0; white-space: pre-line; line-height: 1.55; font-family: var(--display); font-size: 1.0625rem; }
+#card .relatives { margin: 0; padding: 0; list-style: none; }
+#card .relatives li { padding: 3px 0; }
+.relatives button.link { padding: 0; }
+.memory { margin: 8px 0 0; padding: 10px 12px; border-left: 3px solid var(--line); }
+.memory p { margin: 0; white-space: pre-line; font-family: var(--display); }
+.memory small { color: var(--muted); }
+.memory + form { margin-top: 10px; }
+.add-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; font-size: 0.9375rem; color: var(--muted); }
+.add-row button { display: inline-flex; align-items: center; gap: 6px; padding: 0 12px 0 8px; border-radius: 17px; }
+.add-row svg { width: 16px; height: 16px; }
+
+/* Unsaved typing: the card asks before it lets go */
+.card-ask {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, #C9992E 14%, var(--card));
+  animation: ask-in 0.3s cubic-bezier(0.2, 1.3, 0.3, 1);
+}
+.card-ask span { flex: 1; font-weight: 500; }
+@keyframes ask-in { from { transform: translateY(100%); } }
+
+/* A suggestion is a pencil note beside what it questions. Approving it turns it to ink. */
+.pencil {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--pencil);
+  border-radius: 6px;
+  font-family: var(--display);
+  font-style: italic;
+  color: var(--muted);
+}
+.pencil .form-actions { margin-top: 8px; font-style: normal; font-family: var(--ui); }
+
+/* ---------- Side panel ---------- */
+
+.drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--card-shadow);
+  z-index: 40;
+  transform: translateX(100%);
+  transition: transform var(--slide), background-color 0.4s;
+}
+.drawer.open { transform: none; }
+.drawer[hidden] { display: none; }
+.drawer > header { display: flex; align-items: center; justify-content: space-between; padding: calc(14px + env(safe-area-inset-top)) 12px 8px 20px; }
+.drawer h2 { margin: 0; font: 700 1.5rem var(--display); }
+.drawer .close { border: 0; width: 44px; padding: 0; font-size: 1.5rem; color: var(--muted); }
+.drawer-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 8px 20px calc(24px + env(safe-area-inset-bottom)); }
+.drawer-page.fresh { animation: card-swap 0.26s ease-out; }
+.drawer-body h3 { margin: 22px 0 8px; font: 700 1.125rem var(--display); }
+.drawer-body h3:first-child { margin-top: 6px; }
+.drawer-body p { margin: 0 0 10px; }
+
+/* Tabs stay on one line. When there are many, the line slides and fades at its end. */
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 28px 0 14px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tabs:empty { display: none; }
+.tabs button { flex: none; border: 0; border-radius: 0; border-bottom: 3px solid transparent; padding: 0 10px; color: var(--muted); }
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--action); font-weight: 500; }
+.tabs button:hover { background: transparent; color: var(--text); }
+
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row .main { flex: 1; min-width: 0; }
+.row .main strong { display: block; font-weight: 500; }
+.row .main small { color: var(--muted); }
+.row .side { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 3px 4px 0 0;
+  padding: 2px 4px 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  font-size: 0.8125rem;
+}
+.chip i { width: 9px; height: 9px; border-radius: 50%; margin-right: 3px; }
+.chip button { min-height: 22px; width: 22px; padding: 0; border: 0; color: var(--muted); }
+.empty { padding: 26px 0; color: var(--muted); text-align: center; }
+.copy { display: flex; gap: 6px; margin: 6px 0 10px; }
+.copy input { font-family: ui-monospace, Menlo, monospace; font-size: 0.8125rem; }
+pre.code {
+  margin: 6px 0 10px;
+  padding: 12px;
+  overflow-x: auto;
+  background: var(--halo);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: 0.8125rem/1.5 ui-monospace, Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Gestures and keys: what to do on the left, what it does on the right */
+dl.keys { display: grid; grid-template-columns: 42% 1fr; gap: 8px 16px; margin: 0 0 8px; }
+dl.keys dt { font-weight: 600; }
+dl.keys dd { margin: 0; color: var(--muted); }
+
+/* One edit: who, what, and each change as before and after */
+.edit { margin: 0 0 14px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; }
+.edit.waiting { border-style: dashed; border-color: var(--pencil); }
+.edit header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.edit header strong { font: 700 1.0625rem var(--display); }
+.edit header small { color: var(--muted); white-space: nowrap; }
+.edit .by { margin: 2px 0 8px; color: var(--muted); font-size: 0.9375rem; }
+.edit .note { margin: 8px 0; padding: 8px 12px; border-left: 3px solid var(--line); font-family: var(--display); font-style: italic; }
+.edit ul { margin: 0; padding: 0; list-style: none; }
+.edit li { padding: 6px 0; border-top: 1px solid var(--line); }
+.edit li .check { min-height: 0; }
+.change { display: grid; grid-template-columns: 6em 1fr; gap: 2px 10px; margin-top: 3px; font-size: 0.9375rem; }
+.change .field { color: var(--muted); }
+.change .was { color: var(--muted); text-decoration: line-through; }
+.change .now { color: #B4432E; }
+.change .to { font-weight: 500; }
+.warning { margin: 8px 0 0; padding: 8px 12px; border-radius: 6px; background: color-mix(in srgb, #C9992E 16%, transparent); font-size: 0.9375rem; }
+.status { display: inline-block; padding: 1px 9px; border: 1px solid var(--line); border-radius: 10px; font-size: 0.8125rem; color: var(--muted); }
+.status.ai { border-color: var(--action); color: var(--action); }
+.comment { margin: 6px 0 0; font-size: 0.9375rem; }
+.comment b { font-weight: 500; }
+
+.account { display: block; width: 100%; height: auto; min-height: 0; padding: 12px 14px; margin-bottom: 8px; text-align: left; white-space: normal; border-radius: 12px; }
+.account strong { display: block; font: 700 1.0625rem var(--display); }
+.account small { color: var(--muted); }
+
+/* ---------- Toasts ---------- */
+
+#toasts {
+  position: absolute;
+  left: 12px;
+  right: calc(12px + var(--inset));
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  z-index: 60;
+  pointer-events: none;
+  transition: right var(--slide);
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(520px, 100%);
+  padding: 10px 10px 10px 16px;
+  background: var(--text);
+  color: var(--page);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  pointer-events: auto;
+  animation: toast-in 0.3s cubic-bezier(0.2, 1.2, 0.3, 1) both;
+}
+.toast.leaving { opacity: 0; transform: translateY(8px); transition: opacity 0.25s, transform 0.25s; }
+.toast button { min-height: 34px; color: inherit; border-color: color-mix(in srgb, currentColor 35%, transparent); }
+.toast.bad { background: #B4432E; color: #fff; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(12px); } }
+
+.closed-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  z-index: 5;
+}
+.closed-note h2 { margin: 0; font: 700 1.75rem var(--display); }
+.closed-note p { margin: 0; color: var(--muted); }
+
+/* ---------- Phones ---------- */
+
+@media (max-width: 640px) {
+  #familyLine { display: none; }
+  .title h1 { font-size: 1.25rem; text-wrap: balance; }
+  .tools { gap: 6px; }
+  #editToggle span, #menuOpen span { display: none; }
+  #editToggle, #menuOpen:not(.primary) { width: 44px; padding: 0; justify-content: center; }
+  .menu, .search { top: calc(60px + env(safe-area-inset-top)); right: 10px; }
+  .drawer { width: 100%; border-left: 0; }
+  .fields { grid-template-columns: 1fr; }
+  .banner { top: calc(60px + env(safe-area-inset-top)); }
+  .scrim { height: 84px; }
+
+  /* Pinching zooms, so only "whole tree" and "my leaf" keep a button */
+  #zoomIn, #zoomOut { display: none; }
+  .zoom, .tight .zoom { right: 10px; bottom: calc(74px + env(safe-area-inset-bottom)); }
+
+  /* The card is a sheet: pull the handle up to read more, down to put it away */
+  #card { max-height: 58%; padding: 0; overflow: hidden; }
+  #card, #card.settled {
+    transition: transform 0.34s cubic-bezier(0.2, 1, 0.3, 1), opacity 0.22s, max-height 0.32s cubic-bezier(0.2, 0.9, 0.3, 1), background-color 0.4s, border-color 0.4s, color 0.4s;
+  }
+  #card.tall { max-height: calc(100% - 146px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  .card-grab { display: block; flex: none; height: 20px; touch-action: none; cursor: grab; }
+  .card-grab::before { content: ""; display: block; width: 38px; height: 4px; margin: 8px auto 0; border-radius: 2px; background: var(--line); }
+  .card-body { padding: 0 16px 12px; }
+  /* A sheet is short, so the name scrolls away with the rest. The handle and the close button stay. */
+  #card .head { position: static; margin: 0 -16px; padding: 4px 48px 10px 16px; touch-action: none; }
+  #card .head::after { content: none; }
+  #card h2 { font-size: 1.3125rem; }
+  #card .medal { width: 48px; height: 48px; }
+  #card .close { top: 14px; }
+}
+
+/* ---------- Reduced motion, and the #still address option ---------- */
+
+.still .handle, .still .toast, .still .zoom, .still .banner, .still .petal-item, .still .pulse, .still .card-body, .still .card-ask, .still .drawer-page { animation: none !important; }

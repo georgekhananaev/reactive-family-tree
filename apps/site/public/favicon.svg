@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-36 -72 72 76">
+  <!-- One leaf of the tree: the beech shape and the greens of the approved design. Author: George Khananaev -->
+  <style>
+    .stem { fill: none; stroke: #3A3028; stroke-width: 3; stroke-linecap: round; }
+    .blade { fill: #3A7853; }
+    .vein { fill: none; stroke: #14261F; stroke-opacity: 0.4; stroke-width: 1.6; stroke-linecap: round; }
+    @media (prefers-color-scheme: dark) {
+      .stem { stroke: #8491B4; }
+      .blade { fill: #A3D9B5; }
+      .vein { stroke: #0C1322; }
+    }
+  </style>
+  <path class="stem" d="M0,0 L0,-12" />
+  <path class="blade" d="M0,-8 C-18,-18 -20,-44 0,-64 C20,-44 18,-18 0,-8 Z" />
+  <path class="vein" d="M0,-8 L0,-58 M0,-28 L-12,-38 M0,-28 L12,-38" />
+</svg>

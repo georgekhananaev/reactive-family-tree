@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<title>Reactive Family Tree: design prototype</title>
+<link rel="icon" href="data:,">
+<script>
+  // Choose light or dark before anything is drawn: a saved choice first, otherwise the device setting.
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('rft-appearance'); } catch (e) {}
+    var fromAddress = /(?:^|[#&])theme=(light|dark)/.exec(location.hash);
+    var theme = fromAddress ? fromAddress[1] : saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="stage">
+  <div class="sky sky-light" aria-hidden="true"></div>
+  <div class="sky sky-dark" aria-hidden="true"></div>
+
+  <!-- Everything that moves with the camera. The camera is a transform on this one element. -->
+  <div id="world">
+    <div class="behind" aria-hidden="true"></div>
+    <svg id="tree" aria-label="The Marlow family tree">
+      <defs>
+        <radialGradient id="wash" cx="38%" cy="34%" r="72%">
+          <stop class="wash-light" offset="0" stop-opacity="0.5"/>
+          <stop class="wash-light" offset="0.55" stop-opacity="0.06"/>
+          <stop class="wash-shade" offset="1" stop-opacity="0.2"/>
+        </radialGradient>
+        <radialGradient id="leafGlow">
+          <stop offset="0" stop-color="#BFE3C8" stop-opacity="0.55"/>
+          <stop offset="0.45" stop-color="#8FD3A6" stop-opacity="0.18"/>
+          <stop offset="1" stop-color="#8FD3A6" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="warmGlow">
+          <stop offset="0" stop-color="#F3D36B" stop-opacity="0.6"/>
+          <stop offset="0.45" stop-color="#F3D36B" stop-opacity="0.18"/>
+          <stop offset="1" stop-color="#F3D36B" stop-opacity="0"/>
+        </radialGradient>
+        <pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(38)">
+          <rect class="hatch-paper" width="5" height="5"/>
+          <line class="hatch-line" x1="0" y1="0" x2="0" y2="5"/>
+        </pattern>
+      </defs>
+    </svg>
+    <div class="ahead" aria-hidden="true"></div>
+  </div>
+</div>
+
+<header class="top">
+  <div class="title">
+    <h1>Marlow family</h1>
+    <p>Descendants of Elias and Ada</p>
+  </div>
+  <div class="appearance panel" role="group" aria-label="Appearance">
+    <button type="button" data-appearance="light">Light</button>
+    <button type="button" data-appearance="dark">Dark</button>
+  </div>
+</header>
+
+<div id="card" role="dialog" aria-label="Person" hidden></div>
+
+<p class="hint">Tap a leaf to meet someone. Tap the bud marked +3 to grow a branch. Drag the year to travel in time.</p>
+
+<footer class="timebar panel">
+  <button id="play" type="button">Play</button>
+  <output id="yearOut" for="year">2026</output>
+  <input id="year" type="range" value="2026" aria-label="Year">
+  <button id="replay" type="button">Grow again</button>
+  <button id="fit" type="button">Whole tree</button>
+</footer>
+
+<script src="tree-engine.js"></script>
+<script>
+  /* ----- Light or dark ----- */
+  (function () {
+    var rootEl = document.documentElement;
+    var buttons = document.querySelectorAll('[data-appearance]');
+    var themeColor = document.querySelector('meta[name="theme-color"]');
+    var calm = /(?:^|[#&])still(?:&|$)/.test(location.hash) || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var settle = null;
+
+    function show(theme) {
+      rootEl.setAttribute('data-theme', theme);
+      themeColor.setAttribute('content', theme === 'dark' ? '#0C1322' : '#FFFFFF');
+      buttons.forEach(function (button) {
+        button.setAttribute('aria-pressed', String(button.getAttribute('data-appearance') === theme));
+      });
+    }
+
+    // A chosen change is slow and complete. Where the browser can, the old and new
+    // pictures of the page are cross-faded by the graphics card, which stays smooth
+    // however much is on the tree. Otherwise every colour drifts to its new value.
+    // Either way the sun sets as the moon rises.
+    function change(theme) {
+      if (calm) return show(theme);
+      if (document.startViewTransition) {
+        // The cross-fade is the transition. Each colour inside the new picture
+        // switches at once, so nothing has to be redrawn while the fade runs.
+        rootEl.classList.add('theme-cut');
+        var fade = document.startViewTransition(function () { show(theme); });
+        fade.updateCallbackDone.then(function () {
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () { rootEl.classList.remove('theme-cut'); });
+          });
+        });
+        return;
+      }
+      rootEl.classList.add('theme-shift');
+      clearTimeout(settle);
+      settle = setTimeout(function () { rootEl.classList.remove('theme-shift'); }, 2600);
+      show(theme);
+    }
+
+    buttons.forEach(function (button) {
+      button.addEventListener('click', function () {
+        var theme = button.getAttribute('data-appearance');
+        if (theme === rootEl.getAttribute('data-theme')) return;
+        try { localStorage.setItem('rft-appearance', theme); } catch (e) {}
+        change(theme);
+      });
+    });
+    show(rootEl.getAttribute('data-theme'));
+  })();
+
+  /* ----- The tree ----- */
+  RFT.mount({
+    // Older generations are a deeper green, the youngest are spring green.
+    renderLeaf: function (person, shape, node) {
+      var depth = Math.min(node.depth, 4);
+      return '<circle class="glow cool" cx="0" cy="-36" r="46" fill="url(#leafGlow)"/>' +
+        '<circle class="glow warm" cx="0" cy="-36" r="46" fill="url(#warmGlow)"/>' +
+        '<path class="stem" d="M0,0 L0,-12"/>' +
+        '<path class="hatch" d="' + shape.d + '" fill="url(#hatch)"/>' +
+        '<path class="blade g' + depth + ' au' + (person.id.length % 3) + '" d="' + shape.d + '"/>' +
+        '<path class="wash" d="' + shape.d + '" fill="url(#wash)"/>' +
+        '<path class="vein" d="' + shape.v + '"/>';
+    },
+    renderBlossom: function () {
+      var petals = '';
+      for (var i = 0; i < 5; i++) {
+        petals += '<ellipse class="petal" cx="0" cy="-6.5" rx="3.6" ry="5.6" transform="rotate(' + (i * 72) + ')"/>';
+      }
+      return petals + '<circle class="blossom-heart" r="2.4"/>';
+    },
+    // The sky's furniture is made of ordinary elements, so fading and moving it is
+    // done by the graphics card. Only the ground and grass are drawn with the tree.
+    decorate: function (ctx) {
+      var el = ctx.el, g = ctx.ground, b = ctx.bounds, i, id, html;
+
+      // Day: a pale sun, a green wash behind the crown, soil under the trunk
+      html = '<div class="only-light sun" style="' + ctx.spot(b.x0 + 250, b.y0 + 150, 330, 330) + '"></div>' +
+        '<div class="only-light canopy-wash" style="' + ctx.spot(0, -330, 860, 470) + '"></div>' +
+        '<div class="only-light soil" style="' + ctx.spot(0, g + 12, 640, 44) + '"></div>';
+
+      // Night: still stars in one drawing, a few that twinkle, and a moon beside the crown
+      var sky = { x: b.x0 - 360, y: b.y0 - 260, w: b.x1 - b.x0 + 720, h: g - b.y0 + 480 };
+      var stars = '';
+      for (i = 0; i < 150; i++) {
+        id = 'star' + i;
+        var sx = ctx.rnd(id, 'x') * sky.w, sy = ctx.rnd(id, 'y') * sky.h;
+        var sr = 0.6 + ctx.rnd(id, 'r') * 1.3;
+        if (i % 6 === 0) {
+          html += '<i class="only-dark twinkle" style="' + ctx.spot(sky.x + sx, sky.y + sy, sr, sr) + ';animation-delay:-' + (ctx.rnd(id, 'd') * 5).toFixed(1) + 's"></i>';
+        } else {
+          stars += '<circle cx="' + sx.toFixed(1) + '" cy="' + sy.toFixed(1) + '" r="' + sr.toFixed(2) + '" opacity="' + (0.2 + ctx.rnd(id, 'o') * 0.6).toFixed(2) + '"/>';
+        }
+      }
+      html += '<svg class="only-dark stars" style="' + ctx.spot(sky.x + sky.w / 2, sky.y + sky.h / 2, sky.w / 2, sky.h / 2) + '" viewBox="0 0 ' + sky.w + ' ' + sky.h + '">' + stars + '</svg>' +
+        '<div class="only-dark moon" style="' + ctx.spot(b.x0 + 210, b.y0 + 80, 400, 400) + '"><span></span></div>';
+      ctx.behind.innerHTML = html;
+
+      // Both: the ground line and a few strokes of grass
+      el('path', { class: 'ground', d: 'M-560,' + (g + 4) + ' C-300,' + (g - 6) + ' -120,' + (g + 9) + ' 0,' + (g + 3) + ' C160,' + (g - 4) + ' 380,' + (g + 10) + ' 580,' + (g + 2) }, ctx.back);
+      for (i = 0; i < 46; i++) {
+        id = 'grass' + i;
+        var x = -540 + ctx.rnd(id, 'x') * 1080;
+        if (Math.abs(x) < 34) continue;
+        var h = 9 + ctx.rnd(id, 'h') * 18;
+        var lean = (ctx.rnd(id, 'l') - 0.5) * 14;
+        el('path', { class: 'grass', d: 'M' + x.toFixed(1) + ',' + (g + 5) + ' q' + (lean / 2).toFixed(1) + ',' + (-h / 2).toFixed(1) + ' ' + lean.toFixed(1) + ',' + (-h).toFixed(1) }, ctx.back);
+      }
+
+      // Night: fireflies drifting through the crown
+      html = '';
+      for (i = 0; i < 22; i++) {
+        id = 'fly' + i;
+        var fx = b.x0 + ctx.rnd(id, 'x') * (b.x1 - b.x0);
+        var fy = b.y0 + 80 + ctx.rnd(id, 'y') * (g - b.y0 - 60);
+        html += '<i class="only-dark fly" style="' + ctx.spot(fx, fy, 11, 11) +
+          ';--t:' + (7 + ctx.rnd(id, 't') * 9).toFixed(1) + 's;--d:-' + (ctx.rnd(id, 'd') * 9).toFixed(1) + 's' +
+          ';--dx:' + ((ctx.rnd(id, 'dx') - 0.5) * 220).toFixed(0) + 'px;--dy:' + ((ctx.rnd(id, 'dy') - 0.5) * 160).toFixed(0) + 'px"><b></b></i>';
+      }
+      ctx.ahead.innerHTML = html;
+    }
+  });
+</script>
+</body>
+</html>

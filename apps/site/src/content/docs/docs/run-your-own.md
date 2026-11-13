@@ -1,0 +1,97 @@
+---
+title: Run your own
+description: Start Reactive Family Tree from source, claim it with the one-time setup link, try demo mode, and set the environment variables the app reads.
+---
+
+One install holds one family's tree. Today you run it from the source code. Nothing is published to npm yet, and there is no ready-made Docker image to pull.
+
+## What you need
+
+- Node.js 24 or newer
+- pnpm 11
+- The source code of the project
+
+## Start it
+
+In the top folder of the repository:
+
+```sh
+pnpm install
+pnpm dev
+```
+
+`pnpm dev` starts the app at `http://localhost:3000`. On the first start it creates its database, a single file at `apps/web/data/family.db`.
+
+## Claim it with the setup link
+
+A new install belongs to nobody yet. So the app prints a one-time link in the server log, which is the terminal where you ran `pnpm dev`:
+
+```text
+This family tree has not been set up yet. Open this link to claim it:
+
+  http://localhost:3000/setup?token=setup_...
+```
+
+Open the link. The setup has five short steps:
+
+1. **You.** Your name and email. This makes you the owner of the tree.
+2. **The family.** What the tree is called. You can also create a passkey here, so signing in works before email is set up.
+3. **A starting point.** Your own leaf, or a GEDCOM file from other family tree software. You can skip this.
+4. **The look.** Light or dark.
+5. **Who can see it.** Private, public with the living hidden, or public.
+
+Only that link opens the setup, so a stranger who finds a new install cannot claim it. Every start prints a new link until someone has claimed the tree.
+
+### Signing in before email works
+
+Relatives sign in with a link sent by email, and an invitation is emailed to the address it names. If you have not set up email, the app writes each sign-in link to the server log instead, and invitations are handed over as links you can copy. That is enough to run a tree at home.
+
+Anyone who is signed in can also add a passkey from the account menu. After that, signing in is one touch and needs no email at all.
+
+## Demo mode
+
+```sh
+pnpm demo
+```
+
+This starts the same app with `DEMO_MODE=1`. It plants the made-up Marlow family, with a ready-made account for every role, so you can try being an owner, an admin, a steward or a member. There is no setup link in demo mode. Never use it for a real family.
+
+Demo mode keeps its data in a file of its own, `apps/web/data/demo/family.db`. Trying the demo never touches a real family's database, and you can go back and forth between `pnpm demo` and `pnpm dev`.
+
+## Environment variables
+
+Every one of these is optional when you run the tree on your own computer. Only secrets and infrastructure are set this way. Everything else is set inside the app, under "Manage family", and kept in the database.
+
+You can set them in the shell, or copy `apps/web/.env.example` to `apps/web/.env.local` and fill in what you need.
+
+| Variable | What it does | When it is not set |
+| --- | --- | --- |
+| `PUBLIC_URL` | Where people reach the tree, with no slash at the end. Links in emails and the MCP address are built from it. | `http://localhost:` and the port |
+| `PORT` | The port used in that default address. | `3000` |
+| `DATABASE_URL` | Where the data is kept. `file:` and a path for one file on disk, or a `libsql://` address for a hosted libSQL database such as Turso. | `file:./data/family.db` |
+| `DATABASE_AUTH_TOKEN` | The token for a hosted libSQL database. | No token is sent |
+| `AUTH_SECRET` | The secret that signs sessions. | One is made on the first start and kept in the database |
+| `DEMO_MODE` | `1` or `true` plants the demo family and its ready-made accounts. | Off |
+| `SETUP_TOKEN` | Sets the token of the setup link yourself, for hosts where you cannot read the log. The link is then `PUBLIC_URL` followed by `/setup?token=` and your token. | A random token is made and printed |
+| `EMAIL_FROM` | The address emails are sent from. | `Family tree <tree@localhost>` |
+| `SMTP_URL` | Sends email through an SMTP server, for example `smtp://user:pass@host:587`. | Emails are written to the server log |
+| `RESEND_API_KEY` | Sends email through Resend. It is used first if `SMTP_URL` is set too. | Emails are written to the server log |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | With both set, people who already have an account can sign in with Google. | No Google sign-in |
+| `JOB_TIMERS` | `0` stops the app from running its daily jobs on a timer of its own. | The timer runs |
+| `JOBS_TOKEN` | Lets a scheduler on your host run the daily jobs, by sending `POST /api/jobs` with the header `Authorization: Bearer` and this token. | That address refuses every request |
+
+The daily jobs empty the compost of people removed more than 30 days ago and, when the database is a file, write a full snapshot into a `snapshots` folder beside it. The last 14 snapshots are kept.
+
+## Check that it is up
+
+`GET /api/healthz` answers with JSON that says whether the database responds and whether email is set up. It needs no sign-in, so an uptime monitor can call it.
+
+## Docker
+
+The repository has a `docker/Dockerfile` and a `docker/compose.yml` that build the app into one container, with the database in a volume at `/data`. No image is published to a registry yet, so you build it yourself from the source:
+
+```sh
+docker compose -f docker/compose.yml up --build
+```
+
+The first start prints the same setup link in the container's log.

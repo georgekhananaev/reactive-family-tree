@@ -1,0 +1,20 @@
+# docker compose -f docker/compose.yml up --build
+services:
+  tree:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      # Where people reach the tree. Sign-in for AI clients needs https here, or localhost.
+      PUBLIC_URL: http://localhost:3000
+      # Sending email is optional. Without it, sign-in links are written to the log and invitations are handed over as links.
+      # SMTP_URL: smtp://user:password@smtp.example.com:587
+      # EMAIL_FROM: Family tree <tree@example.com>
+    volumes:
+      - tree-data:/data
+    restart: unless-stopped
+
+volumes:
+  tree-data:

@@ -1,0 +1,15 @@
+{
+  "name": "reactive-family-tree-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end demo of Reactive Family Tree. No dependencies: runs on Node 24 alone.",
+  "author": "George Khananaev",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node server/main.js",
+    "reset": "node server/main.js --reset",
+    "test": "node --test"
+  }
+}

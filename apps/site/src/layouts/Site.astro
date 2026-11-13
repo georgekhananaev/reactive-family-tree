@@ -1,0 +1,62 @@
+---
+/*
+ * The page around the home page and the demo: what search engines and
+ * browsers are told, the appearance chosen before anything is drawn, and the
+ * design's two typefaces. The docs have Starlight's own layout.
+ * Author: George Khananaev
+ */
+
+import { AUTHOR, FONTS, SITE_NAME } from '../lib/site.mjs';
+import '../styles/site.css';
+
+interface Props {
+  title: string;
+  description: string;
+  /* What the page is, for search engines, as schema.org JSON-LD. */
+  structuredData?: Record<string, unknown>;
+}
+
+const { title, description, structuredData } = Astro.props;
+
+// One address per page, always with its closing slash, whichever way it was asked for
+const path = Astro.url.pathname.endsWith('/') ? Astro.url.pathname : `${Astro.url.pathname}/`;
+const canonical = new URL(path, Astro.site).href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="author" content={AUTHOR} />
+    <link rel="canonical" href={canonical} />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0C1322" media="(prefers-color-scheme: dark)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <script is:inline>
+      // Choose light or dark before anything is drawn: the choice made in the docs first, otherwise the device setting.
+      (function () {
+        var saved = null;
+        try { saved = localStorage.getItem('starlight-theme'); } catch (e) {}
+        var fromAddress = /(?:^|[#&])theme=(light|dark)/.exec(location.hash);
+        var theme = fromAddress ? fromAddress[1] : saved === 'light' || saved === 'dark' ? saved : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href={FONTS} rel="stylesheet" />
+    {structuredData && <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData).replaceAll('<', '\\u003c')} />}
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

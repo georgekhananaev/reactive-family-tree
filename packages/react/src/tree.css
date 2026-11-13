@@ -1,0 +1,419 @@
+/*
+ * Reactive Family Tree: the tree, "Morning ink".
+ *
+ * Everything needed to draw the living tree with nothing else on the page: the
+ * colours, the stage and its two skies, the tree, its surroundings, and what a
+ * live, editable family adds to it.
+ *
+ * One design, two appearances. Every colour is a custom property, so the
+ * light and dark appearances differ only in the two token blocks below.
+ * Author: George Khananaev
+ */
+
+/* ---------- Light: ink and watercolour on white ---------- */
+
+:root {
+  color-scheme: light;
+  /* Literata was drawn for reading on screens at small sizes. Source Sans is plain and clear for controls. */
+  --display: "Literata", Georgia, serif;
+  --ui: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+
+  --page: #FFFFFF;
+  --text: #14261F;
+  --muted: #57606A;
+  --halo: #FDFEFD;
+  --action: #12708A;
+  --on-action: #FFFFFF;
+  --panel: rgba(255, 255, 255, 0.95);
+  --card: #FFFFFF;
+  --card-shadow: 0 18px 40px -24px rgba(20, 38, 31, 0.5);
+  --line: rgba(20, 38, 31, 0.16);
+
+  --bark: #3A3028;
+  --root-opacity: 0.3;
+  --leaf-0: #2F6B4F;
+  --leaf-1: #3A7853;
+  --leaf-2: #508C58;
+  --leaf-3: #6FA560;
+  --leaf-4: #93BF6E;
+  --gold-0: #C9992E;
+  --gold-1: #BD8A2A;
+  --gold-2: #D4A742;
+  --leaf-edge: #14261F;
+  --leaf-edge-opacity: 0.5;
+  --vein: #14261F;
+  --vein-opacity: 0.34;
+  --gold-vein: #5A3F0C;
+  --wash-light: #FFFFFF;
+  --wash-shade: #14261F;
+  --glow-opacity: 0;
+  --ghost-fill: rgba(255, 255, 255, 0.65);
+  --pencil: #6E7781;
+  --hatch-paper: #FFFFFF;
+  --petal: #E58FA6;
+  --petal-edge: #A9506A;
+  --blossom-heart: #C9992E;
+  --bud: #8DBF6A;
+  --bud-edge: #14261F;
+  --bud-text: #14261F;
+  --ground: #3A3028;
+  --grass: #2F6B4F;
+}
+
+/* ---------- Dark: the same tree after sunset ---------- */
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --page: #0C1322;
+  --text: #E7EEF0;
+  --muted: #A9B4C0;
+  --halo: #0E1628;
+  --action: #7CCDE0;
+  --on-action: #0C1322;
+  --panel: rgba(27, 39, 64, 0.94);
+  --card: #1B2740;
+  --card-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.75);
+  --line: rgba(231, 238, 240, 0.18);
+
+  --bark: #8491B4;
+  --root-opacity: 0.22;
+  --leaf-0: #8FD0A8;
+  --leaf-1: #A3D9B5;
+  --leaf-2: #BFE3C8;
+  --leaf-3: #CDEBCB;
+  --leaf-4: #DCF3D2;
+  --gold-0: #E3C77A;
+  --gold-1: #D9B968;
+  --gold-2: #EBD08C;
+  --leaf-edge: #F1FBF3;
+  --leaf-edge-opacity: 0.5;
+  --vein: #0C1322;
+  --vein-opacity: 0.32;
+  --gold-vein: #4E3B0E;
+  --wash-light: #FFFFFF;
+  --wash-shade: #0C1322;
+  --glow-opacity: 0.5;
+  --ghost-fill: rgba(231, 238, 240, 0.06);
+  --pencil: #A9B4C0;
+  --hatch-paper: #1B2740;
+  --petal: #F2A7BA;
+  --petal-edge: #FBD5DE;
+  --blossom-heart: #F3D36B;
+  --bud: #1B2740;
+  --bud-edge: #7CCDE0;
+  --bud-text: #7CCDE0;
+  --ground: #8491B4;
+  --grass: #5E9C7C;
+}
+
+/* ---------- The stage ---------- */
+
+#stage {
+  /* The width of an open side panel, and how things slide when it opens. An
+     app sets both. On its own the tree keeps the whole stage. */
+  --inset: 0px;
+  --slide: 0.36s cubic-bezier(0.2, 0.9, 0.3, 1);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+#stage.dragging { cursor: grabbing; }
+
+/* Two skies, one above the other. Changing appearance fades the night sky in or out. */
+.sky { position: absolute; inset: 0; pointer-events: none; }
+/* The paper grain is part of the day sky's own picture, drawn once and never again */
+.sky-light {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .28 0 0 0 0 .24 0 0 0 .1 0'/%3E%3C/filter%3E%3Crect width='260' height='260' filter='url(%23n)'/%3E%3C/svg%3E"),
+    linear-gradient(#EEF4F4 0%, #FFFFFF 48%, #F6F8F1 100%);
+}
+.sky-dark {
+  background: radial-gradient(130% 85% at 50% 108%, #2B3263 0%, #1A2444 34%, #111A30 62%, #0C1322 100%);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+:root[data-theme="dark"] .sky-dark { opacity: 1; }
+
+/* The world holds everything that moves with the camera, and the camera is a
+   transform on it. Keeping it on its own layer lets the graphics card slide and
+   scale it without redrawing the tree. */
+#world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+#world .behind, #world .ahead { position: absolute; inset: 0; pointer-events: none; }
+#world .behind > *, #world .ahead > * { position: absolute; }
+
+#tree {
+  position: relative;
+  display: block;
+  overflow: visible;
+}
+
+/* ---------- The tree ---------- */
+
+/* Gradient and pattern colours follow the appearance */
+.wash-light { stop-color: var(--wash-light); }
+.wash-shade { stop-color: var(--wash-shade); }
+.hatch-paper { fill: var(--hatch-paper); fill-opacity: 0.8; }
+.hatch-line { stroke: var(--pencil); stroke-width: 1.1; }
+
+.branch, .root { fill: var(--bark); transition: fill 0.35s; }
+.layer-roots { opacity: var(--root-opacity); }
+.branch.lit { fill: var(--action); }
+
+.leaf-node, .bud { cursor: pointer; outline: none; }
+
+.glow { opacity: var(--glow-opacity); pointer-events: none; transition: opacity 0.4s; }
+.glow.warm, .state-gone .glow.cool { display: none; }
+.state-gone .glow.warm { display: inline; }
+.stem { fill: none; stroke: var(--bark); stroke-width: 1.7; stroke-linecap: round; transition: stroke 0.35s; }
+.blade {
+  fill-opacity: 0.92;
+  stroke: var(--leaf-edge);
+  stroke-opacity: var(--leaf-edge-opacity);
+  stroke-width: 1;
+  transition: fill 0.9s, stroke 0.2s, stroke-width 0.2s;
+}
+.blade.g0 { fill: var(--leaf-0); }
+.blade.g1 { fill: var(--leaf-1); }
+.blade.g2 { fill: var(--leaf-2); }
+.blade.g3 { fill: var(--leaf-3); }
+.blade.g4 { fill: var(--leaf-4); }
+.wash { pointer-events: none; }
+.vein { fill: none; stroke: var(--vein); stroke-opacity: var(--vein-opacity); stroke-width: 0.8; stroke-linecap: round; transition: stroke 0.9s; }
+
+/* Remembered: the leaf turns gold and stays in its place */
+.state-gone .blade.au0 { fill: var(--gold-0); }
+.state-gone .blade.au1 { fill: var(--gold-1); }
+.state-gone .blade.au2 { fill: var(--gold-2); }
+.state-gone .vein { stroke: var(--gold-vein); stroke-opacity: 0.5; }
+
+/* Unknown: an outline waiting for a name */
+.state-ghost .blade { fill: var(--ghost-fill); stroke-dasharray: 3.5 3.5; stroke-opacity: 0.75; }
+.state-ghost .wash, .state-ghost .vein, .state-ghost .glow { display: none; }
+
+/* Suggested: pencil, until someone approves it */
+.hatch { display: none; pointer-events: none; }
+.state-pending .hatch { display: inline; }
+.state-pending .blade { fill: none; stroke: var(--pencil); stroke-opacity: 1; stroke-dasharray: 5 3; stroke-width: 1.3; }
+.state-pending .stem { stroke: var(--pencil); stroke-dasharray: 3 2; }
+.state-pending .wash, .state-pending .vein, .state-pending .glow { display: none; }
+
+.leaf-node.selected .blade { stroke: var(--action); stroke-opacity: 1; stroke-width: 3; }
+.leaf-node.selected .glow { opacity: calc(var(--glow-opacity) * 2); }
+@media (hover: hover) {
+  .leaf-node:hover .blade { stroke-opacity: 0.95; stroke-width: 1.6; }
+}
+.leaf-node:focus-visible .blade, .bud:focus-visible .bud-shape { stroke: var(--action); stroke-opacity: 1; stroke-width: 3; }
+
+.petal { fill: var(--petal); fill-opacity: 0.94; stroke: var(--petal-edge); stroke-width: 0.6; transition: fill 0.4s, stroke 0.4s; }
+.blossom-heart { fill: var(--blossom-heart); }
+
+.bud-shape { fill: var(--bud); stroke: var(--bud-edge); stroke-width: 1.5; transition: fill 0.4s, stroke 0.4s; }
+.bud-count { font: 700 16px var(--ui); fill: var(--bud-text); pointer-events: none; }
+
+.hit { fill: transparent; stroke: transparent; stroke-width: 18px; pointer-events: all; }
+
+/* Growth and wind */
+.unfurl {
+  transform-origin: 0 0;
+  transform: scale(0.05) rotate(-28deg);
+  opacity: 0;
+  transition: transform 0.7s cubic-bezier(0.2, 1.4, 0.3, 1), opacity 0.25s;
+}
+.on > .unfurl { transform: none; opacity: 1; }
+
+/* A leaf leans toward you when you point at it, and a little more when chosen */
+@media (hover: hover) {
+  .leaf-node.on:hover > .unfurl { transform: scale(1.07); }
+  .bud.on:hover > .unfurl { transform: scale(1.12); }
+}
+.leaf-node.on.selected > .unfurl { transform: scale(1.16); }
+
+.sway { transform-origin: 0 0; }
+/* Wind comes as a gust that crosses the tree, each leaf stirring in its turn.
+   Between gusts the tree is still, and a still tree costs nothing to show. */
+#tree.gust .sway { animation: gust 2.8s ease-in-out var(--dl, 0s) 1 both; }
+@keyframes gust {
+  0% { transform: rotate(0deg); }
+  18% { transform: rotate(3.4deg); }
+  42% { transform: rotate(-2.1deg); }
+  66% { transform: rotate(1.2deg); }
+  84% { transform: rotate(-0.5deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* Names */
+.label { opacity: 0; pointer-events: none; transition: opacity 0.4s 0.25s; }
+.label.on { opacity: 1; }
+.label text { paint-order: stroke; stroke: var(--halo); stroke-width: 4.5px; stroke-linejoin: round; }
+.label .name { font: 600 23px var(--display); fill: var(--text); transition: fill 0.4s, stroke 0.4s; }
+.label .years { font: 500 16px var(--ui); font-variant-numeric: lining-nums tabular-nums; fill: var(--muted); stroke-width: 3.5px; transition: fill 0.4s, stroke 0.4s, opacity 0.45s; }
+
+/* Zoom is meaning: far away the names fade back and the shape of the tree remains */
+#tree[data-zoom="mid"] .years, #tree[data-zoom="far"] .years { opacity: 0; }
+#tree[data-zoom="far"] .label.on { opacity: 0; transition-delay: 0s; }
+
+/* ---------- Surroundings ---------- */
+
+/* Day things and night things trade places slowly: one fades as the other arrives */
+.only-light, .only-dark { transition: opacity 2s ease-in-out, transform 2.6s cubic-bezier(0.3, 0, 0.15, 1); pointer-events: none; }
+.only-dark { opacity: 0; }
+:root[data-theme="dark"] .only-dark { opacity: 1; }
+:root[data-theme="dark"] .only-light { opacity: 0; }
+
+/* The sun sets as the moon rises, and the other way round */
+.moon { transform: translateY(300px); }
+:root[data-theme="dark"] .moon { transform: none; }
+:root[data-theme="dark"] .sun { transform: translateY(300px); }
+
+.ground { fill: none; stroke: var(--ground); stroke-opacity: 0.55; stroke-width: 1.4; stroke-linecap: round; transition: stroke 0.4s; }
+.grass { fill: none; stroke: var(--grass); stroke-opacity: 0.6; stroke-width: 1.3; stroke-linecap: round; transition: stroke 0.4s; }
+
+/* The sky's furniture: ordinary elements, so fading and moving them is free */
+.sun { background: radial-gradient(closest-side, rgba(255, 243, 209, 0.95), rgba(255, 243, 209, 0.38) 40%, rgba(255, 243, 209, 0)); }
+.canopy-wash { background: radial-gradient(closest-side, rgba(141, 191, 106, 0.2), rgba(141, 191, 106, 0)); }
+.soil { background: radial-gradient(closest-side, rgba(107, 90, 62, 0.3), rgba(124, 138, 82, 0.14) 60%, rgba(124, 138, 82, 0)); }
+
+.moon { background: radial-gradient(closest-side, rgba(244, 239, 208, 0.32), rgba(201, 207, 234, 0.12) 35%, rgba(201, 207, 234, 0)); }
+.moon span {
+  position: absolute;
+  inset: 39%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 42% 40%, #FBF6DD, #E4DDB8);
+  opacity: 0.94;
+}
+
+.stars { overflow: visible; fill: #E7EEF0; }
+.twinkle { border-radius: 50%; background: #E7EEF0; }
+:root[data-theme="dark"] .twinkle { animation: twinkle 4.5s ease-in-out infinite alternate; }
+@keyframes twinkle { from { opacity: 0.15; } to { opacity: 0.9; } }
+
+.fly b {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #FFF1B8 0 16%, rgba(243, 211, 107, 0.55) 18%, rgba(243, 211, 107, 0.16) 50%, rgba(243, 211, 107, 0));
+}
+:root[data-theme="dark"] .fly { animation: drift var(--t) ease-in-out var(--d) infinite alternate; }
+:root[data-theme="dark"] .fly b { animation: blink 3.4s ease-in-out var(--d) infinite; }
+@keyframes drift { to { transform: translate(var(--dx), var(--dy)); } }
+@keyframes blink { 0%, 100% { opacity: 0.1; } 50% { opacity: 1; } }
+
+/* ---------- Tree additions for a live, editable family ---------- */
+
+#stage { -webkit-touch-callout: none; }
+.branch, .root { transition: fill 0.35s, opacity 0.3s; }
+
+.you-ring, .tint-ring { fill: none; display: none; pointer-events: none; }
+.leaf-node.you .you-ring { display: inline; stroke: var(--action); stroke-width: 2; stroke-dasharray: 2 5; stroke-linecap: round; }
+.leaf-node.tinted .tint-ring { display: inline; stroke: var(--tint); stroke-width: 6; stroke-opacity: 0.75; }
+
+/* A living relative this viewer may not see: a plain leaf that says nothing */
+.state-masked .blade { fill: var(--ghost-fill); stroke-opacity: 0.45; }
+.state-masked .wash, .state-masked .vein, .state-masked .glow { display: none; }
+
+/* In edit mode, what you cannot publish directly steps back a little */
+#tree.editing .leaf-node.outside > .unfurl { opacity: 0.55; }
+#tree.editing .leaf-node.outside.selected > .unfurl { opacity: 1; }
+
+.handle { cursor: pointer; outline: none; }
+.handle-shape { fill: var(--card); stroke: var(--action); stroke-width: 2; transition: fill 0.2s, transform 0.2s cubic-bezier(0.2, 1.4, 0.3, 1); }
+.handle-plus { fill: none; stroke: var(--action); stroke-width: 2.4; stroke-linecap: round; pointer-events: none; }
+.handle-label { font: 600 15px var(--ui); fill: var(--text); paint-order: stroke; stroke: var(--halo); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.handle:hover .handle-shape, .handle:focus-visible .handle-shape { fill: var(--action); }
+.handle:hover .handle-plus, .handle:focus-visible .handle-plus { stroke: var(--on-action); }
+.handle { animation: arrive 0.35s both; }
+/* What arrives fades in from nothing. An app's controls arrive the same way. */
+@keyframes arrive { from { opacity: 0; } }
+
+/* Pulling a + bud draws a pencil twig with the new leaf at its tip */
+.twig { fill: none; stroke: var(--pencil); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 6 5; pointer-events: none; }
+.twig-tip { opacity: 0; pointer-events: none; transition: opacity 0.15s; }
+.twig-tip.on { opacity: 1; }
+.twig-leaf { fill: var(--leaf-3); fill-opacity: 0.4; stroke: var(--pencil); stroke-width: 2.4; stroke-dasharray: 6 4; }
+
+/* A ripple leaves a leaf when it is chosen */
+.pulse { fill: none; stroke: var(--action); stroke-width: 2; opacity: 0; pointer-events: none; transform-box: fill-box; transform-origin: center; }
+.leaf-node.selected:not(.kept) .pulse { animation: ripple 0.8s cubic-bezier(0.2, 0.7, 0.3, 1); }
+@keyframes ripple { from { opacity: 0.7; transform: scale(0.6); } to { opacity: 0; transform: scale(1.9); } }
+
+/* Someone new on the tree, or the two ends of a connection being shown: the leaf glints */
+.leaf-node.glint .pulse { stroke: var(--gold-0); stroke-width: 3; animation: ripple 1.3s cubic-bezier(0.2, 0.7, 0.3, 1) 0.15s 2; }
+.leaf-node.glint .glow { opacity: 0.95; }
+
+/* A leaf that has left the tree lets go and drifts down. A pencilled one is rubbed out. */
+.falling, .erased { pointer-events: none; }
+.falling { animation: fall 1.25s cubic-bezier(0.5, 0, 0.9, 0.6) both; }
+.falling .unfurl { animation: tumble 1.25s ease-in both; }
+.erased { animation: rub-out 0.9s both; }
+@keyframes fall { to { transform: translate(36px, 250px); opacity: 0; } }
+@keyframes tumble { to { transform: rotate(150deg) scale(0.8); } }
+@keyframes rub-out { 30% { opacity: 0.45; } 45% { opacity: 0.7; } 100% { opacity: 0; } }
+
+/* A pencilled leaf that has been approved turns to ink */
+.leaf-node.inked .blade { animation: ink 1.5s ease-out; }
+.leaf-node.inked .wash, .leaf-node.inked .vein { animation: arrive 1.5s ease-out; }
+@keyframes ink { from { fill-opacity: 0; stroke: var(--pencil); stroke-opacity: 1; } }
+
+/* Searching: the people found keep their colour and their names, everyone else steps back */
+#tree.searching .branch, #tree.searching .blossom { opacity: 0.3; }
+#tree.searching .leaf-node.on:not(.match) > .unfurl { opacity: 0.18; }
+#tree.searching .leaf-node.on.match > .unfurl { transform: scale(1.14); }
+#tree.searching .label.on:not(.match) { opacity: 0.1; }
+#tree.searching .label.on.match { opacity: 1; }
+#tree.searching[data-zoom="far"] .label.on:not(.match) { opacity: 0; }
+
+/* The way between two relatives, lit one branch after another */
+.branch.route { fill: var(--action); }
+
+/* ---------- Behind the tree ---------- */
+
+/* Time travel: the year stands in the sky while the slider is away from today */
+.year-ghost {
+  position: absolute;
+  top: 11%;
+  left: calc((100% - var(--inset)) / 2);
+  transform: translateX(-50%);
+  font: 700 clamp(5.5rem, 21vw, 15rem)/1 var(--display);
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.7s, left var(--slide);
+}
+.year-ghost.on { opacity: 0.07; }
+
+/* Edit mode: a faint trellis behind the tree says the gardening has begun */
+.trellis {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background-image:
+    repeating-linear-gradient(45deg, var(--line) 0 1px, transparent 1px 36px),
+    repeating-linear-gradient(-45deg, var(--line) 0 1px, transparent 1px 36px);
+  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 20%, transparent 78%);
+  mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 20%, transparent 78%);
+  transition: opacity 0.5s;
+}
+#stage.editing .trellis { opacity: 0.75; }
+
+/* ---------- Reduced motion, and the #still address option ---------- */
+
+.still .sway, .still .fly, .still .fly b, .still .twinkle { animation: none !important; }
+.still .fly b { opacity: 0.8; }
+.still .unfurl { transform: none; transition: none; }
+.still .blade, .still .branch { transition: none; }
+.still .label { transition: none; }
+.still .handle, .still .pulse { animation: none !important; }

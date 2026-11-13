@@ -1,0 +1,34 @@
+/*
+ * "Morning ink", for the pages around the tree: the type and the page colours
+ * of the approved design, with the values of docs/demo/web/tree.css. The
+ * tree's own stylesheet carries the same ones, and those of the leaves.
+ * Author: George Khananaev
+ */
+
+:root {
+  /* Literata was drawn for reading on screens at small sizes. Source Sans is plain and clear for controls. */
+  --display: "Literata", Georgia, serif;
+  --ui: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  /* How wide running text may be. In Source Sans this comes to under about 70 characters a line, at any size. */
+  --measure: 55ch;
+
+  --page: #FFFFFF;
+  --text: #14261F;
+  --muted: #57606A;
+  --action: #12708A;
+  --on-action: #FFFFFF;
+  --panel: rgba(255, 255, 255, 0.95);
+  --card: #FFFFFF;
+  --line: rgba(20, 38, 31, 0.16);
+}
+
+:root[data-theme="dark"] {
+  --page: #0C1322;
+  --text: #E7EEF0;
+  --muted: #A9B4C0;
+  --action: #7CCDE0;
+  --on-action: #0C1322;
+  --panel: rgba(27, 39, 64, 0.94);
+  --card: #1B2740;
+  --line: rgba(231, 238, 240, 0.18);
+}

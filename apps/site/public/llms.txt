@@ -1,0 +1,20 @@
+# Reactive Family Tree
+
+> An open-source family tree drawn as a living tree. It is a self-hosted app (one family per install), a React component named reactive-family-tree, and a built-in MCP server so a relative's own AI client can read and edit the tree. MIT license. Author: George Khananaev.
+
+The addresses below are relative to this site. The docs describe what the code does today. Where something is planned and not built, the page says so.
+
+## Docs
+
+- [Docs](/docs/): What the project is, what works today, and what is planned and not built yet.
+- [Run your own](/docs/run-your-own/): Start the app from source with pnpm, claim it with the one-time setup link from the server log, try demo mode, and the environment variables it reads.
+- [Who can do what](/docs/who-can-do-what/): Owner, admin, steward, member and visitor. Edits inside your own branch are published at once, edits elsewhere become suggestions.
+- [Privacy](/docs/privacy/): Who counts as living, what a visitor sees, and exactly what the server sends for a masked relative.
+- [Connect your AI](/docs/connect-your-ai/): The /mcp address, signing in or using a personal token, review first by default, and every tool, resource and prompt.
+- [The React package](/docs/react-package/): The FamilyTree component, its data, props and handle, and tree.css. It is not published to npm yet.
+- [Contributing](/docs/contributing/): The layout of the repository and the checks to run: pnpm test, pnpm typecheck, pnpm lint.
+
+## Try it
+
+- [Home](/): The live tree with a made-up family, and what the app does.
+- [Demo](/demo/): The demo family filling the window, with a year slider. It runs entirely in the browser.

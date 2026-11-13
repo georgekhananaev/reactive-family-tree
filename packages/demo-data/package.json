@@ -1,0 +1,19 @@
+{
+  "name": "@reactive-family-tree/demo-data",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The fictional Marlow family, used by tests, the demo and the docs.",
+  "author": "George Khananaev",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@reactive-family-tree/core": "workspace:*"
+  },
+  "devDependencies": {}
+}

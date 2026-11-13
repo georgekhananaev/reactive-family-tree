@@ -1,0 +1,120 @@
+/*
+ * Around the tree: the box it is drawn in and, on the demo page, the title,
+ * the caption and the year slider. Their look is the app's own.
+ * Author: George Khananaev
+ */
+
+/* The tree's stage fills the nearest positioned box. This is that box, with a height of its own. */
+.demo-tree {
+  position: relative;
+  height: var(--tree-height, 100svh);
+  min-height: 20rem;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--ui);
+  font-variant-numeric: lining-nums;
+}
+
+/* On a page that scrolls, a swipe up or down belongs to the page. Sideways it still moves the tree. */
+.demo-tree:not(.explorer) #stage { touch-action: pan-y; }
+
+/* ---------- Whose tree it is, and the caption ---------- */
+
+.tree-title {
+  position: absolute;
+  inset: 0 auto auto 0;
+  /* The page keeps its links in the other corner */
+  max-width: min(32rem, calc(100% - 8.5rem));
+  padding: calc(16px + env(safe-area-inset-top)) 0 0 calc(20px + env(safe-area-inset-left));
+  pointer-events: none;
+}
+.tree-title h1 { margin: 0; font: 700 1.75rem/1.05 var(--display); }
+.tree-title p { margin: 0.25rem 0 0; color: var(--muted); font-size: 1rem; line-height: 1.4; }
+.tree-title strong { color: var(--text); font-weight: 600; }
+
+/* ---------- Year slider ---------- */
+
+.timebar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(760px, calc(100% - 24px));
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.timebar [hidden] { display: none; }
+
+.timebar button {
+  flex: none;
+  /* Play and Pause take the same room, so the slider does not jump between them */
+  min-width: 4.5rem;
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 0.25s, border-color 0.25s;
+}
+@media (hover: hover) {
+  .timebar button:hover { background-color: color-mix(in srgb, var(--action) 12%, transparent); border-color: var(--action); }
+}
+.timebar button:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+
+.timebar output { min-width: 3.4ch; text-align: center; font: 700 1.4rem/1 var(--display); font-variant-numeric: lining-nums tabular-nums; }
+
+.timebar input[type="range"] {
+  flex: 1;
+  min-width: 60px;
+  height: 44px;
+  margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  accent-color: var(--action);
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.timebar input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  /* Two flat colours that meet at the thumb */
+  background: linear-gradient(90deg, var(--action) var(--filled, 100%), var(--line) var(--filled, 100%));
+}
+.timebar input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -8px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid var(--action);
+}
+.timebar input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+.timebar input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--action); }
+.timebar input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--card); border: 2px solid var(--action); }
+.timebar input[type="range"]:focus-visible { outline: none; }
+.timebar input[type="range"]:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--action); outline-offset: 2px; }
+.timebar input[type="range"]:focus-visible::-moz-range-thumb { outline: 2px solid var(--action); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .tree-title { padding-top: calc(12px + env(safe-area-inset-top)); padding-left: calc(14px + env(safe-area-inset-left)); }
+  .tree-title h1 { font-size: 1.5rem; }
+  .timebar { gap: 6px; padding: 6px; bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .timebar button { min-width: 4rem; padding: 0 11px; }
+  .timebar output { font-size: 1.2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timebar button { transition: none; }
+}

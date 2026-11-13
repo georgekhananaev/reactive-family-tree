@@ -1,0 +1,65 @@
+/*
+ * The docs in the colours and type of the approved design. Starlight draws
+ * with its own names, so each is given a value from "Morning ink": a white
+ * page with ink text by day, the same page after sunset, and teal for links.
+ *
+ * Each grey ramp runs between the design's own colours: the text, the muted
+ * text, the card and the page. The steps in between are mixed from those.
+ * Author: George Khananaev
+ */
+
+@import './tokens.css';
+
+/* After sunset. Starlight keeps its dark values on the root. */
+:root {
+  --sl-font: var(--ui);
+
+  --sl-color-accent-low: #12303F;
+  --sl-color-accent: #2E93AD;
+  --sl-color-accent-high: #7CCDE0;
+  --sl-color-white: #F5F9FA;
+  --sl-color-gray-1: #E7EEF0;
+  --sl-color-gray-2: #D3DBE0;
+  --sl-color-gray-3: #A9B4C0;
+  --sl-color-gray-4: #5F6C82;
+  --sl-color-gray-5: #2C3A57;
+  --sl-color-gray-6: #1B2740;
+  --sl-color-black: #0C1322;
+  --sl-color-bg-nav: var(--page);
+  --sl-color-bg-sidebar: var(--page);
+
+  /* A column wide enough for a table. Running text is kept narrower, below. */
+  --sl-content-width: 44rem;
+  --sl-line-height: 1.6;
+
+  /* Headings that order the page without shouting */
+  --sl-text-h1: 2.125rem;
+  --sl-text-h2: 1.5rem;
+  --sl-text-h3: 1.25rem;
+  --sl-text-h4: 1.125rem;
+}
+
+/* By day */
+:root[data-theme='light'] {
+  --sl-color-accent-low: #D9EDF2;
+  --sl-color-accent: #12708A;
+  --sl-color-accent-high: #0B4D60;
+  --sl-color-white: #14261F;
+  --sl-color-gray-1: #1B2D26;
+  --sl-color-gray-2: #223129;
+  --sl-color-gray-3: #57606A;
+  --sl-color-gray-4: #88919A;
+  --sl-color-gray-5: #C5CCD0;
+  --sl-color-gray-6: #EDF1F0;
+  --sl-color-gray-7: #F6F8F7;
+  --sl-color-black: #FFFFFF;
+}
+
+/* Headings in Literata, as on the tree. Everything else is Source Sans. */
+h1, h2, h3, h4, h5, h6, .site-title { font-family: var(--display); }
+
+/* Running text keeps to its measure. Tables and code may use the whole column. */
+.sl-markdown-content > :is(p, ul, ol, blockquote) { max-width: var(--measure); }
+
+/* Years read faster as plain, full-height figures */
+body { font-variant-numeric: lining-nums; }

@@ -1,0 +1,59 @@
+/*
+ * Pages that stand on their own, away from the tree: a person's page, signing
+ * in for an AI client, and the first-run setup. Quiet and plain, in the same
+ * colours and type as the app.
+ */
+
+:root {
+  --display: var(--font-display), Georgia, serif;
+  --ui: var(--font-ui), "Segoe UI", system-ui, sans-serif;
+}
+
+/* The app itself never scrolls. These pages do, inside their own frame. */
+.page {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 48px 16px 64px;
+  background: var(--page);
+}
+.sheet {
+  width: min(520px, 100%);
+  margin: 0 auto;
+  padding: 28px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--card-shadow);
+}
+.sheet.wide { width: min(680px, 100%); }
+.sheet h1 { margin: 0 0 6px; font: 700 1.75rem/1.15 var(--display); }
+.sheet h2 { margin: 24px 0 8px; font: 700 1.125rem var(--display); }
+.sheet p { margin: 0 0 10px; }
+.sheet .lead { color: var(--muted); }
+.sheet a { color: var(--action); text-underline-offset: 3px; }
+.sheet ul { margin: 0 0 10px; padding-left: 1.2em; }
+.sheet li { padding: 2px 0; }
+
+/* First-run setup: which step this is */
+.steps { display: flex; gap: 6px; margin: 0 0 20px; padding: 0; list-style: none; }
+.steps li { flex: 1; height: 4px; padding: 0; border-radius: 2px; background: var(--line); }
+.steps li[aria-current="step"], .steps li.done { background: var(--action); }
+.choices { display: grid; gap: 8px; margin: 0 0 12px; }
+.choice { display: block; height: auto; min-height: 0; padding: 12px 14px; text-align: left; white-space: normal; border-radius: 12px; }
+.choice strong { display: block; font: 700 1.0625rem var(--display); }
+.choice small { color: var(--muted); }
+.choice[aria-pressed="true"] { border-color: var(--action); background: color-mix(in srgb, var(--action) 10%, transparent); }
+
+/* A person's page */
+.person-page .life { margin: 0 0 4px; font-size: 1.0625rem; color: var(--muted); }
+.person-page .story { white-space: pre-line; line-height: 1.6; font-family: var(--display); font-size: 1.0625rem; }
+.person-page dl { display: grid; grid-template-columns: 8em 1fr; gap: 4px 12px; margin: 0 0 10px; }
+.person-page dt { color: var(--muted); text-transform: capitalize; }
+.person-page dd { margin: 0; }
+.person-page .back { margin-top: 24px; }
+
+@media (max-width: 640px) {
+  .page { padding: 20px 10px 40px; }
+  .sheet { padding: 20px 18px; }
+}

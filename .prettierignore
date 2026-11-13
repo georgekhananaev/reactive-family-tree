@@ -1,0 +1,8 @@
+node_modules
+.next
+.astro
+dist
+pnpm-lock.yaml
+docs/demo
+docs/design
+packages/db/drizzle
