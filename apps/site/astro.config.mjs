@@ -32,6 +32,9 @@ export default defineConfig({
       expressiveCode: { defaultProps: { frame: 'code' } },
       head: [
         { tag: 'meta', attrs: { name: 'author', content: AUTHOR } },
+        // Starlight adds /favicon.svg itself. These two are for browsers without SVG icons, and phone home screens.
+        { tag: 'link', attrs: { rel: 'icon', href: '/favicon.ico', sizes: '32x32' } },
+        { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' } },
         { tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.googleapis.com' } },
         { tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: true } },
         { tag: 'link', attrs: { rel: 'stylesheet', href: FONTS } },

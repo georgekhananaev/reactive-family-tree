@@ -5,7 +5,7 @@
 import type { AdminSettings, MusicMode, Visibility } from '@reactive-family-tree/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { MELODIES } from 'reactive-family-tree';
+import { MELODIES, QUICK_TUNES } from 'reactive-family-tree';
 import type { MelodyTrial } from 'reactive-family-tree';
 
 import { api } from '@/lib/api';
@@ -26,7 +26,7 @@ const MUSIC: readonly (readonly [MusicMode, string])[] = [
   ['off', 'Off, until someone turns it on'],
   ['on', 'On, from a visitor’s first click'],
 ];
-const MELODY_NAMES = MELODIES.map((melody) => [melody.id, melody.name] as const);
+const namesOf = (list: typeof MELODIES) => list.map((one) => [one.id, one.name] as const);
 
 type NumberKey = 'livingAge' | 'aiWritesPerHour';
 type TextKey = 'familyName' | 'description' | NumberKey;
@@ -53,15 +53,15 @@ export function SettingsTab() {
   const set = <Key extends keyof Typed>(key: Key, value: Typed[Key]) => setChanged((before) => ({ ...before, [key]: value }));
   const text = (key: TextKey, inputMode?: 'numeric') => <input type="text" inputMode={inputMode} value={shown[key]} onChange={(event) => set(key, event.target.value)} />;
   const check = (key: CheckKey, label: string) => <Check label={label} checked={shown[key]} onChange={(on) => set(key, on)} />;
-  /* One of the two melodies: the list to choose from, a line about the one chosen, and a button to hear it before it is saved. */
+  /* One of the two choices, the calm melody or the quick tune that goes with one: the list, a line about the one chosen, and a button to hear it before it is saved. */
   const melody = (key: 'melody' | 'playMelody', label: string) => {
-    const quick = key === 'playMelody', listening = heard?.quick === quick;
+    const quick = key === 'playMelody', listening = heard?.quick === quick, list = quick ? QUICK_TUNES : MELODIES;
     return (
       <>
         <Field label={label} wide>
-          <Select options={MELODY_NAMES} value={shown[key]} onChange={(value) => { set(key, value); if (listening) setHeard({ melody: value, quick }); }} />
+          <Select options={namesOf(list)} value={shown[key]} onChange={(value) => { set(key, value); if (listening) setHeard({ melody: value, quick }); }} />
         </Field>
-        <p className="hint-line">{MELODIES.find((one) => one.id === shown[key])?.about}</p>
+        <p className="hint-line">{list.find((one) => one.id === shown[key])?.about}</p>
         <div className="form-actions">
           <button type="button" aria-pressed={listening} onClick={() => setHeard(listening ? null : { melody: shown[key], quick })}>{listening ? 'Stop' : quick ? 'Listen to the quick tune' : 'Listen'}</button>
         </div>
@@ -116,7 +116,7 @@ export function SettingsTab() {
       <div className="fields">
         {check('playMusic', 'A quick tune while the years play')}
       </div>
-      {melody('playMelody', 'Made from which melody')}
+      {melody('playMelody', 'Which quick tune')}
       <h3>Guidelines</h3>
       <p className="hint-line">How this family writes names and dates. Shown to people when they edit, and given to every connected AI.</p>
       <textarea rows={6} value={shown.guidelines} onChange={(event) => set('guidelines', event.target.value)} />

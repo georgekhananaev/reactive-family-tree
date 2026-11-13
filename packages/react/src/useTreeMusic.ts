@@ -28,7 +28,7 @@ export interface TreeMusicOptions {
   playMusic?: boolean;
   /* Which melody plays in the background, by its id in MELODIES. The first, when it is left out or not known. */
   melody?: string;
-  /* Which melody the quick tune is made from. The background one, when it is left out. */
+  /* Which quick tune plays with the years, by its id in QUICK_TUNES. The background melody's own, when it is left out. */
   playMelody?: string;
   /* A melody someone is trying out. While it is given it plays, whatever else is chosen. */
   audition?: MelodyTrial | null;

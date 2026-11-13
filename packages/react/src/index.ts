@@ -11,7 +11,7 @@ export type { LeafPortraitProps } from './LeafPortrait';
 export { TreeEngine } from './engine';
 export type { BranchState, Camera, TreeData, TreeEngineEvents, TreeEngineOptions, TreeInsets, YearRange } from './engine';
 export type { LeafSubject } from './leaf';
-export { MELODIES, TreeMusic } from './music';
+export { MELODIES, QUICK_TUNES, TreeMusic } from './music';
 export type { Melody, Mood } from './music';
 export { useTreeMusic } from './useTreeMusic';
 export type { MelodyTrial, TreeMusicOptions, TreeMusicSwitch } from './useTreeMusic';

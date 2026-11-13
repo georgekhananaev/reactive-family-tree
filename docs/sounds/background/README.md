@@ -14,10 +14,33 @@ can be two different ones.
 | `4-water-garden.mp3` | Water garden | Drops ringing in a water bell, and a string far off. The quietest one |
 | `5-island-song.mp3` | Island song | A lilting tune in the bright scale of the southern islands |
 
-Each has a second file ending in `-years-playing`. That is what the same melody
-turns into while the Play button walks the tree through the years: quicker, with
-a drum, and it grows as the family does. It ends on the chord that brings the
-calm melody back.
+Each has a second file ending in `-years-playing`. That is its quick tune, for
+while the Play button walks the tree through the years. They are five different
+pieces, not one tune in five scales:
+
+| File | Its quick tune |
+|------|----------------|
+| `1-morning-mist-years-playing.mp3` | A flute tune dancing over rolling strings |
+| `2-koto-garden-years-playing.mp3` | The koto alone, drumming on one note and then leaping. Darker, and driving |
+| `3-bamboo-wind-years-playing.mp3` | A festival: a high flute skipping over the drums |
+| `4-water-garden-years-playing.mp3` | Bells falling like rain, with no drum at all |
+| `5-island-song-years-playing.mp3` | A skipping island dance, the quickest of them |
+
+There are five more quick tunes that belong to no melody. Each is a different
+kind of Japanese music, in a different scale, and each grows in its own way:
+
+| File | Quick tune | What it is |
+|------|------------|------------|
+| `6-sakura-years-playing.mp3` | Sakura | The old song of the cherry blossom, on a koto. A bell joins it, then a flute, then a drum |
+| `7-festival-day-years-playing.mp3` | Festival day | Drums begin alone and gather speed, and a small bright flute comes dancing in over them |
+| `8-shamisen-road-years-playing.mp3` | Shamisen road | A lute plucked hard and fast, always coming back to one string, and climbing as it goes |
+| `9-spring-song-years-playing.mp3` | Spring song | A flute sings a long tune, like a song learned at school, and it rises higher each time round |
+| `10-drums-rising-years-playing.mp3` | Drums rising | Slow drumbeats that close in on one another, then a koto and a flute over them, climbing. The darkest and the grandest |
+
+Sakura is the traditional song, which belongs to everyone. The other four were
+written for this tree.
+
+Each file ends on the chord that brings the calm melody back.
 
 ## What these files are
 

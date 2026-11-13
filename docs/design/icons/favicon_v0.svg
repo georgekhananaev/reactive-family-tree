@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- A small family tree: a trunk, four branches and five beech leaves in the tree's own colours. Author: George Khananaev -->
+  <style>
+    .bark { fill: none; stroke: #3A3028; stroke-linecap: round; }
+    .trunk { fill: #3A3028; }
+    .blade { stroke: #14261F; stroke-opacity: 0.5; stroke-width: 2.4; }
+    .vein { fill: none; stroke: #14261F; stroke-opacity: 0.4; stroke-width: 2.4; stroke-linecap: round; }
+    .l0 { fill: #2F6B4F; } .l1 { fill: #3A7853; } .l2 { fill: #508C58; } .l3 { fill: #6FA560; } .gold { fill: #C9992E; }
+    @media (prefers-color-scheme: dark) {
+      .bark { stroke: #8491B4; }
+      .trunk { fill: #8491B4; }
+      .blade { stroke: #F1FBF3; }
+      .vein { stroke: #0C1322; }
+      .l0 { fill: #8FD0A8; } .l1 { fill: #A3D9B5; } .l2 { fill: #BFE3C8; } .l3 { fill: #CDEBCB; } .gold { fill: #E3C77A; }
+    }
+  </style>
+  <defs>
+    <g id="leaf" transform="scale(0.42)">
+      <path class="blade" d="M0,-8 C-18,-18 -20,-44 0,-64 C20,-44 18,-18 0,-8 Z"/>
+      <path class="vein" d="M0,-8 L0,-56"/>
+    </g>
+  </defs>
+  <g class="bark">
+    <path d="M32,46 L32,27" stroke-width="4"/>
+    <path d="M32,43 C27,40 22,35 19.5,31" stroke-width="3.2"/>
+    <path d="M32,43 C37,40 42,35 44.5,31" stroke-width="3.2"/>
+    <path d="M32,53 C29,51 25,49 22.5,47" stroke-width="2.8"/>
+    <path d="M32,53 C35,51 39,49 41.5,47" stroke-width="2.8"/>
+  </g>
+  <path class="trunk" d="M27.5,63 C30.2,58 30,52 30,44 L34,44 C34,52 33.8,58 36.5,63 Z"/>
+  <use href="#leaf" class="l1" transform="translate(32,28)"/>
+  <use href="#leaf" class="l0" transform="translate(19.5,31.5) rotate(-45)"/>
+  <use href="#leaf" class="l2" transform="translate(44.5,31.5) rotate(45)"/>
+  <use href="#leaf" class="l3" transform="translate(22.5,47.5) rotate(-60)"/>
+  <use href="#leaf" class="gold" transform="translate(41.5,47.5) rotate(60)"/>
+</svg>
