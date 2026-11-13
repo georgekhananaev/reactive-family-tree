@@ -25,11 +25,18 @@ const ROLES: readonly Role[] = ['owner', 'admin', 'member'];
 const MODES: readonly ConnectionMode[] = ['review_first', 'apply_directly'];
 const ACCESS: readonly ConnectionAccess[] = ['read', 'write', 'admin'];
 const PROFILES: readonly ToolProfile[] = ['full', 'simple'];
-// Asking to join needs no account, so it is the one form a machine could be pointed at. It is slowed down per sender, and what waits is never
-// thrown away to make room: a real relative's request stays until an admin has read it.
+/*
+ * Asking to join needs no account, and nothing proves that an email address
+ * is the asker's own. So the form is kept from doing harm rather than made
+ * clever: each sender gets a few tries an hour, every request is shown to an
+ * admin as it was written, and what waits is never thrown away or written
+ * over. Only so many can wait at once, which keeps the form from filling the
+ * disk. A flood that reaches that limit closes the form until an admin has
+ * cleared the list, or turned off "People can ask to join".
+ */
 const ASKS_PER_HOUR = 5;     // from one address on the network
 const MAX_ASKERS = 500;      // addresses remembered within the hour, so that the memory of them cannot be made to grow
-const MAX_WAITING = 200;     // requests waiting at once, so that the form can never fill the disk
+const MAX_WAITING = 200;     // requests waiting at once
 /* How long an invitation stays good. */
 export const INVITE_DAYS = 14;
 
@@ -280,17 +287,14 @@ export class Members {
 
   /* ---------- Requests to join ---------- */
 
-  /* `from` is where on the network the request came from, as far as that is known. */
-  async askToJoin({ name, email, message }: { name?: unknown; email?: unknown; message?: unknown }, from: string): Promise<void> {
+  /* `from` is where on the network the request came from, when that is known. */
+  async askToJoin({ name, email, message }: { name?: unknown; email?: unknown; message?: unknown }, from: string | null): Promise<void> {
     if (!this.store.settings.allowJoinRequests) throw forbidden('This family is not taking requests to join.');
     const address = cleanEmail(email);
     // No real address is longer than 254 letters
     if (!String(name ?? '').trim() || !address.includes('@') || address.length > 254) throw badRequest('Enter your name and email address.');
-    if (!this.mayAsk(from)) throw tooMany('That is a lot of requests in a short time. Try again in an hour.');
-    // Someone who asks twice is still one request, and it is the first that stands: nobody else can write over it by giving the same address.
-    // The page is told the same either way, so it does not say whether that address has asked before.
-    const [asked] = await this.db.select({ id: joinRequest.id }).from(joinRequest).where(and(eq(joinRequest.email, address), eq(joinRequest.status, 'waiting'))).limit(1);
-    if (asked) return;
+    // Senders nothing is known about are not counted together, or one of them could use up the tries of all the rest
+    if (from && !this.mayAsk(from)) throw tooMany('That is a lot of requests in a short time. Try again in an hour.');
     const [waiting] = await this.db.select({ n: count() }).from(joinRequest).where(eq(joinRequest.status, 'waiting'));
     if ((waiting?.n ?? 0) >= MAX_WAITING) throw tooMany('Many requests are waiting to be read already. Ask a relative to invite you instead.');
     await this.db.insert(joinRequest).values({
@@ -302,8 +306,9 @@ export class Members {
   private mayAsk(from: string): boolean {
     if (Date.now() - this.asks.since > 3_600_000) this.asks = { since: Date.now(), from: new Map() };
     const counts = this.asks.from;
-    // More senders in one hour than any family has relatives is a flood under made-up addresses. It waits for the next hour.
-    if (!counts.has(from) && counts.size >= MAX_ASKERS) return false;
+    // With more senders in an hour than can be remembered, the one remembered longest is forgotten. Nobody new is turned away for that.
+    const [longest] = counts.keys();
+    if (!counts.has(from) && counts.size >= MAX_ASKERS && longest !== undefined) counts.delete(longest);
     const times = (counts.get(from) ?? 0) + 1;
     counts.set(from, times);
     return times <= ASKS_PER_HOUR;

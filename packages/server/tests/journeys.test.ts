@@ -434,11 +434,12 @@ test('nobody can fill the server by sending something enormous, or a pile of req
   const waiting = async (): Promise<{ name: string; email: string }[]> => (await helen.get('/api/members')).data.requests;
   const before = (await waiting()).length;
 
-  // Asking twice from one email address is one request, and the first stands: nobody can write over it by giving the same address
+  // Nothing proves an email address is the asker's own, so nobody can take a relative's place by giving it first, or write over
+  // what they sent. An admin is shown every request as it was written, and decides.
   expect((await visitor.post('/api/join', { name: 'Ruth', email: 'ruth@example.com', message: 'It is me, Ruth' })).status).toBe(200);
   const impostor = browser(demo.app, '198.51.100.9');
-  expect((await impostor.post('/api/join', { name: 'Not Ruth', email: 'Ruth@Example.com', message: 'Let me in' })).status, 'told the same as anyone').toBe(200);
-  expect((await waiting()).filter((request) => request.email === 'ruth@example.com').map((request) => request.name)).toEqual(['Ruth']);
+  expect((await impostor.post('/api/join', { name: 'Not Ruth', email: 'Ruth@Example.com', message: 'Let me in' })).status).toBe(200);
+  expect((await waiting()).filter((request) => request.email === 'ruth@example.com').map((request) => request.name)).toEqual(['Ruth', 'Not Ruth']);
 
   // One sender gets a few tries an hour. Then it waits, and everyone else can still ask.
   const eager = browser(demo.app, '203.0.113.50');
@@ -450,10 +451,14 @@ test('nobody can fill the server by sending something enormous, or a pile of req
   const dressedUp = browser(demo.app, '10.9.9.9, 203.0.113.50');
   expect((await dressedUp.post('/api/join', { name: 'Asker again', email: 'again@example.com' })).status).toBe(429);
 
+  // A sender nothing is known about is not counted with every other such sender
+  const unknown = browser(demo.app);
+  for (let asked = 0; asked < 7; asked++) expect((await unknown.post('/api/join', { name: `Someone ${asked}`, email: `someone${asked}@example.com` })).status).toBe(200);
+
   // Nothing that waits was thrown away to make room
   const kept = (await waiting()).map((request) => request.name);
-  expect(kept.length).toBe(before + 7);
-  expect(kept).toEqual(expect.arrayContaining(['Ruth', 'Asker 0', 'Asker 4', 'A cousin']));
+  expect(kept.length).toBe(before + 15);
+  expect(kept).toEqual(expect.arrayContaining(['Ruth', 'Not Ruth', 'Asker 0', 'Asker 4', 'A cousin', 'Someone 6']));
 });
 
 test('history and search keep to what each relative may see', async () => {

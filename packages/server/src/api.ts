@@ -143,7 +143,7 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
   // Who is asking is known only by where the request came from. The nearest proxy writes that last, and the server itself fills it in
   // for someone who connects with no proxy between.
   on('POST', '/api/join', anyone, async (ctx) => {
-    await members.askToJoin(ctx.body, ctx.request.headers.get('x-forwarded-for')?.split(',').pop()?.trim() || 'unknown');
+    await members.askToJoin(ctx.body, ctx.request.headers.get('x-forwarded-for')?.split(',').pop()?.trim() || null);
     return { ok: true };
   });
 
