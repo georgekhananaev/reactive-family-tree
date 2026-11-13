@@ -108,11 +108,13 @@ export function createAuth({ db, config, secret, mailer, family, onLink }: AuthO
         // The page says the same either way, so it does not give away who has an account.
         if (!(await family.hasAccount(email))) return;
         onLink?.(email, url);
-        await mailer.send({
+        // The letter is sent without being waited for, so that the page hears back just as fast whether or not there was an account
+        // to write to. A slower answer for real accounts would say who has one. A letter that could not be sent is in the server log.
+        void mailer.send({
           to: email,
           subject: `Sign in to ${family.familyName()}`,
           text: `Open this link to sign in. It works once and for ${LINK_MINUTES} minutes.\n\n${url}\n\nIf you did not ask for it, ignore this message.`,
-        });
+        }).catch((error: unknown) => console.error('A sign-in link could not be sent.', error));
       },
     }),
     passkey({ rpName: 'Reactive Family Tree' }),
