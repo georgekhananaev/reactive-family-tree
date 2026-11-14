@@ -40,6 +40,36 @@ own relatives, with nothing sent anywhere else.
 
 Created by George Khananaev. MIT licensed.
 
+## The garden behind it
+
+The look of the tree grew out of three Japanese arts that work with living
+plants.
+
+**Niwaki (庭木)**, "garden tree", is the art of pruning and shaping full-sized
+trees that grow in the ground, like the cloud-pruned pines of Japanese gardens.
+The gardener does not try to show every branch. They open the tree up so its
+shape can be seen. A big family is treated the same way here: a branch folds
+into a bud and grows back out when you tap it, so you see the shape of the
+family before the names. And as in any garden, a partner who marries into the
+family is grafted on, and grows a leaf of a different kind.
+
+**Kokedama (苔玉)**, "moss ball", wraps a plant's roots in soil and a ball of
+live moss instead of a pot, so the roots become part of what you look at. The
+ancestors here are not hidden away on another page either. They grow as roots
+below the soil line, a small tree of their own that keeps pace with the crown
+above.
+
+**Ikebana (生け花)** is the art of arranging flowers and branches, often cut
+woody branches beside the flowers, where the empty space around them matters
+as much as what is placed. That is the rule the whole design rests on: the tree
+is the one bold thing. Ink branches carry watercolour leaves, a partnership
+opens as a blossom where two stems meet, and the menus, panels and forms around
+it stay calm and flat so they never compete.
+
+The garden is in the sound too. The melodies use the five-note scales of
+Japanese music, played on a koto, a bamboo flute and a water bell that the
+browser makes from nothing but arithmetic.
+
 ## Run it
 
 You need Node 24 and pnpm.
