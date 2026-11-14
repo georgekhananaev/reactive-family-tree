@@ -8,6 +8,17 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-15
+
+### Added
+- **tree**: The tree can open light or dark by the sun over the family, and the look is now chosen in its own Manage family panel
+
+### Fixed
+- **tree**: The quick tune now plays on iPhone
+
+### Security
+- **tree**: A private tree no longer lets strangers work out where the family lives from when it turns light or dark
+
 ## [0.4.0] - 2026-11-14
 
 ### Added
