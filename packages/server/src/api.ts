@@ -5,8 +5,8 @@
  * wrapper: the rules live in the services, not here.
  */
 
-import { fullName, isAdmin, person } from '@reactive-family-tree/core';
-import type { Actor, ConnectionsInfo, EditResult, MembersInfo, OpenInvite, Role, SessionInfo } from '@reactive-family-tree/core';
+import { LANG_COOKIE, TEXT_FIELDS, chooseLang, cookieOf, fullName, inLanguage as worded, isAdmin, isLang, person, say } from '@reactive-family-tree/core';
+import type { Actor, ConnectionsInfo, EditResult, Lang, MembersInfo, OpenInvite, Role, SessionInfo, State } from '@reactive-family-tree/core';
 import { exportGedcom, importGedcom } from '@reactive-family-tree/gedcom';
 
 import type { App } from './app';
@@ -17,8 +17,10 @@ import { deliverInvite } from './invites';
 import type { ConnectionInput, InviteInput, UserRow } from './members';
 import { roleOf } from './members';
 import { resetDemo } from './seed';
-import { SETTING_HINTS, SETTING_RULES, adminSettings, publicSettings } from './settings';
+import { SETTING_HINTS, SETTING_RULES, adminSettings, familyPatch, familyText, isFamilyField, publicSettings } from './settings';
 import type { Settings } from './settings';
+import { translationsOf } from './translations';
+import { inLanguage, tell } from './words';
 
 const MAX_BODY = 12 * 1024 * 1024;
 
@@ -27,6 +29,8 @@ type Body = Record<string, unknown>;
 interface Context {
   request: Request;
   user: UserRow | null;
+  /* The language to answer in. The actor carries it too, for the services. */
+  lang: Lang;
   actor: Actor;
   body: Body;
   query: URLSearchParams;
@@ -93,7 +97,14 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
     const regex = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, key: string) => { keys.push(key); return '([^/]+)'; })}$`);
     routes.push({ method, regex, keys, guard, handler });
   };
-  const personName = (id: string | null) => { const found = id ? person(store.state, id) : null; return found ? fullName(found) : null; };
+  const personName = (id: string | null, lang: Lang = store.settings.language) => { const found = id ? person(store.state, id) : null; return found ? fullName(found, lang) : null; };
+  /* The family as it reads in one language, for a file that holds one: each person's words in it, or as they were written. */
+  const readingIn = (lang: Lang): State => ({
+    people: new Map([...store.state.people].map(([key, p]) => [key, worded(p, TEXT_FIELDS.people, lang)])),
+    unions: store.state.unions,
+    facts: new Map([...store.state.facts].map(([key, fact]) => [key, worded(fact, TEXT_FIELDS.facts, lang)])),
+    memories: new Map([...store.state.memories].map(([key, memory]) => [key, worded(memory, TEXT_FIELDS.memories, lang)])),
+  });
   const text = (value: unknown) => (typeof value === 'string' ? value : '');
   const id = (ctx: Context) => ctx.params.id as string;
   const self = (ctx: Context) => ctx.user as UserRow;
@@ -112,9 +123,9 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
     return {
       user: ctx.user && {
         id: ctx.user.id, name: ctx.user.name, email: ctx.user.email, role: roleOf(ctx.user), personId: ctx.user.personId, anchors: ctx.actor.anchors,
-        hasPasskey: await members.hasPasskey(ctx.user.id),
+        hasPasskey: await members.hasPasskey(ctx.user.id), language: isLang(ctx.user.language) ? ctx.user.language : null,
       },
-      settings: publicSettings(store.settings, Boolean(ctx.user)),
+      settings: publicSettings(store.settings, Boolean(ctx.user), ctx.lang),
       counts: await edits.counts(ctx.actor),
       // Ready-made accounts, so the demo can be tried as every role. A real install has none.
       demoAccounts: offered.flatMap((account) => {
@@ -124,7 +135,15 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
       signIn: { google: Boolean(config.google), passkeys: true, emailWorks: app.mailer.delivers },
       needsSetup: await app.needsSetup(),
       demo: config.demoMode,
+      lang: ctx.lang,
     };
+  });
+  // A member's own choice of language, kept with their account so that mail and notices reach them in it
+  on('PATCH', '/api/me/language', member, async (ctx) => {
+    const language = ctx.body.language;
+    if (language !== null && !isLang(language)) throw badRequest('Choose English, Hebrew or Russian.');
+    await members.setLanguage(self(ctx).id, language);
+    return { ok: true };
   });
   on('GET', '/api/seq', anyone, () => ({ seq: store.seq }));
 
@@ -138,7 +157,7 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
 
   on('GET', '/api/invites/open', anyone, async (ctx): Promise<OpenInvite> => {
     const found = await members.openInvite(ctx.query.get('token'));
-    return { email: found.email, role: found.role, personName: personName(found.personId), invitedBy: found.createdBy };
+    return { email: found.email, role: found.role, personName: personName(found.personId, ctx.lang), invitedBy: found.createdBy };
   });
   // Who is asking is known only by where the request came from. The nearest proxy writes that last, and the server itself fills it in
   // for someone who connects with no proxy between.
@@ -180,7 +199,7 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
       const name = text(contact.name).trim();
       const email = text(contact.email).trim();
       if (!name || !email.includes('@')) throw badRequest('Leave your name and email so the family can reach you.');
-      actor = members.visitor({ name: name.slice(0, 80), email: email.slice(0, 120) });
+      actor = { ...members.visitor({ name: name.slice(0, 80), email: email.slice(0, 120) }), lang: ctx.lang };
     }
     return editResult(actor, await edits.submit(actor, { ops, message, note, mode }));
   });
@@ -210,24 +229,24 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
   on('GET', '/api/notifications', member, async (ctx) => ({ notifications: await edits.notifications(ctx.actor) }));
   on('POST', '/api/notifications/read', member, async (ctx) => { await edits.markRead(ctx.actor); return { ok: true }; });
 
-  on('GET', '/api/compost', admin, () => ({ people: edits.compost() }));
+  on('GET', '/api/compost', admin, (ctx) => ({ people: edits.compost(ctx.actor) }));
   on('POST', '/api/compost/:id/purge', admin, async (ctx) => { await edits.purge(ctx.actor, id(ctx)); return { ok: true }; });
 
   /* ----- Members, invitations, branches ----- */
 
   on('GET', '/api/members', member, async (ctx): Promise<MembersInfo> => {
-    const everyone = (await members.members()).map((m) => ({ ...m, personName: personName(m.personId), anchorNames: m.anchors.map(personName) }));
+    const everyone = (await members.members()).map((m) => ({ ...m, personName: personName(m.personId, ctx.lang), anchorNames: m.anchors.map((anchor) => personName(anchor, ctx.lang)) }));
     if (!isAdmin(ctx.actor)) {
       // Relatives see who looks after what, and nothing about accounts
       return { members: everyone.map(({ email: _email, ai: _ai, ...rest }) => rest), invites: [], requests: [] };
     }
     return {
       members: everyone,
-      invites: (await members.openInvites()).map((found) => ({ id: found.id, email: found.email, role: found.role, personName: personName(found.personId), by: found.createdBy })),
+      invites: (await members.openInvites()).map((found) => ({ id: found.id, email: found.email, role: found.role, personName: personName(found.personId, ctx.lang), by: found.createdBy })),
       requests: (await members.joinRequests()).map((request) => ({ id: request.id, name: request.name, email: request.email, message: request.message, createdAt: request.createdAt })),
     };
   });
-  on('POST', '/api/invites', member, async (ctx) => deliverInvite(app, await members.createInvite(ctx.actor, ctx.body as InviteInput), ctx.actor.name));
+  on('POST', '/api/invites', member, async (ctx) => deliverInvite(app, await members.createInvite(ctx.actor, ctx.body as InviteInput), ctx.actor.name, ctx.lang));
   on('DELETE', '/api/invites/:id', admin, async (ctx) => { await members.cancelInvite(id(ctx)); return { ok: true }; });
   on('PATCH', '/api/members/:id', admin, async (ctx) => {
     await members.updateMember(ctx.actor, id(ctx), ctx.body as { role?: Role; personId?: string | null });
@@ -251,25 +270,35 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
   });
   on('POST', '/api/join/:id', admin, async (ctx) => {
     const created = await members.decideJoin(ctx.actor, id(ctx), ctx.body.approve === true);
-    return { invite: created ? await deliverInvite(app, created, ctx.actor.name) : null };
+    return { invite: created ? await deliverInvite(app, created, ctx.actor.name, ctx.lang) : null };
   });
 
   /* ----- Health and settings ----- */
 
   on('GET', '/api/health', member, (ctx) => views.health(ctx.actor));
-  on('GET', '/api/settings', admin, () => adminSettings(store.settings));
+  on('GET', '/api/settings', admin, (ctx) => adminSettings(store.settings, ctx.lang));
   on('PATCH', '/api/settings', admin, async (ctx) => {
-    const patch: Partial<Settings> = {};
+    const patch: Partial<Settings> = {}, words: Record<string, string> = {};
     for (const [key, value] of Object.entries(ctx.body)) {
-      if (!(key in SETTING_RULES)) throw badRequest(`There is no setting called "${key}".`);
+      if (!(key in SETTING_RULES)) throw HttpError.filled(badRequest, 'There is no setting called "{key}".', { key });
       const setting = key as keyof typeof SETTING_RULES;
-      if (!SETTING_RULES[setting](value)) throw badRequest(SETTING_HINTS[setting] ?? 'That setting cannot take that value.');
-      Object.assign(patch, { [key]: typeof value === 'string' ? value.trim() : value });
+      const kept = typeof value === 'string' ? value.trim() : value;
+      // The family's words in another language than their own may be left empty: that takes the version away
+      const removesVersion = isFamilyField(key) && kept === '' && ctx.lang !== store.settings.familyLang;
+      if (!removesVersion && !SETTING_RULES[setting](value)) throw badRequest(SETTING_HINTS[setting] ?? 'That setting cannot take that value.');
+      if (isFamilyField(key)) words[key] = String(kept);
+      else Object.assign(patch, { [key]: kept });
     }
+    // The family's name, line and guidelines are written in the admin's language: changed in their own, or kept beside it in another
+    if (Object.keys(words).length) Object.assign(patch, familyPatch(store.settings, words, ctx.lang));
     await store.saveSettings(patch);
     hub.changed(store.seq);     // visibility or the living rule may have changed what people see
     return { ok: true };
   });
+
+  /* ----- Translations ----- */
+
+  on('GET', '/api/translations', admin, (ctx) => translationsOf(store.state, store.settings, ctx.lang));
 
   /* ----- AI connections ----- */
 
@@ -277,7 +306,7 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
     const own = await members.connections(self(ctx).id);
     if (!isAdmin(ctx.actor)) return { address: `${config.baseUrl}/mcp`, signIn: app.oauth, connections: own, everyone: [] };
     const names = new Map((await members.members()).map((m) => [m.id, m.name]));
-    const everyone = (await members.connections()).map((connection) => ({ ...connection, owner: names.get(connection.userId) ?? 'Unknown' }));
+    const everyone = (await members.connections()).map((connection) => ({ ...connection, owner: names.get(connection.userId) ?? say(ctx.lang, 'Unknown') }));
     return { address: `${config.baseUrl}/mcp`, signIn: app.oauth, connections: own, everyone };
   });
   on('POST', '/api/connections', member, (ctx) => members.createConnection(self(ctx), ctx.body as ConnectionInput));
@@ -287,7 +316,8 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
   /* ----- Data in and out ----- */
 
   const download = (name: string, type: string, body: string): Download => ({ download: { name, type, body } });
-  on('GET', '/api/export/gedcom', admin, () => download('family.ged', 'text/plain; charset=utf-8', exportGedcom(store.state, store.settings.familyName)));
+  // A GEDCOM file holds one language: the admin's, and each person as first written where it has none
+  on('GET', '/api/export/gedcom', admin, (ctx) => download('family.ged', 'text/plain; charset=utf-8', exportGedcom(readingIn(ctx.lang), familyText(store.settings, 'familyName', ctx.lang))));
   on('GET', '/api/export/backup', admin, async () => download('family-backup.json', 'application/json', JSON.stringify(await dump(app.db))));
   on('POST', '/api/import/gedcom', admin, async (ctx) => {
     let parsed: ReturnType<typeof importGedcom>;
@@ -297,7 +327,7 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
       throw badRequest(error instanceof Error ? error.message : 'That file could not be read.');
     }
     // Staged, never written directly: the admin previews it on the tree, then applies or discards it
-    const result = await edits.submit(ctx.actor, { ops: parsed.ops, message: `Import ${parsed.people} people from a GEDCOM file`, origin: 'import', mode: 'draft' });
+    const result = await edits.submit(ctx.actor, { ops: parsed.ops, message: tell(ctx.lang, 'Import {n} people from a GEDCOM file', { n: parsed.people }), origin: 'import', mode: 'draft' });
     return { ...(await editResult(ctx.actor, result)), people: parsed.people, families: parsed.families, skipped: parsed.skipped };
   });
   on('POST', '/api/import/backup', owner, async (ctx) => {
@@ -318,7 +348,7 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
     if (!given) throw badRequest('Enter at least a given name.');
     const born = Number(ctx.body.born);
     const result = await edits.submit(ctx.actor, {
-      message: 'Planted the first leaf',
+      message: tell(ctx.lang, 'Planted the first leaf'),
       ops: [
         { type: 'person.create', ref: '$me', set: { given, family: text(ctx.body.family).trim(), living: 'yes' } },
         ...(Number.isInteger(born) && born > 0 ? [{ type: 'fact.add', subject: { type: 'person', id: '$me' }, set: { type: 'birth', date: { kind: 'exact', from: String(born) } } }] : []),
@@ -350,6 +380,9 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
 
   return async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    // Until the account is known, the language is what the browser says. Errors before that are said in it.
+    const asked = { asked: request.headers.get('x-language'), remembered: cookieOf(request.headers.get('cookie'), LANG_COOKIE), device: request.headers.get('accept-language') };
+    let lang = chooseLang(asked, store.settings.language);
     try {
       // A page on another site must not be able to act with this visitor's session
       const origin = request.headers.get('origin');
@@ -365,9 +398,10 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
       const match = route ? url.pathname.match(route.regex) : null;
       if (!route || !match) throw notFound('There is nothing at that address.');
       await store.fresh();
+      lang = chooseLang({ ...asked, account: user?.language }, store.settings.language);
+      const actor = user ? await members.actorFor(user) : members.visitor();
       const ctx: Context = {
-        request, user, body: {}, query: url.searchParams,
-        actor: user ? await members.actorFor(user) : members.visitor(),
+        request, user, body: {}, query: url.searchParams, lang, actor: { ...actor, lang },
         params: Object.fromEntries(route.keys.map((key, index) => [key, decodeURIComponent(match[index + 1] ?? '')])),
       };
       // Who may ask comes before what they sent: something sent to an address its sender may not use is turned away unread
@@ -381,9 +415,10 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
       }
       return json(200, result ?? { ok: true });
     } catch (error) {
-      if (error instanceof HttpError) return json(error.status, { error: error.message, details: error.details });
+      // Said in the language of whoever caused it
+      if (error instanceof HttpError) return json(error.status, { error: inLanguage(lang, error.phrase ?? error.message, error.values ?? undefined), details: error.details });
       console.error(error);
-      return json(500, { error: 'Something went wrong on the server.' });
+      return json(500, { error: inLanguage(lang, 'Something went wrong on the server.') });
     }
   };
 }

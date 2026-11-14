@@ -28,6 +28,7 @@ import { Members } from './members';
 import type { ActiveConnection, UserRow } from './members';
 import { Hub } from './realtime';
 import { seedDemo } from './seed';
+import { familyText } from './settings';
 import { FamilyStore } from './store';
 import { Views } from './views';
 
@@ -114,7 +115,9 @@ export async function createApp(config: AppConfig): Promise<App> {
   };
 
   const family: FamilySignIn = {
-    familyName: () => store.settings.familyName,
+    familyName: (lang) => familyText(store.settings, 'familyName', lang),
+    languageFor: async (email) => (await members.languageOf(email)) ?? store.settings.language,
+    language: () => store.settings.language,
     hasAccount: async (email) => Boolean(await members.userByEmail(email)),
     async demoAccount(email) {
       await store.fresh();

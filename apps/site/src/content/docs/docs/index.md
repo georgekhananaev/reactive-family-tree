@@ -35,12 +35,13 @@ Working today:
 - An admin area inside the app for members, branches, settings and data.
 - GEDCOM import and export, and a full backup you can download and restore.
 - The MCP endpoint, with sign-in or a personal token.
+- English, Hebrew and Russian, with Hebrew read from the right. Each person's names, story, places and memories can be written in all three, and an admin sees what is missing in each.
 
 Planned, and not built yet:
 
 - Other views of the tree, beyond the one it has now.
 - Galleries of photos, and sources attached to facts. One portrait per person is built, with a switch between leaves and faces.
-- Other languages. The app is in English only, and right-to-left layout is not done.
+- More languages than English, Hebrew and Russian.
 - A printable poster export.
 - A local bridge for AI clients that cannot reach a remote MCP server.
 - The React package on npm, and a Docker image on a public registry.

@@ -3,6 +3,7 @@
  * services, the web API, the React package and AI clients.
  */
 
+import type { Lang } from './lang';
 import type { ChildKind, ChildLink, Certainty, FactType, FuzzyDate, Issue, KinStep, Living, Op, Privacy, Role, Sex, UnionKind, UnionStatus, Visibility } from './types';
 
 export type EditStatus = 'draft' | 'suggested' | 'applied' | 'declined' | 'withdrawn' | 'reverted';
@@ -76,10 +77,25 @@ export interface TreeSnapshot {
 
 /* ---------- One person ---------- */
 
+/*
+ * How a thing's words reached this reader. Each text field is in the reader's
+ * language, unless `from` names it: then nobody has written it in theirs yet,
+ * and it is shown in the language named. `stale` lists the fields whose
+ * version in the reader's language was written from an earlier original.
+ */
+export interface Words {
+  /* The language the thing was first written in. */
+  lang: Lang;
+  from: Record<string, Lang>;
+  stale: string[];
+}
+
 export interface RelativeBrief {
   id: string | null;
   name: string;
   masked?: boolean;
+  /* Some languages name a husband and a wife apart, so a partner's line needs to know which. Not told of someone kept private. */
+  sex?: Sex;
   born?: number | null;
   died?: number | null;
 }
@@ -94,6 +110,7 @@ export interface FactView {
   note: string;
   certainty: Certainty;
   privacy: Privacy;
+  words: Words;
 }
 
 export interface UnionView {
@@ -112,6 +129,9 @@ export interface MemoryView {
   body: string;
   at: string;
   mine: boolean;
+  /* Whether this reader may tell it again in another language. */
+  canTranslate: boolean;
+  words: Words;
 }
 
 export interface PersonDetail {
@@ -141,6 +161,7 @@ export interface PersonDetail {
   isSelf: boolean;
   editing: Reach;
   canRemove: boolean;
+  words: Words;
 }
 
 export interface SearchHit {
@@ -236,6 +257,8 @@ export interface SessionUser {
   anchors: string[];
   /* Whether they can sign in with a passkey, which needs no email. */
   hasPasskey: boolean;
+  /* The language they chose to read the tree in, if they have chosen. */
+  language: Lang | null;
 }
 
 export interface InboxCounts {
@@ -258,8 +281,11 @@ export type Appearance = 'device' | 'light' | 'dark';
 
 /* What every browser is told, signed in or not. */
 export interface PublicSettings {
+  /* In the reader's language where the family has written it in theirs. */
   familyName: string;
   description: string;
+  /* The language the tree speaks to someone who has not chosen one, and whose device speaks none of the three. */
+  language: Lang;
   visibility: Visibility;
   visitorsCanSuggest: boolean;
   allowJoinRequests: boolean;
@@ -290,12 +316,16 @@ export interface SessionInfo {
   needsSetup: boolean;
   /* The install runs the fictional demo family and may be reset from the UI. */
   demo: boolean;
+  /* The language this answer is in. */
+  lang: Lang;
 }
 
 /* Everything the admin can set from the UI. */
 export interface AdminSettings {
+  /* The family's name, its line and its guidelines are words like a person's: written in one language, with others beside it. */
   familyName: string;
   description: string;
+  language: Lang;
   visibility: Visibility;
   visitorsCanSuggest: boolean;
   allowJoinRequests: boolean;
@@ -316,6 +346,34 @@ export interface AdminSettings {
   timezone: string;
   latitude: number | null;
   longitude: number | null;
+}
+
+/* The settings as an admin reads them: the family's words in the admin's language, and how they got there. */
+export interface AdminSettingsView extends AdminSettings {
+  words: Words;
+}
+
+/* ---------- Translations ---------- */
+
+/* One piece of the family's words, in every language. */
+export interface TranslationRow {
+  kind: 'people' | 'facts' | 'memories' | 'family';
+  /* The thing the words belong to: a person, a fact, a memory, or "family" for the family's own name and line. */
+  id: string;
+  field: string;
+  /* Whose words they are, to find them on the tree. Null for the family's own. */
+  person: { id: string; name: string } | null;
+  /* For a fact, what kind of fact it is. */
+  factType: FactType | null;
+  /* The language it was first written in. */
+  lang: Lang;
+  texts: Partial<Record<Lang, { text: string; stale: boolean }>>;
+}
+
+export interface TranslationsReport {
+  rows: TranslationRow[];
+  /* For each language: how many pieces are not written in it, and how many were written from an earlier original. */
+  counts: Record<Lang, { missing: number; stale: number }>;
 }
 
 export interface MemberView {

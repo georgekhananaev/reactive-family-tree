@@ -22,16 +22,25 @@ import type {
   FactType,
   FuzzyDate,
   Issue,
+  Lang,
   Living,
   Op,
   Privacy,
   Role,
   Sex,
   ToolProfile,
+  Translations,
   UnionKind,
   UnionStatus,
 } from '@reactive-family-tree/core';
 import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+
+/*
+ * The language a thing's own text was written in, and the same text in other languages. What was on the
+ * tree before it had languages is taken to be in English, the only language it could be written in then.
+ */
+const lang = () => text('lang').$type<Lang>().notNull().default('en');
+const tr = () => text('tr', { mode: 'json' }).$type<Translations>().notNull().default({});
 
 /* ---------- The family ---------- */
 
@@ -47,6 +56,8 @@ export const person = sqliteTable('person', {
   bio: text('bio').notNull(),
   portrait: text('portrait'),
   consentAt: text('consent_at'),
+  lang: lang(),
+  tr: tr(),
   deletedAt: text('deleted_at'),
 });
 
@@ -110,6 +121,8 @@ export const fact = sqliteTable(
     note: text('note').notNull(),
     certainty: text('certainty').$type<Certainty>().notNull(),
     privacy: text('privacy').$type<Privacy>().notNull(),
+    lang: lang(),
+    tr: tr(),
     deletedAt: text('deleted_at'),
   },
   (table) => [index('fact_subject_idx').on(table.subjectId)],
@@ -125,6 +138,8 @@ export const memory = sqliteTable(
     authorName: text('author_name').notNull(),
     body: text('body').notNull(),
     createdAt: text('created_at').notNull(),
+    lang: lang(),
+    tr: tr(),
     deletedAt: text('deleted_at'),
   },
   (table) => [index('memory_person_idx').on(table.personId)],

@@ -18,7 +18,7 @@ import { useEffect, useImperativeHandle, useRef } from 'react';
 import type { ReactElement, Ref } from 'react';
 import type { PersonLeaf, Relation, TreePerson } from '@reactive-family-tree/core';
 import { FACE_RADIUS, TreeEngine } from './engine';
-import type { BranchState, TreeData, TreeInsets, YearRange } from './engine';
+import type { BranchState, TreeData, TreeInsets, TreeLabels, YearRange } from './engine';
 import { THIS_YEAR } from './leaf';
 import type { Place } from './sky';
 
@@ -50,6 +50,8 @@ export interface FamilyTreeProps {
   insets?: TreeInsets;
   /* What the drawing is called for a screen reader. */
   label?: string;
+  /* The words the tree writes on itself, for a page in another language. Any left out are in English. Pass the same object until the words change: a new one has the tree write them all again. */
+  labels?: Partial<TreeLabels>;
   className?: string;
   onSelect?(person: TreePerson | null): void;
   onAdd?(detail: { person: TreePerson; relation: Relation }): void;
@@ -122,7 +124,7 @@ function clearDrawing(stage: HTMLElement, world: HTMLElement, svg: SVGSVGElement
 
 export function FamilyTree({
   data, viewerId = null, focusId = null, year = THIS_YEAR, playing = false, place = null, editing = false, selectedId = null, matches = null, route = null, tints = null,
-  faces = false, portraitOf, insets, label = 'The family tree', className, onSelect, onAdd, onHold, onHoldMove, onHoldEnd, onMoved, ref,
+  faces = false, portraitOf, insets, label = 'The family tree', labels, className, onSelect, onAdd, onHold, onHoldMove, onHoldEnd, onMoved, ref,
 }: FamilyTreeProps): ReactElement {
   const stageRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -158,6 +160,11 @@ export function FamilyTree({
       clearDrawing(stage, world, svg);
     };
   }, []);
+
+  // Before the family, so the tree is drawn in the page's words from the start
+  useEffect(() => {
+    engineRef.current?.setLabels(labels);
+  }, [labels]);
 
   /*
    * Each prop goes to the engine when it changes, and only then. The effects run

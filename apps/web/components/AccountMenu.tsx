@@ -6,12 +6,14 @@ import { useApp } from '@/lib/app-context';
 import { addPasskey } from '@/lib/auth-client';
 import { initialsOf } from '@/lib/format';
 import { usePresence } from '@/lib/hooks';
+import { useT } from '@/lib/i18n';
 
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
 import { arrowThrough } from './ui';
 
 const ROLE_LABEL = { owner: 'Owner', admin: 'Admin', member: 'Member' } as const;
+const THEME_LABEL = { light: 'Light', dark: 'Dark' } as const;
 
 export function Avatar({ name }: { name: string }) {
   return <b className="avatar">{initialsOf(name)}</b>;
@@ -27,6 +29,7 @@ export function AccountMenu({ open, theme, onClose, onMyLeaf, onAppearance, onSi
   onSignOut(): void;
 }) {
   const app = useApp();
+  const { t } = useT();
   const { present, shown } = usePresence(open, 160);
   const el = useRef<HTMLDivElement>(null);
   const { user, counts, signIn, demo } = app.session;
@@ -59,32 +62,32 @@ export function AccountMenu({ open, theme, onClose, onMyLeaf, onAppearance, onSi
         <Avatar name={user.name} />
         <div>
           <strong>{user.name}</strong>
-          <small>{user.role === 'member' && user.anchors.length ? 'Steward' : ROLE_LABEL[user.role]}</small>
+          <small>{t(user.role === 'member' && user.anchors.length ? 'Steward' : ROLE_LABEL[user.role])}</small>
         </div>
       </div>
-      {user.personId && item('leaf', 'My leaf', onMyLeaf)}
-      {item('inbox', `My suggestions and drafts${counts.drafts ? ` (${counts.drafts})` : ''}`, () => app.openPanel('inbox', { tab: 'mine' }))}
-      {(app.isAdmin || user.anchors.length > 0) && item('manage', app.isAdmin ? 'Manage family' : 'Manage my branch', () => app.openPanel('manage'))}
-      {item('spark', 'Connect your AI', () => app.openPanel('connect'))}
-      {item('keys', 'Gestures and keys', () => app.openPanel('help'))}
-      {signIn.passkeys && item('passkey', 'Add a passkey', () => {
-        void addPasskey().then(() => {
-          app.toast('Passkey added. Next time you can sign in with it.');
+      {user.personId && item('leaf', t('My leaf'), onMyLeaf)}
+      {item('inbox', counts.drafts ? t('My suggestions and drafts ({n})', { n: counts.drafts }) : t('My suggestions and drafts'), () => app.openPanel('inbox', { tab: 'mine' }))}
+      {(app.isAdmin || user.anchors.length > 0) && item('manage', app.isAdmin ? t('Manage family') : t('Manage my branch'), () => app.openPanel('manage'))}
+      {item('spark', t('Connect your AI'), () => app.openPanel('connect'))}
+      {item('keys', t('Gestures and keys'), () => app.openPanel('help'))}
+      {signIn.passkeys && item('passkey', t('Add a passkey'), () => {
+        void addPasskey(t).then(() => {
+          app.toast(t('Passkey added. Next time you can sign in with it.'));
           void app.refresh();
         }, app.fail);
       })}
       <hr />
-      <div className="appearance" role="group" aria-label="Appearance">
+      <div className="appearance" role="group" aria-label={t('Appearance')}>
         {(['light', 'dark'] as const).map((name) => (
           <button key={name} type="button" aria-pressed={name === theme} onClick={() => { onAppearance(name); onClose(); }}>
-            {name.charAt(0).toUpperCase() + name.slice(1)}
+            {t(THEME_LABEL[name])}
           </button>
         ))}
       </div>
       <hr />
       {warned && (
         <p className="hint-line" role="alert">
-          You have no passkey, and this tree does not send email yet. The only way back in would be the sign-in link in the server log. Add a passkey first.
+          {t('You have no passkey, and this tree does not send email yet. The only way back in would be the sign-in link in the server log. Add a passkey first.')}
         </p>
       )}
       <button
@@ -97,7 +100,7 @@ export function AccountMenu({ open, theme, onClose, onMyLeaf, onAppearance, onSi
         }}
       >
         <Icon name="signout" />
-        <span>{warned ? 'Sign out anyway' : 'Sign out'}</span>
+        <span>{warned ? t('Sign out anyway') : t('Sign out')}</span>
       </button>
     </div>
   );

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { messageOf } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 
 /*
  * A form in the card. Enter saves, the button shows that it is saving and
@@ -21,6 +22,7 @@ export function CardForm({ saveLabel, onSave, onDirty, small = false, onCancel, 
   more?: ReactNode;
   children: ReactNode;
 }) {
+  const { t } = useT();
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState('');
   return (
@@ -44,8 +46,8 @@ export function CardForm({ saveLabel, onSave, onDirty, small = false, onCancel, 
       {children}
       <p className="warning" role="alert" hidden={!problem} ref={(node) => { if (node && problem) node.scrollIntoView({ block: 'nearest' }); }}>{problem}</p>
       <div className="form-actions">
-        <button type="submit" className={small ? 'small' : 'primary'} disabled={saving}>{saving ? 'Saving…' : saveLabel}</button>
-        {onCancel && <button type="button" onClick={onCancel}>Cancel</button>}
+        <button type="submit" className={small ? 'small' : 'primary'} disabled={saving}>{saving ? t('Saving…') : saveLabel}</button>
+        {onCancel && <button type="button" className={small ? 'small' : undefined} onClick={onCancel}>{t('Cancel')}</button>}
         {more}
       </div>
     </form>

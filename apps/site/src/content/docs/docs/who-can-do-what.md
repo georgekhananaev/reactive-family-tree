@@ -63,6 +63,16 @@ Two things nobody can do, at any role:
 - Make a living person public. Only that person can, from their own account.
 - Add a memory as a visitor. Memories need a signed-in relative.
 
+## Languages
+
+The tree speaks English, Hebrew and Russian, and each person reads it in their own. A person's names, story, places, details, notes and memories are kept in the language they were written in, and can be written in the other two beside it.
+
+- **Writing in your language.** Anyone who may edit a person writes in the language they read the tree in. Inside their branch it is saved at once; elsewhere it becomes a suggestion, like any other change. The original in another language is left as it was.
+- **A memory in another language.** Its author, the person it is about, and whoever looks after them can tell it again in another language.
+- **What is missing.** Owners and admins have a Translations tab under Manage family, with every piece of the family's words in all three languages, and what is missing or out of date in each. Their AI can fill it in too.
+
+Where a word is not written in your language yet, you see it as it was first written, marked with its language. When the original changes later, translations made from the old one are marked as out of date.
+
 ## Suggestions and review
 
 A suggestion waits until someone reviews it. A suggested new person is drawn on the tree in pencil for the person who suggested them and for the people who can review it.

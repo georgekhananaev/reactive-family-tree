@@ -2,11 +2,14 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import { formatDate, fromGedcom, parseDate, sortKey, toGedcom, yearOf } from '../src/dates';
-import { emptyState, indexOf, scopeOf } from '../src/graph';
+import { emptyState, fullName, indexOf, namesOf, scopeOf } from '../src/graph';
+import { isStale, languagesOf, readIn, textOf, writtenIn } from '../src/text';
 import { describeKinship, stepWord } from '../src/kinship';
-import { OpError, applyOps } from '../src/ops';
+import { listed, pickLang, sayFrom } from '../src/lang';
+import { OpError, applyOps, describeOp } from '../src/ops';
 import { decideEdit } from '../src/permissions';
-import { validate } from '../src/validate';
+import { issueText, validate } from '../src/validate';
+import { say, translate } from '../src/words';
 import type { Actor, FuzzyDate, KinStep, Op, OpEnv, RuleSettings, Sex } from '../src/types';
 
 test('dates are kept as precisely as they were given', () => {
@@ -198,7 +201,7 @@ test('relationships are named the way a family would say them', () => {
   assert.equal(describeKinship(chain('parent parent child partner', 'male', 'female')), 'the partner of your aunt');
   assert.equal(describeKinship(chain('child parent')), null, 'a child\u2019s other parent has no simple name');
   assert.equal(describeKinship([]), 'you');
-  assert.deepEqual(chain('parent child partner', 'unknown', 'male').map(stepWord), ['parent', 'son', 'partner']);
+  assert.deepEqual(chain('parent child partner', 'unknown', 'male').map((step) => stepWord(step)), ['parent', 'son', 'partner']);
 });
 
 test('operations and fields are only what the rules name, whatever every object happens to carry', () => {
@@ -217,4 +220,208 @@ test('nobody can make someone public in the same edit that adds them', () => {
   assert.equal(outcome([{ type: 'person.create', ref: '$new', set: { given: 'New', privacy: 'public' } }]), 'deny');
   assert.equal(outcome([{ type: 'person.create', ref: '$new', set: { given: 'New' } }, { type: 'person.update', person: '$new', set: { privacy: 'public' } }]), 'deny');
   assert.equal(outcome([{ type: 'person.update', person: id.gran, set: { privacy: 'members' } }]), 'apply');
+});
+
+/* ---------- Three languages ---------- */
+
+test('the tree works out which of its languages a device speaks', () => {
+  assert.equal(pickLang(['ru-RU', 'en']), 'ru');
+  assert.equal(pickLang('he-IL,he;q=0.9,en-US;q=0.8'), 'he');
+  assert.equal(pickLang('fr-FR,fr;q=0.9,ru;q=0.6,en;q=0.7'), 'en', 'the heavier of two it knows');
+  assert.equal(pickLang(['iw-IL']), 'he', 'Hebrew by its old code');
+  assert.equal(pickLang(['th-TH', 'de']), null, 'none of the three, so the family decides');
+  assert.equal(pickLang(''), null);
+  assert.equal(pickLang(null), null);
+});
+
+test('a sentence fills its gaps and counts the way each language counts', () => {
+  const book = { '{n#One leaf|# leaves}': '{n#один лист|# листа|# листьев}' };
+  assert.deepEqual([1, 2, 5].map((n) => sayFrom(null, 'en', '{n#One leaf|# leaves}', { n })), ['One leaf', '2 leaves', '5 leaves']);
+  assert.deepEqual([1, 3, 5, 21, 22, 111].map((n) => sayFrom(book, 'ru', '{n#One leaf|# leaves}', { n })), ['один лист', '3 листа', '5 листьев', 'один лист', '22 листа', '111 листьев']);
+  assert.deepEqual([1, 2, 7].map((n) => sayFrom({ x: '{n#עלה אחד|שני עלים|# עלים}' }, 'he', 'x', { n })), ['עלה אחד', 'שני עלים', '7 עלים']);
+  assert.equal(sayFrom(null, 'en', '{who} signed in as {sex?her|him|them}self', { who: 'Ada', sex: 'female' }), 'Ada signed in as herself');
+  assert.equal(sayFrom({}, 'ru', 'Not in the book'), 'Not in the book', 'a sentence the book lacks is said in English');
+  assert.deepEqual([listed('en', ['A', 'B', 'C']), listed('ru', ['A', 'B']), listed('he', ['דוד', 'מרינה']), listed('he', ['דוד', 'Marina']), listed('en', ['A'])], ['A, B and C', 'A и B', 'דוד ומרינה', 'דוד ו-Marina', 'A']);
+});
+
+test('a date is read in any of the three languages and said in the reader\u2019s own', () => {
+  const cases: [typed: string, stored: FuzzyDate, hebrew: string, russian: string][] = [
+    ['4 марта 1921', { kind: 'exact', from: '1921-03-04' }, '4 במרץ 1921', '4 марта 1921'],
+    ['4 במרץ 1921', { kind: 'exact', from: '1921-03-04' }, '4 במרץ 1921', '4 марта 1921'],
+    ['март 1921 г.', { kind: 'exact', from: '1921-03' }, 'מרץ 1921', 'март 1921'],
+    ['в мае 1945 года', { kind: 'exact', from: '1945-05' }, 'מאי 1945', 'май 1945'],
+    ['04.03.1921', { kind: 'exact', from: '1921-03-04' }, '4 במרץ 1921', '4 марта 1921'],
+    ['около 1890', { kind: 'about', from: '1890' }, 'בערך 1890', 'около 1890'],
+    ['בערך 1890', { kind: 'about', from: '1890' }, 'בערך 1890', 'около 1890'],
+    ['כ-1890', { kind: 'about', from: '1890' }, 'בערך 1890', 'около 1890'],
+    ['до августа 1914', { kind: 'before', from: '1914-08' }, 'לפני אוגוסט 1914', 'до августа 1914'],
+    ['לפני אוגוסט 1914', { kind: 'before', from: '1914-08' }, 'לפני אוגוסט 1914', 'до августа 1914'],
+    ['после 1945', { kind: 'after', from: '1945' }, 'אחרי 1945', 'после 1945'],
+    ['между мартом 1921 и маем 1922', { kind: 'between', from: '1921-03', to: '1922-05' }, 'בין מרץ 1921 למאי 1922', 'между мартом 1921 и маем 1922'],
+    ['בין 1921 ל-1922', { kind: 'between', from: '1921', to: '1922' }, 'בין 1921 ל-1922', 'между 1921 и 1922'],
+    ['בין 1921 לבין 1922', { kind: 'between', from: '1921', to: '1922' }, 'בין 1921 ל-1922', 'между 1921 и 1922'],
+    ['с 1921 по 1922', { kind: 'between', from: '1921', to: '1922' }, 'בין 1921 ל-1922', 'между 1921 и 1922'],
+    // A span, typed the way each language types one
+    ['from 1939 to 1945', { kind: 'between', from: '1939', to: '1945' }, 'בין 1939 ל-1945', 'между 1939 и 1945'],
+    ['מ-1939 עד 1945', { kind: 'between', from: '1939', to: '1945' }, 'בין 1939 ל-1945', 'между 1939 и 1945'],
+    ['1939-1945', { kind: 'between', from: '1939', to: '1945' }, 'בין 1939 ל-1945', 'между 1939 и 1945'],
+    ['about March 1921', { kind: 'about', from: '1921-03' }, 'בערך במרץ 1921', 'около марта 1921'],
+    ['1921 или 1922', { kind: 'or', from: '1921', to: '1922' }, '1921 או 1922', '1921 или 1922'],
+    ['1921 או 1922', { kind: 'or', from: '1921', to: '1922' }, '1921 או 1922', '1921 или 1922'],
+    ['до войны', { kind: 'text', text: 'до войны' }, 'до войны', 'до войны'],
+  ];
+  for (const [typed, stored, hebrew, russian] of cases) {
+    assert.deepEqual(parseDate(typed), stored, typed);
+    assert.equal(formatDate(stored, 'he'), hebrew, `${typed} in Hebrew`);
+    assert.equal(formatDate(stored, 'ru'), russian, `${typed} in Russian`);
+    // What the tree says, it can read back
+    for (const lang of ['en', 'he', 'ru'] as const) assert.deepEqual(parseDate(formatDate(stored, lang)), stored, `${typed}, said in ${lang} and read again`);
+  }
+});
+
+test('each language names relatives by its own system', () => {
+  const chain = (hows: string, sex: Sex = 'unknown', sexBefore: Sex = 'unknown'): KinStep[] => (hows.split(' ').filter(Boolean) as KinStep['how'][])
+    .map((how, i, all) => ({ how, sex: i === all.length - 1 ? sex : i === all.length - 2 ? sexBefore : 'unknown' }));
+  const cases: [hows: string, sex: Sex, russian: string | null, hebrew: string | null][] = [
+    ['parent', 'female', 'ваша мама', 'אמא שלך'],
+    ['parent parent', 'male', 'ваш дедушка', 'סבא שלך'],
+    ['parent parent parent', 'female', 'ваша прабабушка', 'סבתא רבתא שלך'],
+    ['child', 'male', 'ваш сын', 'הבן שלך'],
+    ['child child', 'unknown', 'ваш внук или ваша внучка', 'הנכד או הנכדה שלך'],
+    ['child child child', 'female', 'ваша правнучка', 'הנינה שלך'],
+    ['parent child', 'female', 'ваша сестра', 'אחות שלך'],
+    ['parent parent child', 'female', 'ваша тётя', 'דודה שלך'],
+    // A grandmother's brother: Russian counts him as a grandfather one step to the side, Hebrew as the uncle of a parent
+    ['parent parent parent child', 'male', 'ваш двоюродный дедушка', 'דוד של אחד ההורים שלך'],
+    ['parent child child', 'male', 'ваш племянник', 'האחיין שלך'],
+    // Hebrew has a word for a brother's grandchild that few people use. It says whose grandchild she is.
+    ['parent child child child', 'female', 'ваша внучатая племянница', 'הנכדה של אח או אחות שלך'],
+    ['parent parent child child', 'male', 'ваш двоюродный брат', 'בן דוד שלך'],
+    ['parent parent child child', 'unknown', 'ваш двоюродный брат или ваша двоюродная сестра', 'בן דוד או בת דודה שלך'],
+    ['parent parent parent child child child', 'female', 'ваша троюродная сестра', 'בת דודה מדרגה שנייה שלך'],
+    // A parent's first cousin is an uncle to the side in Russian. Hebrew names him through the parent.
+    ['parent parent parent child child', 'male', 'ваш двоюродный дядя', 'בן דוד של אחד ההורים שלך'],
+    // A first cousin's child
+    ['parent parent child child child', 'female', 'ваша двоюродная племянница', 'הבת של בן דוד או בת דודה שלך'],
+    ['partner', 'female', 'ваша жена', 'בת הזוג שלך'],
+    // Russian names a partner's mother by whose mother she is, the husband's or the wife's, and says it the long way when that is not known
+    ['partner parent', 'female', 'мама вашего мужа или вашей жены', 'החמות שלך'],
+    // Nobody says "ваш родитель"
+    ['parent', 'unknown', 'один из ваших родителей', 'אחד ההורים שלך'],
+    ['child parent', 'unknown', null, null],
+  ];
+  for (const [hows, sex, russian, hebrew] of cases) {
+    assert.equal(describeKinship(chain(hows, sex), 'ru'), russian, `${hows} in Russian`);
+    assert.equal(describeKinship(chain(hows, sex), 'he'), hebrew, `${hows} in Hebrew`);
+  }
+  assert.equal(describeKinship(chain('parent parent child partner', 'male', 'female'), 'ru'), 'муж вашей тёти');
+  assert.equal(describeKinship(chain('parent parent child partner', 'male', 'female'), 'he'), 'בן הזוג של דודה שלך');
+  assert.equal(describeKinship(chain('parent parent child child partner', 'female', 'male'), 'ru'), 'жена вашего двоюродного брата');
+  assert.deepEqual(chain('parent child partner', 'female', 'male').map((step) => stepWord(step, 'ru')), ['родитель', 'сын', 'жена']);
+  assert.deepEqual(chain('parent child partner', 'female', 'male').map((step) => stepWord(step, 'he')), ['הורה', 'בן', 'בת זוג']);
+
+  // The words said at home, which need to know who each person along the way is: "parent:m" is a father
+  const along = (text: string): KinStep[] => text.split(' ').map((part) => {
+    const [how, sex] = part.split(':');
+    return { how: how as KinStep['how'], sex: sex === 'f' ? 'female' : sex === 'm' ? 'male' : 'unknown' };
+  });
+  const said: [chain: string, russian: string, hebrew: string][] = [
+    ['partner:m parent:f', 'ваша свекровь', 'החמות שלך'],
+    ['partner:f parent:m', 'ваш тесть', 'החם שלך'],
+    ['child:f partner:m', 'ваш зять', 'החתן שלך'],
+    ['parent:f child:m partner:f', 'ваша невестка', 'הגיסה שלך'],
+    ['partner:m parent:f child:f', 'сестра вашего мужа', 'הגיסה שלך'],
+    ['child:m partner:m', 'муж вашего сына', 'החתן שלך'],
+    ['parent:m parent:f parent:m child:f child:m', 'ваш двоюродный дядя', 'בן דוד של אבא שלך'],
+    ['parent:m parent:f child:m child:f child:m', 'ваш двоюродный племянник', 'הבן של בת דודה שלך'],
+    ['parent:f child:m child:f child:m', 'ваш внучатый племянник', 'הנכד של אח שלך'],
+    // A grandmother's brother is the uncle of your mother
+    ['parent:f parent:f parent:m child:m', 'ваш двоюродный дедушка', 'דוד של אמא שלך'],
+    ['parent:f partner:m', 'муж вашей мамы', 'בן הזוג של אמא שלך'],
+  ];
+  for (const [chained, russian, hebrew] of said) {
+    assert.equal(describeKinship(along(chained), 'ru'), russian, `${chained} in Russian`);
+    assert.equal(describeKinship(along(chained), 'he'), hebrew, `${chained} in Hebrew`);
+  }
+  assert.deepEqual([describeKinship([], 'ru'), describeKinship([], 'he')], ['вы', 'העלה שלך']);
+});
+
+test('a change, a warning and a reason are each said in the reader\u2019s language', () => {
+  const names: Record<string, string> = { p_1: 'Ada Marlow', p_2: 'Elias Marlow' };
+  const nameOf = (id: string) => names[id];
+  const update: Op = { type: 'person.update', person: 'p_1', set: { given: 'Ada', bio: '' } };
+  assert.equal(describeOp(update, nameOf), 'Change given name, story of Ada Marlow');
+  assert.equal(describeOp(update, nameOf, 'ru'), 'Ada Marlow: изменено — имя, биография');
+  assert.equal(describeOp(update, nameOf, 'he'), 'שינוי בפרטים של Ada Marlow: שם פרטי, סיפור');
+  const joined: Op = { type: 'union.create', partners: ['p_1', 'p_2'] };
+  assert.deepEqual([describeOp(joined, nameOf), describeOp(joined, nameOf, 'ru'), describeOp(joined, nameOf, 'he')], ['Join Ada Marlow and Elias Marlow as partners', 'Новая пара: Ada Marlow и Elias Marlow', 'זוג חדש: Ada Marlow ו-Elias Marlow']);
+  assert.equal(describeOp({ type: 'fact.add', subject: { type: 'person', id: 'p_1' }, set: { type: 'birth' } }, nameOf, 'ru'), 'Ada Marlow: добавлено — рождение');
+  assert.equal(describeOp({ type: 'person.create', set: {} }, nameOf, 'he'), 'הוספת אדם ללא שם');
+
+  // A warning is found once, in English, and said again to each reader
+  const { state, env, id } = smallFamily();
+  const { changes } = applyOps(state, [{ type: 'fact.add', subject: { type: 'person', id: id.cleo }, set: { type: 'death', date: { kind: 'exact', from: '1990' } } }], env);
+  const [found] = validate(state, changes).errors;
+  assert.equal(found.message, 'Cleo cannot have died (1990) before being born (2015).');
+  assert.equal(issueText(found, 'ru', () => 'Клео'), 'Клео: год смерти (1990) раньше года рождения (2015).');
+  assert.equal(issueText(found, 'he', () => 'קליאו'), 'קליאו: שנת הפטירה (1990) היא לפני שנת הלידה (2015).');
+  assert.equal(issueText({ code: 'old', message: 'Kept from before.' }, 'ru', () => ''), 'Kept from before.');
+  assert.equal(say('ru', '{name} is recorded as living {years} years.', { name: 'Ада', years: 131 }), 'Ада: по записям — 131 год жизни.');
+
+  // A reason travels as its English sentence
+  assert.equal(translate('ru', 'Sign in to suggest a change.'), 'Войдите, чтобы предложить изменение.');
+  assert.equal(translate('he', 'Sign in to suggest a change.'), 'צריך להתחבר כדי להציע שינוי.');
+  assert.equal(translate('ru', 'A sentence nobody wrote down'), 'A sentence nobody wrote down');
+});
+
+test('a person\u2019s words are kept in the language they were written in, and in others beside them', () => {
+  const { state, env, id } = smallFamily();
+  const run = (ops: Op[], lang?: 'en' | 'he' | 'ru') => applyOps(state, ops, { ...env, lang });
+  const { created } = run([{ type: 'person.create', ref: '$d', set: { given: 'דוד', family: 'חננייב', bio: 'נולד בבאקו.' } }], 'he');
+  const david = () => state.people.get(created.$d)!;
+  assert.equal(david().lang, 'he', 'new text takes the author\u2019s language');
+  assert.equal(state.people.get(id.anna)!.lang, 'en', 'and the family\u2019s first language when nothing is said');
+
+  // Written in Russian by someone who reads the tree in Russian: kept beside the Hebrew
+  run([{ type: 'person.update', person: created.$d, lang: 'ru', set: { given: 'Давид', family: 'Хананаев', living: 'yes' } }]);
+  assert.equal(david().given, 'דוד', 'the original is left alone');
+  assert.equal(david().living, 'yes', 'what is not words changes as always');
+  assert.deepEqual([fullName(david(), 'ru'), fullName(david(), 'he'), fullName(david(), 'en')], ['Давид Хананаев', 'דוד חננייב', 'דוד חננייב']);
+  assert.deepEqual(readIn(david(), 'bio', 'ru'), { text: 'נולד בבאקו.', lang: 'he' }, 'missing in Russian: shown as it was written, and said so');
+  assert.deepEqual(readIn(david(), 'given', 'ru'), { text: 'Давид', lang: null });
+  assert.equal(writtenIn(david(), 'given', 'en'), null);
+  assert.deepEqual(languagesOf(david(), ['given', 'family', 'bio']), ['he', 'ru']);
+  assert.deepEqual(namesOf(david()), [{ given: 'דוד', family: 'חננייב' }, { given: 'Давид', family: 'Хананаев' }]);
+
+  // The original changes: the Russian was written from the old one, and says so
+  assert.equal(isStale(david(), 'given', 'ru'), false);
+  run([{ type: 'person.update', person: created.$d, lang: 'he', set: { given: 'דויד' } }]);
+  assert.deepEqual([isStale(david(), 'given', 'ru'), isStale(david(), 'family', 'ru')], [true, false]);
+  // Written again from the new one, it is up to date
+  run([{ type: 'person.update', person: created.$d, lang: 'ru', set: { given: 'Давид' } }]);
+  assert.equal(isStale(david(), 'given', 'ru'), false);
+  // An empty text takes that language's version away
+  run([{ type: 'person.update', person: created.$d, lang: 'ru', set: { given: '', family: '' } }]);
+  assert.equal(david().tr.ru, undefined);
+  assert.equal(textOf(david(), 'given', 'ru'), 'דויד');
+
+  // A fact and a memory carry their own language too
+  const fact = run([{ type: 'fact.add', ref: '$f', subject: { type: 'person', id: created.$d }, lang: 'ru', set: { type: 'birth', place: 'Баку' } }]).created.$f;
+  run([{ type: 'fact.update', fact, lang: 'en', set: { place: 'Baku' } }]);
+  assert.deepEqual([textOf(state.facts.get(fact)!, 'place', 'en'), textOf(state.facts.get(fact)!, 'place', 'he')], ['Baku', 'Баку']);
+  const memory = run([{ type: 'memory.add', ref: '$m', person: created.$d, body: 'Он пел за столом.' }], 'ru').created.$m;
+  run([{ type: 'memory.translate', memory, lang: 'en', body: 'He sang at the table.' }]);
+  assert.deepEqual([textOf(state.memories.get(memory)!, 'body', 'en'), state.memories.get(memory)!.body], ['He sang at the table.', 'Он пел за столом.']);
+  assert.throws(() => run([{ type: 'memory.translate', memory, lang: 'ru', body: 'Другое' }]), (error: unknown) => error instanceof OpError && error.code === 'bad_value', 'a memory is not rewritten in its own language');
+  assert.throws(() => run([{ type: 'person.create', set: { given: 'X' }, lang: 'fr' as 'en' }]), (error: unknown) => error instanceof OpError && error.code === 'bad_value');
+
+  // The same person typed again in another language is noticed
+  const twice = run([{ type: 'person.create', set: { given: 'Давид', family: 'Хананаев' } }], 'ru');
+  run([{ type: 'person.update', person: created.$d, lang: 'ru', set: { given: 'Давид', family: 'Хананаев' } }]);
+  const again = applyOps(state, [{ type: 'person.create', set: { given: 'Давид', family: 'Хананаев' } }], { ...env, lang: 'ru' });
+  assert.ok(twice && validate(state, again.changes).warnings.some((warning) => warning.code === 'possible_duplicate'));
+
+  // A line in history says when a change only wrote another language
+  const line = describeOp({ type: 'person.update', person: created.$d, lang: 'ru', set: { given: 'Давид' } }, () => 'דויד חננייב', 'en', { langOf: () => 'he' });
+  assert.equal(line, 'Write given name of דויד חננייב in Russian');
 });

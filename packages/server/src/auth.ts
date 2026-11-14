@@ -15,6 +15,8 @@ import { cimd } from '@better-auth/cimd';
 import { fetchClientMetadataResource } from '@better-auth/cimd/node';
 import { mcp, requireMcpAuth } from '@better-auth/mcp';
 import { passkey } from '@better-auth/passkey';
+import { LANG_COOKIE, chooseLang, cookieOf } from '@reactive-family-tree/core';
+import type { Lang } from '@reactive-family-tree/core';
 import { schema } from '@reactive-family-tree/db';
 import type { Database } from '@reactive-family-tree/db';
 import { betterAuth } from 'better-auth';
@@ -28,6 +30,7 @@ import * as z from 'zod';
 
 import type { AppConfig } from './config';
 import type { Mailer } from './email';
+import { inLanguage, tell } from './words';
 import { HttpError } from './errors';
 
 const SESSION_DAYS = 30;
@@ -35,7 +38,12 @@ const LINK_MINUTES = 15;
 
 /* What the family's own rules decide during sign-in. Each returns the id of the account to sign in, or throws an HttpError. */
 export interface FamilySignIn {
-  familyName(): string;
+  /* The family's name in a language. */
+  familyName(lang: Lang): string;
+  /* The language to write to someone in: the one their account chose, or the family's. */
+  languageFor(email: string): Promise<Lang>;
+  /* The family's language, for an error said before anything else is known. */
+  language(): Lang;
   /* Whether someone with this address has an account. */
   hasAccount(email: string): Promise<boolean>;
   demoAccount(email: string): Promise<string>;
@@ -61,15 +69,17 @@ export function oauthPossible(baseUrl: string): boolean {
 function familyPlugin(family: FamilySignIn) {
   const signIn = <Body extends z.ZodType>(path: string, body: Body, resolve: (input: z.infer<Body>) => Promise<string>) =>
     createAuthEndpoint(path, { method: 'POST', body }, async (ctx) => {
+      // What goes wrong is said in the language the page asked for, as every other error is
+      const lang = chooseLang({ asked: ctx.headers?.get('x-language'), remembered: cookieOf(ctx.headers?.get('cookie'), LANG_COOKIE), device: ctx.headers?.get('accept-language') }, family.language());
       let userId: string;
       try {
         userId = await resolve(ctx.body as z.infer<Body>);
       } catch (error) {
-        if (error instanceof HttpError) throw new APIError(STATUS[error.status] ?? 'BAD_REQUEST', { message: error.message });
+        if (error instanceof HttpError) throw new APIError(STATUS[error.status] ?? 'BAD_REQUEST', { message: inLanguage(lang, error.phrase ?? error.message, error.values ?? undefined) });
         throw error;
       }
       const user = await ctx.context.internalAdapter.findUserById(userId);
-      if (!user) throw new APIError('NOT_FOUND', { message: 'That account does not exist.' });
+      if (!user) throw new APIError('NOT_FOUND', { message: tell(lang, 'That account does not exist.') });
       const session = await ctx.context.internalAdapter.createSession(user.id);
       await setSessionCookie(ctx, { session, user });
       return ctx.json({ ok: true });
@@ -110,11 +120,12 @@ export function createAuth({ db, config, secret, mailer, family, onLink }: AuthO
         onLink?.(email, url);
         // The letter is sent without being waited for, so that the page hears back just as fast whether or not there was an account
         // to write to. A slower answer for real accounts would say who has one. A letter that could not be sent is in the server log.
-        void mailer.send({
+        // It is written in the language the member reads the tree in
+        void family.languageFor(email).then((lang) => mailer.send({
           to: email,
-          subject: `Sign in to ${family.familyName()}`,
-          text: `Open this link to sign in. It works once and for ${LINK_MINUTES} minutes.\n\n${url}\n\nIf you did not ask for it, ignore this message.`,
-        }).catch((error: unknown) => console.error('A sign-in link could not be sent.', error));
+          subject: tell(lang, 'Sign in to {family}', { family: family.familyName(lang) }),
+          text: tell(lang, 'Open this link to sign in. It works once and for {minutes} minutes.\n\n{url}\n\nIf you did not ask for it, ignore this message.', { minutes: LINK_MINUTES, url }),
+        })).catch((error: unknown) => console.error('A sign-in link could not be sent.', error));
       },
     }),
     passkey({ rpName: 'Reactive Family Tree' }),
@@ -147,6 +158,8 @@ export function createAuth({ db, config, secret, mailer, family, onLink }: AuthO
       additionalFields: {
         role: { type: 'string', defaultValue: 'member', input: false },
         personId: { type: 'string', required: false, input: false },
+        // The language the member reads the tree in, so mail and notices reach them in it
+        language: { type: 'string', required: false, input: false },
       },
     },
     // Google only signs in people who already have an account, matched by their verified address

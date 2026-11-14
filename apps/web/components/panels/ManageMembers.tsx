@@ -7,23 +7,28 @@ import { useState } from 'react';
 
 import { api } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
+import { useT } from '@/lib/i18n';
+import type { WebPhrase } from '@/lib/i18n';
 
 import { ConfirmButton, CopyRow, Field, Select } from '../ui';
 
 import { PersonPicker } from './PersonPicker';
-import { Check, Loading, tryIt, useMembers } from './shared';
+import { Check, Loading, inWords, tryIt, useMembers } from './shared';
 
-type RoleOption = readonly [Role, string];
+type RoleOption = readonly [Role, WebPhrase];
 
-const OWNER: RoleOption = ['owner', 'Owner'];
-const ROLES: readonly RoleOption[] = [['member', 'Member'], ['admin', 'Admin']];
+const ROLE_WORDS: Readonly<Record<Role, WebPhrase>> = { owner: 'Owner', admin: 'Admin', member: 'Member' };
+const OWNER: RoleOption = ['owner', ROLE_WORDS.owner];
+const ROLES: readonly RoleOption[] = [['member', ROLE_WORDS.member], ['admin', ROLE_WORDS.admin]];
 
 /* One branch a member looks after, with a way to take it away. `label` is what the × is called. */
 export function BranchChip({ member, at, label }: { member: MemberView; at: number; label: string }) {
   const app = useApp();
+  const { t } = useT();
+  const anchor = member.anchorNames[at];
   return (
     <span className="chip">
-      {`${member.anchorNames[at] ?? 'Someone'}’s branch`}
+      {anchor ? t('{name}’s branch', { name: anchor }) : t('Someone’s branch')}
       <button type="button" aria-label={label} onClick={() => tryIt(app, () => api.del(`/api/members/${member.id}/branches/${member.anchors[at]}`))}>×</button>
     </span>
   );
@@ -31,6 +36,7 @@ export function BranchChip({ member, at, label }: { member: MemberView; at: numb
 
 function JoinRequest({ request, onApproved }: { request: JoinRequestView; onApproved(invite: InviteMade | null): void }) {
   const app = useApp();
+  const { t } = useT();
   const approve = async () => {
     const result = await tryIt(app, () => api.post<{ invite: InviteMade | null }>(`/api/join/${request.id}`, { approve: true }));
     if (result) onApproved(result.invite);
@@ -39,11 +45,11 @@ function JoinRequest({ request, onApproved }: { request: JoinRequestView; onAppr
     <div className="row">
       <div className="main">
         <strong>{`${request.name}, ${request.email}`}</strong>
-        <small>{request.message || 'No message'}</small>
+        <small>{request.message || t('No message')}</small>
       </div>
       <div className="side">
-        <button type="button" className="small primary" onClick={approve}>Approve</button>
-        <button type="button" className="small" onClick={() => tryIt(app, () => api.post(`/api/join/${request.id}`, { approve: false }), 'Declined')}>Decline</button>
+        <button type="button" className="small primary" onClick={approve}>{t('Approve')}</button>
+        <button type="button" className="small" onClick={() => tryIt(app, () => api.post(`/api/join/${request.id}`, { approve: false }), t('Declined'))}>{t('Decline')}</button>
       </div>
     </div>
   );
@@ -52,28 +58,29 @@ function JoinRequest({ request, onApproved }: { request: JoinRequestView; onAppr
 /* `roles` are the ones this member can be given. `locked` is for an owner seen by someone who is not one. */
 function MemberRow({ member, roles, locked }: { member: MemberView; roles: readonly RoleOption[]; locked: boolean }) {
   const app = useApp();
+  const { t } = useT();
   // The role just chosen, until the server has answered
   const [picked, setPicked] = useState<Role | null>(null);
   const change = async (role: Role) => {
     setPicked(role);
-    await tryIt(app, () => api.patch(`/api/members/${member.id}`, { role }), 'Role changed');
+    await tryIt(app, () => api.patch(`/api/members/${member.id}`, { role }), t('Role changed'));
     setPicked(null);
   };
   return (
     <div className="row">
       <div className="main">
         <strong>{member.name}</strong>
-        <small>{[member.email, member.personName ? `is ${member.personName}` : 'not linked to a leaf', member.ai ? 'has an AI connected' : null].filter(Boolean).join(', ')}</small>
+        <small>{[member.email, member.personName ? t('is {name}', { name: member.personName }) : t('not linked to a leaf'), member.ai ? t('has an AI connected') : null].filter(Boolean).join(', ')}</small>
         <div>
           {member.anchorNames.map((name, at) => (
-            <BranchChip key={member.anchors[at]} member={member} at={at} label={`Take ${name}’s branch away from ${member.name}`} />
+            <BranchChip key={member.anchors[at]} member={member} at={at} label={t('Take {branch}’s branch away from {name}', { branch: name, name: member.name })} />
           ))}
         </div>
       </div>
       <div className="side">
-        <Select options={roles} value={picked ?? member.role} onChange={change} aria-label={`Role of ${member.name}`} disabled={locked} />
+        <Select options={inWords(t, roles)} value={picked ?? member.role} onChange={change} aria-label={t('Role of {name}', { name: member.name })} disabled={locked} />
         {member.id !== app.session.user?.id && (
-          <ConfirmButton label="Remove" sure="Really?" onConfirm={() => tryIt(app, () => api.del(`/api/members/${member.id}`), `${member.name} can no longer sign in`)} className="small danger" />
+          <ConfirmButton label={t('Remove')} sure={t('Really?')} onConfirm={() => tryIt(app, () => api.del(`/api/members/${member.id}`), t('{name} can no longer sign in', { name: member.name }))} className="small danger" />
         )}
       </div>
     </div>
@@ -83,6 +90,7 @@ function MemberRow({ member, roles, locked }: { member: MemberView; roles: reado
 /* Invite someone, optionally as a person already on the tree */
 function InviteForm({ roles, onCreated }: { roles: readonly RoleOption[]; onCreated(invite: InviteMade): void }) {
   const app = useApp();
+  const { t } = useT();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('member');
   const [personId, setPersonId] = useState<string | null>(null);
@@ -93,15 +101,15 @@ function InviteForm({ roles, onCreated }: { roles: readonly RoleOption[]; onCrea
   };
   return (
     <>
-      <h3>Invite a relative</h3>
+      <h3>{t('Invite a relative')}</h3>
       <div className="fields">
-        <Field label="Email"><input type="email" placeholder="their@email.example" value={email} onChange={(event) => setEmail(event.target.value)} /></Field>
-        <Field label="Role"><Select options={roles} value={role} onChange={(value) => setRole(value)} /></Field>
-        <Field label="Who are they on the tree?" wide><PersonPicker placeholder="Search for their name" onPick={setPersonId} /></Field>
-        <Check label="They look after themselves and their descendants" checked={own} onChange={setOwn} />
+        <Field label={t('Email')}><input type="email" placeholder={t('their@email.example')} value={email} onChange={(event) => setEmail(event.target.value)} /></Field>
+        <Field label={t('Role')}><Select options={inWords(t, roles)} value={role} onChange={(value) => setRole(value)} /></Field>
+        <Field label={t('Who are they on the tree?')} wide><PersonPicker placeholder={t('Search for their name')} onPick={setPersonId} /></Field>
+        <Check label={t('They look after themselves and their descendants')} checked={own} onChange={setOwn} />
       </div>
       <div className="form-actions">
-        <button type="button" className="primary" onClick={create}>Create invitation</button>
+        <button type="button" className="primary" onClick={create}>{t('Create invitation')}</button>
       </div>
     </>
   );
@@ -109,14 +117,16 @@ function InviteForm({ roles, onCreated }: { roles: readonly RoleOption[]; onCrea
 
 function Invitation({ invite }: { invite: InviteView }) {
   const app = useApp();
+  const { t } = useT();
+  const role = t(ROLE_WORDS[invite.role]);
   return (
     <div className="row">
       <div className="main">
-        <strong>{invite.email || 'Anyone with the link'}</strong>
-        <small>{`${invite.role}${invite.personName ? `, as ${invite.personName}` : ''}, invited by ${invite.by}`}</small>
+        <strong>{invite.email || t('Anyone with the link')}</strong>
+        <small>{invite.personName ? t('{role}, as {name}, invited by {by}', { role, name: invite.personName, by: invite.by }) : t('{role}, invited by {by}', { role, by: invite.by })}</small>
       </div>
       <div className="side">
-        <button type="button" className="small" onClick={() => tryIt(app, () => api.del(`/api/invites/${invite.id}`))}>Cancel</button>
+        <button type="button" className="small" onClick={() => tryIt(app, () => api.del(`/api/invites/${invite.id}`))}>{t('Cancel invitation')}</button>
       </div>
     </div>
   );
@@ -124,6 +134,7 @@ function Invitation({ invite }: { invite: InviteView }) {
 
 export function MembersTab() {
   const app = useApp();
+  const { t } = useT();
   const { data, error } = useMembers();
   // The invitation made last, with its link to pass on
   const [made, setMade] = useState<InviteMade | null>(null);
@@ -138,12 +149,12 @@ export function MembersTab() {
     <>
       {data.requests.length > 0 && (
         <>
-          <h3>Asking to join</h3>
+          <h3>{t('Asking to join')}</h3>
           {data.requests.map((request) => <JoinRequest key={request.id} request={request} onApproved={setMade} />)}
         </>
       )}
 
-      <h3>Members</h3>
+      <h3>{t('Members')}</h3>
       {data.members.map((member) => {
         const locked = member.role === 'owner' && !isOwner;
         return <MemberRow key={member.id} member={member} roles={locked ? [OWNER] : roles} locked={locked} />;
@@ -161,15 +172,15 @@ export function MembersTab() {
         <>
           <p className="pencil">
             {made.emailedTo
-              ? `Emailed to ${made.emailedTo}. You can also pass the link on yourself. It works once, for two weeks.`
-              : 'Pass this link on. It works once, for two weeks, and is shown only now.'}
+              ? t('Emailed to {address}. You can also pass the link on yourself. It works once, for two weeks.', { address: made.emailedTo })
+              : t('Pass this link on. It works once, for two weeks, and is shown only now.')}
           </p>
           <CopyRow value={made.link} />
         </>
       )}
       {data.invites.length > 0 && (
         <>
-          <h3>Invitations not yet accepted</h3>
+          <h3>{t('Invitations not yet accepted')}</h3>
           {data.invites.map((invite) => <Invitation key={invite.id} invite={invite} />)}
         </>
       )}

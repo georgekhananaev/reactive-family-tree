@@ -11,7 +11,8 @@
     "demo": "DEMO_MODE=1 next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit --incremental false"
+    "typecheck": "tsc --noEmit --incremental false",
+    "test": "vitest run"
   },
   "dependencies": {
     "@better-auth/oauth-provider": "^1.7.22",

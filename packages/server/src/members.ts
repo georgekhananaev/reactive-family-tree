@@ -7,8 +7,8 @@
  * to the family: their role, their leaf and the branches they look after.
  */
 
-import { indexOf, isAdmin, person, scopeOf } from '@reactive-family-tree/core';
-import type { Actor, ConnectionAccess, ConnectionMode, ConnectionView, Contact, Role, ToolProfile } from '@reactive-family-tree/core';
+import { indexOf, isAdmin, isLang, person, scopeOf } from '@reactive-family-tree/core';
+import type { Actor, ConnectionAccess, ConnectionMode, ConnectionView, Contact, Lang, Role, ToolProfile } from '@reactive-family-tree/core';
 import { account, aiConnection, branchGrant, invite, joinRequest, notification, oauthClient, passkey, session, user } from '@reactive-family-tree/db';
 import type { Database } from '@reactive-family-tree/db';
 import { and, asc, count, desc, eq, gt, isNull, ne } from 'drizzle-orm';
@@ -112,7 +112,7 @@ export class Members {
 
   /* The shape the shared rules expect. */
   async actorFor(row: UserRow): Promise<Actor> {
-    return { userId: row.id, name: row.name, role: roleOf(row), personId: row.personId, anchors: await this.anchors(row.id), visitor: false };
+    return { userId: row.id, name: row.name, role: roleOf(row), personId: row.personId, anchors: await this.anchors(row.id), visitor: false, ...(isLang(row.language) ? { lang: row.language } : {}) };
   }
 
   /* Every member as the rules see them, for working out who may review something. */
@@ -140,9 +140,9 @@ export class Members {
   /* ---------- Accounts ---------- */
 
   /* An account, made by an invitation, by the first-run setup, or when planting the demo family. */
-  async createUser(fields: { name: string; email: string; role: Role; personId: string | null }): Promise<UserRow> {
+  async createUser(fields: { name: string; email: string; role: Role; personId: string | null; language?: Lang | null }): Promise<UserRow> {
     const at = new Date();
-    const row = { id: newId('usr'), ...fields, email: cleanEmail(fields.email), emailVerified: true, image: null, createdAt: at, updatedAt: at };
+    const row = { id: newId('usr'), language: null, ...fields, email: cleanEmail(fields.email), emailVerified: true, image: null, createdAt: at, updatedAt: at };
     await this.db.insert(user).values(row);
     return row;
   }
@@ -233,6 +233,17 @@ export class Members {
     const target = await this.user(id);
     if (!target) throw notFound('That member does not exist.');
     return target;
+  }
+
+  /* A member's own choice of language, or none to go back to their device's. */
+  async setLanguage(userId: string, language: Lang | null): Promise<void> {
+    await this.db.update(user).set({ language }).where(eq(user.id, userId));
+  }
+
+  /* The language a member chose to read the tree in, if they did, for mail sent to them. */
+  async languageOf(email: string): Promise<Lang | null> {
+    const [found] = await this.db.select({ language: user.language }).from(user).where(eq(user.email, cleanEmail(email))).limit(1);
+    return isLang(found?.language) ? found.language : null;
   }
 
   async updateMember(actor: Actor, id: string, { role, personId }: { role?: Role; personId?: string | null }): Promise<void> {

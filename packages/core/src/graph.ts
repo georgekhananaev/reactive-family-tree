@@ -12,7 +12,11 @@
  */
 
 import { sortKey, yearOf } from './dates';
+import { LANGS } from './lang';
+import type { Lang } from './lang';
+import { textOf, writtenIn } from './text';
 import type { ChildLink, Fact, FactType, PathStep, Person, Scope, State, Union } from './types';
+import { say } from './words';
 
 /* The lookup table that `indexOf` builds. */
 export interface FamilyIndex {
@@ -128,10 +132,22 @@ export function firstFact(ix: FamilyIndex, subjectId: string, type: FactType): F
 export const bornYear = (ix: FamilyIndex, personId: string): number | null => yearOf(firstFact(ix, personId, 'birth')?.date);
 export const diedYear = (ix: FamilyIndex, personId: string): number | null => yearOf(firstFact(ix, personId, 'death')?.date);
 
-export function fullName(p: Pick<Person, 'given' | 'family'> | null | undefined): string {
-  if (!p) return 'Unknown';
-  const name = [p.given, p.family].filter(Boolean).join(' ');
-  return name || 'Unknown';
+/* Someone as they are stored, or a copy that already reads in one language and carries no others. */
+type Named = Pick<Person, 'given' | 'family'> & Partial<Pick<Person, 'lang' | 'tr'>>;
+const worded = (p: Named): p is Named & Pick<Person, 'lang' | 'tr'> => Boolean(p.lang && p.tr);
+
+/* A person's name for a reader: in their language where it is written in it, otherwise as it was first written. */
+export function fullName(p: Named | null | undefined, lang: Lang = 'en'): string {
+  if (!p) return say(lang, 'Unknown');
+  const part = (field: 'given' | 'family') => (worded(p) ? textOf(p, field, lang) : p[field]);
+  return [part('given'), part('family')].filter(Boolean).join(' ') || say(lang, 'Unknown');
+}
+
+/* Every way a person's name is written, one for each language it is written in. For finding someone, and for noticing the same person twice. */
+export function namesOf(p: Pick<Person, 'given' | 'family' | 'lang' | 'tr'>): { given: string; family: string }[] {
+  const names = LANGS.filter((lang) => writtenIn(p, 'given', lang) !== null || writtenIn(p, 'family', lang) !== null)
+    .map((lang) => ({ given: textOf(p, 'given', lang), family: textOf(p, 'family', lang) }));
+  return names.length ? names : [{ given: p.given, family: p.family }];
 }
 
 /* The partner whose branch a couple is drawn on. */

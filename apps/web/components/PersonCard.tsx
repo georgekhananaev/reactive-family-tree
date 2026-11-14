@@ -7,25 +7,31 @@
  */
 
 import { describeKinship } from '@reactive-family-tree/core';
-import type { EditView, Op, PersonDetail, Relation, Relationship, TreePerson } from '@reactive-family-tree/core';
+import type { EditView, FactView, MemoryView, Op, PersonDetail, Relation, Relationship, Sex, TreePerson, UnionView } from '@reactive-family-tree/core';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent, ReactNode, Ref } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, Ref } from 'react';
 
 import { api } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import type { CardMode } from '@/lib/app-context';
 import { displayName, lifespan, when } from '@/lib/format';
 import { usePresence } from '@/lib/hooks';
+import { useT } from '@/lib/i18n';
+import type { WebPhrase } from '@/lib/i18n';
 
 import { AddForm } from './card/AddForm';
 import { CardForm } from './card/CardForm';
 import { CardHead } from './card/CardHead';
 import { EditForm } from './card/EditForm';
+import { InLang, factPieces } from './card/InLang';
+import { FACT_LABEL, IN_LANG, LANG_LABEL, capital } from './card/labels';
+import { LangTag } from './card/Written';
 import { Icon } from './Icon';
 
 const CLOSE_MS = 260;
 const PHONE = '(max-width: 640px)';
+const RELATION_LABEL: Record<Relation, WebPhrase> = { child: 'child', partner: 'partner', parent: 'parent', sibling: 'sibling' };
 
 export interface CardTarget {
   person: TreePerson;
@@ -52,8 +58,6 @@ interface Shown {
   pendingEdit: EditView | null;
 }
 
-const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
-
 export function PersonCard({ target, onSwitch, ref }: {
   target: CardTarget | null;
   /* Go to another way of showing the same person: reading, editing, adding a relative. */
@@ -61,6 +65,7 @@ export function PersonCard({ target, onSwitch, ref }: {
   ref: Ref<CardHandle>;
 }) {
   const app = useApp();
+  const { lang, t } = useT();
   const el = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const dirty = useRef(false);            // something typed here has not been saved
@@ -100,7 +105,7 @@ export function PersonCard({ target, onSwitch, ref }: {
   const [shown, setShown] = useState<Shown | null>(null);
   let ready: Shown | null = null;
   if (target && person) {
-    const kin = related.data?.connected ? describeKinship(related.data.steps) ?? 'related to you' : null;
+    const kin = related.data?.connected ? describeKinship(related.data.steps, lang) ?? t('related to you', { sex: person.masked ? null : person.sex }) : null;
     if (person.masked) ready = { target, detail: null, kin: null, pendingEdit: null };
     else if (person.pending) ready = pendingEdit.isPending ? null : { target, detail: null, kin: null, pendingEdit: pendingEdit.data ?? null };
     else if (detail.data && detail.data.id === personId && (!related.isEnabled || !related.isPending)) ready = { target, detail: detail.data, kin, pendingEdit: null };
@@ -274,7 +279,7 @@ export function PersonCard({ target, onSwitch, ref }: {
       ref={el}
       id="card"
       role="dialog"
-      aria-label={drawn ? displayName(drawn.target.person) : 'Person'}
+      aria-label={drawn ? displayName(drawn.target.person, lang) : t('Person')}
       tabIndex={-1}
       className={classes || undefined}
       hidden={!present}
@@ -284,15 +289,15 @@ export function PersonCard({ target, onSwitch, ref }: {
       onPointerCancel={endDrag}
     >
       <div className="card-grab" aria-hidden="true" />
-      <button type="button" className="close" aria-label="Close" onClick={() => app.select(null)}>×</button>
+      <button type="button" className="close" aria-label={t('Close')} onClick={() => app.select(null)}>×</button>
       <div ref={body} key={drawn ? `${drawn.target.person.id}:${drawn.target.mode}:${drawn.target.relation ?? ''}` : 'empty'} className="card-body swap">
         {content}
       </div>
       {asking && (
-        <div className="card-ask" role="alertdialog" aria-label="Unsaved changes">
-          <span>Leave without saving?</span>
-          <button type="button" className="small" autoFocus onClick={() => setAsking(null)}>Keep editing</button>
-          <button type="button" className="small danger" onClick={() => { dirty.current = false; const go = asking; setAsking(null); go(); }}>Discard</button>
+        <div className="card-ask" role="alertdialog" aria-label={t('Unsaved changes')}>
+          <span>{t('Leave without saving?')}</span>
+          <button type="button" className="small" autoFocus onClick={() => setAsking(null)}>{t('Keep editing')}</button>
+          <button type="button" className="small danger" onClick={() => { dirty.current = false; const go = asking; setAsking(null); go(); }}>{t('Discard')}</button>
         </div>
       )}
     </div>
@@ -301,15 +306,22 @@ export function PersonCard({ target, onSwitch, ref }: {
 
 /* ---------- The parts ---------- */
 
+/* The sex the relatives in a line share, if they all share one. */
+const alike = (people: readonly { sex?: Sex }[]): Sex => {
+  const first = people[0]?.sex;
+  return first && first !== 'unknown' && people.every((relative) => relative.sex === first) ? first : 'unknown';
+};
+
 function MaskedView({ person }: { person: TreePerson }) {
   const app = useApp();
+  const { lang, t } = useT();
   return (
     <>
-      <CardHead person={person} name={displayName(person)} lines={['Details are private']} />
-      <p className="hint-line">Living people are shown only to relatives who sign in.</p>
+      <CardHead person={person} name={displayName(person, lang)} lines={[t('Details are private')]} />
+      <p className="hint-line">{t('Living people are shown only to relatives who sign in.')}</p>
       {!app.session.user && (
         <div className="form-actions">
-          <button type="button" className="primary" onClick={() => app.openPanel('signin')}>Sign in</button>
+          <button type="button" className="primary" onClick={() => app.openPanel('signin')}>{t('Sign in')}</button>
         </div>
       )}
     </>
@@ -319,18 +331,19 @@ function MaskedView({ person }: { person: TreePerson }) {
 /* Someone who is only suggested or drafted so far. */
 function PendingView({ person, edit }: { person: TreePerson; edit: EditView | null }) {
   const app = useApp();
+  const { lang, t } = useT();
   if (person.masked || !person.pending) return null;
   const draft = person.pending.status === 'draft';
-  const lines = [person.born ? `born ${person.born}` : '', draft ? 'A draft, not on the tree yet' : `Suggested by ${person.pending.by}`].filter(Boolean);
+  const lines = [person.born ? t('born {year}', { year: person.born }) : '', draft ? t('A draft, not on the tree yet') : t('Suggested by {name}', { name: person.pending.by })].filter(Boolean);
   const editId = person.pending.editId;
   return (
     <>
-      <CardHead person={person} name={displayName(person)} bornAs={person.birthName} lines={lines} />
+      <CardHead person={person} name={displayName(person, lang)} bornAs={person.birthName} lines={lines} />
       {edit?.note && <p className="pencil">{edit.note}</p>}
-      <p className="hint-line">{draft ? 'Only you can see this until you apply it.' : 'Waiting for a steward or admin to decide.'}</p>
+      <p className="hint-line">{draft ? t('Only you can see this until you apply it.') : t('Waiting for a steward or admin to decide.')}</p>
       <div className="form-actions">
         <button type="button" className="primary" onClick={() => app.openPanel('inbox', { tab: draft || !edit?.canReview ? 'mine' : 'review', editId })}>
-          {draft ? 'Review the draft' : edit?.canReview ? 'Review it' : 'See the suggestion'}
+          {draft ? t('Review the draft') : edit?.canReview ? t('Review it') : t('See the suggestion')}
         </button>
       </div>
     </>
@@ -345,39 +358,52 @@ function PersonView({ person, detail: d, kin, onSwitch, onDirty }: {
   onDirty(dirty: boolean): void;
 }) {
   const app = useApp();
+  const { dir, t, tx, list } = useT();
   // The branch may be folded or shown from here, and the button has to say which it is now
   const [, redraw] = useState(0);
   const birth = d.facts.find((fact) => fact.type === 'birth');
   const death = d.facts.find((fact) => fact.type === 'death');
-  const life = [birth?.dateText && `born ${birth.dateText}`, death?.dateText && `died ${death.dateText}`].filter(Boolean).join(', ') || lifespan(d);
+  const life = [birth?.dateText && t('born {date}', { date: birth.dateText }), death?.dateText && t('died {date}', { date: death.dateText })].filter(Boolean).join(', ') || lifespan(d, t);
   const others = d.facts.filter((fact) => fact.type !== 'birth' && fact.type !== 'death');
+  // Words shown in another language can be written in the reader's by whoever may change this person
+  const write = d.editing !== 'none' ? () => onSwitch('edit') : undefined;
+  const placeFrom = birth?.words.from.place, bioFrom = d.words.from.bio;
   const go = (relative: PersonDetail['parents'][number], key: number) => (relative.id
     ? <button key={key} type="button" className="link" onClick={() => app.select(relative.id, { fly: true })}>{relative.name}</button>
     : <span key={key}>{relative.name}</span>);
-  const sentence = (label: string, people: PersonDetail['parents']) => (people.length ? (
-    <li>
-      {label}{' '}
-      {people.flatMap((relative, index) => [index ? (index === people.length - 1 ? ' and ' : ', ') : '', go(relative, index)])}
-    </li>
+  // What stands before the last of several names: " and " in English, and in Hebrew a letter joined onto the name
+  const andBefore = (name: string) => { const said = list(['', name]); return said.slice(0, said.length - name.length); };
+  const named = (people: PersonDetail['parents']) => people.flatMap((relative, index) => [index ? (index === people.length - 1 ? andBefore(relative.name) : ', ') : '', go(relative, index)]);
+  // A line of relatives. Its sentence may count them, follow the person's sex, or theirs ("Сестра:", "בנות:"), as each language needs.
+  const sentence = (phrase: WebPhrase, people: PersonDetail['parents']) => (people.length ? (
+    <li>{tx(phrase, { names: named(people), n: people.length, sex: d.sex, them: alike(people) })}</li>
   ) : null);
+  const partnerLine = (union: UnionView) => {
+    if (!union.partner) return null;
+    const ended = union.status === 'ended';
+    const phrase = union.since ? (ended ? 'Was partner of {name} since {year}' : 'Partner of {name} since {year}') : ended ? 'Was partner of {name}' : 'Partner of {name}';
+    // Hebrew follows this person's sex ("she is the partner of"), Russian the partner's ("Husband: David")
+    return <li>{tx(phrase, { name: go(union.partner, 0), year: union.since, sex: d.sex, partner: union.partner.sex ?? 'unknown' })}</li>;
+  };
   const branch = app.view?.hasBranch(d.id) ?? null;
   const self = !person.masked && !person.pending ? person : null;
+  const birthPlace = birth?.place && <><InLang text={birth.place} lang={placeFrom} />{placeFrom && <>{' '}<LangTag lang={placeFrom} onWrite={write} /></>}</>;
 
   return (
     <>
-      <CardHead person={person} name={d.name} bornAs={d.birthName} lines={[life, birth?.place ?? ''].filter(Boolean)}>
+      <CardHead person={person} name={d.name} bornAs={d.birthName} lines={[life, birthPlace].filter(Boolean)}>
         {/* What they are to the person reading: tap it to see the way between the two leaves */}
-        {d.isSelf ? <p className="kin">This is you</p> : kin && self && (
+        {d.isSelf ? <p className="kin">{t('This is you')}</p> : kin && self && (
           <p className="kin"><button type="button" className="link" onClick={() => app.showRelationship(self)}>{capital(kin)}</button></p>
         )}
       </CardHead>
       {d.waiting.map((edit) => (
         <div key={edit.id} className="pencil">
-          <div>{edit.author} suggests: {edit.lines.map((line) => [line.text, ...line.fields.map((field) => `${field.was ?? ''} → ${field.to}`)].join(' ')).join('; ')}</div>
-          {edit.note && <div>“{edit.note}”</div>}
+          <div>{t('{name} suggests: {changes}', { name: edit.author, changes: edit.lines.map((line) => [line.text, ...line.fields.map((field) => `${field.was ?? ''} ${dir === 'rtl' ? '←' : '→'} ${field.to}`)].join(' ')).join('; ') })}</div>
+          {edit.note && <div>{t('“{note}”', { note: edit.note })}</div>}
           <div className="form-actions">
             <button type="button" className="small" onClick={() => app.openPanel('inbox', { tab: edit.canReview ? 'review' : 'mine', editId: edit.id })}>
-              {edit.canReview ? 'Review' : 'Open'}
+              {edit.canReview ? t('Review') : t('Open')}
             </button>
           </div>
         </div>
@@ -387,48 +413,49 @@ function PersonView({ person, detail: d, kin, onSwitch, onDirty }: {
         <ul className="facts">
           {others.map((fact) => (
             <li key={fact.id}>
-              <span className="kind">{fact.type}</span>
-              <span className="what">{[fact.value, fact.dateText, fact.place].filter(Boolean).join(', ')}</span>
+              <span className="kind">{t(FACT_LABEL[fact.type])}</span>
+              <FactWhat fact={fact} onWrite={write} />
             </li>
           ))}
         </ul>
       )}
 
-      <h3>Family</h3>
+      <h3>{t('Family')}</h3>
       <ul className="relatives">
-        {sentence('Child of', d.parents)}
+        {sentence('Child of {names}', d.parents)}
         {d.unions.map((union) => (
           <UnionLines key={union.id}>
-            {union.partner && <li>{union.status === 'ended' ? 'Was partner of ' : 'Partner of '}{go(union.partner, 0)}{union.since ? ` since ${union.since}` : ''}</li>}
-            {sentence(union.children.length === 1 ? 'Child:' : 'Children:', union.children)}
+            {partnerLine(union)}
+            {sentence('{n#Child:|Children:} {names}', union.children)}
           </UnionLines>
         ))}
-        {sentence(d.siblings.length === 1 ? 'Sibling:' : 'Siblings:', d.siblings)}
-        {!d.parents.length && !d.unions.length && <li>Nobody is connected yet.</li>}
+        {sentence('{n#Sibling:|Siblings:} {names}', d.siblings)}
+        {!d.parents.length && !d.unions.length && <li>{t('Nobody is connected yet.')}</li>}
       </ul>
 
-      {d.bio && <><h3>Story</h3><p className="story">{d.bio}</p></>}
+      {d.bio && (
+        <>
+          <h3>{t('Story')}</h3>
+          <p className="story" lang={bioFrom} dir={bioFrom && 'auto'}>{d.bio}</p>
+          {bioFrom && <p className="hint-line"><LangTag lang={bioFrom} onWrite={write} /></p>}
+        </>
+      )}
 
-      {(d.memories.length > 0 || app.session.user) && <h3>Memories</h3>}
-      {d.memories.map((memory) => (
-        <div key={memory.id} className="memory">
-          <p>{memory.body}</p>
-          <small>{memory.author}, {when(memory.at)}</small>
-        </div>
-      ))}
+      {(d.memories.length > 0 || app.session.user) && <h3>{t('Memories')}</h3>}
+      {d.memories.map((memory) => <Memory key={memory.id} memory={memory} name={d.name} onDirty={onDirty} />)}
       {app.session.user && <MemoryForm detail={d} onDirty={onDirty} />}
 
       <div className="form-actions">
-        {d.editing !== 'none' && <button type="button" className="primary" onClick={() => onSwitch('edit')}>{d.editing === 'apply' ? 'Edit' : 'Suggest a fix'}</button>}
-        <button type="button" onClick={() => void app.focusOn(d.id)}>Focus here</button>
-        {branch && <button type="button" onClick={() => { app.view?.toggleBranch(d.id); redraw((count) => count + 1); }}>{branch.collapsed ? 'Show branch' : 'Fold branch'}</button>}
-        {app.session.user && <button type="button" onClick={() => app.openPanel('history', { personId: d.id, name: d.name })}>History</button>}
+        {d.editing !== 'none' && <button type="button" className="primary" onClick={() => onSwitch('edit')}>{d.editing === 'apply' ? t('Edit') : t('Suggest a fix')}</button>}
+        <button type="button" onClick={() => void app.focusOn(d.id)}>{t('Focus here')}</button>
+        {branch && <button type="button" onClick={() => { app.view?.toggleBranch(d.id); redraw((count) => count + 1); }}>{branch.collapsed ? t('Show branch') : t('Fold branch')}</button>}
+        {app.session.user && <button type="button" onClick={() => app.openPanel('history', { personId: d.id, name: d.name })}>{t('History')}</button>}
       </div>
       {d.editing !== 'none' && (
         <div className="add-row">
-          <span>Add a</span>
+          <span>{t('Add a')}</span>
           {(app.view?.addable(d.id) ?? []).map((relation) => (
-            <button key={relation} type="button" className="small" onClick={() => onSwitch('add', relation)}><Icon name={relation} />{relation}</button>
+            <button key={relation} type="button" className="small" onClick={() => onSwitch('add', relation)}><Icon name={relation} />{t(RELATION_LABEL[relation])}</button>
           ))}
         </div>
       )}
@@ -439,18 +466,73 @@ function PersonView({ person, detail: d, kin, onSwitch, onDirty }: {
 /* The lines of one partnership, kept together in the list. */
 const UnionLines = ({ children }: { children: ReactNode }) => <>{children}</>;
 
+/* What a fact says, and after words shown in another language, one tag that says which. */
+function FactWhat({ fact, onWrite }: { fact: FactView; onWrite?: () => void }) {
+  const from = fact.words.from.value ?? fact.words.from.place;
+  return (
+    <span className="what">
+      {factPieces(fact)}
+      {from && <>{' '}<LangTag lang={from} onWrite={onWrite} /></>}
+    </span>
+  );
+}
+
+/* Cmd or Ctrl with Enter sends a memory: Enter alone starts a new line in it. */
+const sendOnCtrlEnter = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) event.currentTarget.form?.requestSubmit();
+};
+
+/* A memory as it was told. One told in another language can be told again in the reader's, by those who may. */
+function Memory({ memory, name, onDirty }: { memory: MemoryView; name: string; onDirty(dirty: boolean): void }) {
+  const app = useApp();
+  const { lang, t } = useT();
+  const [telling, setTelling] = useState(false);
+  const [text, setText] = useState('');
+  const from = memory.words.from.body;
+  const language = t(LANG_LABEL[lang]);
+  const told = t('A memory of {name}, in {language}', { name, language });
+  const stop = () => {
+    setTelling(false);
+    setText('');
+    onDirty(false);
+  };
+  return (
+    <div className="memory">
+      <p lang={from} dir={from && 'auto'}>{memory.body}</p>
+      <small>{memory.author}, {when(memory.at, lang, (time) => t('today, {time}', { time }))}{from && `, ${t(IN_LANG[from])}`}</small>
+      {from && memory.canTranslate && !telling && <>{' '}<button type="button" className="link" onClick={() => setTelling(true)}>{t('Tell it in {language}', { language })}</button></>}
+      {telling && (
+        <CardForm
+          saveLabel={t('Save')}
+          small
+          onDirty={() => onDirty(Boolean(text.trim()))}
+          onCancel={stop}
+          onSave={async () => {
+            if (!text.trim()) return;
+            await app.submit([{ type: 'memory.translate', memory: memory.id, lang, body: text.trim() }], told);
+            stop();
+          }}
+        >
+          <textarea className="short" rows={2} dir="auto" value={text} aria-label={told} autoFocus onChange={(event) => setText(event.target.value)} onKeyDown={sendOnCtrlEnter} />
+        </CardForm>
+      )}
+    </div>
+  );
+}
+
 function MemoryForm({ detail: d, onDirty }: { detail: PersonDetail; onDirty(dirty: boolean): void }) {
   const app = useApp();
+  const { lang, t } = useT();
   const [text, setText] = useState('');
   return (
     <CardForm
-      saveLabel="Add memory"
+      saveLabel={t('Add memory')}
       small
       onDirty={() => onDirty(Boolean(text.trim()))}
       onSave={async () => {
         if (!text.trim()) return;
-        const ops: Op[] = [{ type: 'memory.add', person: d.id, body: text }];
-        await app.submit(ops, `A memory of ${d.name}`, { quiet: 'Memory added' });
+        const ops: Op[] = [{ type: 'memory.add', person: d.id, body: text, lang }];
+        await app.submit(ops, t('A memory of {name}', { name: d.name }), { quiet: t('Memory added') });
         setText('');
         onDirty(false);
       }}
@@ -458,11 +540,12 @@ function MemoryForm({ detail: d, onDirty }: { detail: PersonDetail; onDirty(dirt
       <textarea
         className="short"
         rows={2}
+        dir="auto"
         value={text}
-        placeholder={`Share a memory of ${d.given || 'them'}`}
-        aria-label={`A memory of ${d.name}`}
+        placeholder={d.given ? t('Share a memory of {name}', { name: d.given }) : t('Share a memory of them')}
+        aria-label={t('A memory of {name}', { name: d.name })}
         onChange={(event) => setText(event.target.value)}
-        onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) event.currentTarget.form?.requestSubmit(); }}
+        onKeyDown={sendOnCtrlEnter}
       />
     </CardForm>
   );

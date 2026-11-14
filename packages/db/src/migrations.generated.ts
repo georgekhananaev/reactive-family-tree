@@ -84,5 +84,17 @@ export const MIGRATIONS: Migration[] = [
       "CREATE TABLE `media` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`size` integer NOT NULL,\n\t`uploaded_by` text,\n\t`created_at` text NOT NULL\n);",
       "ALTER TABLE `person` ADD `portrait` text;"
     ]
+  },
+  {
+    "name": "0002_languages",
+    "statements": [
+      "ALTER TABLE `fact` ADD `lang` text DEFAULT 'en' NOT NULL;",
+      "ALTER TABLE `fact` ADD `tr` text DEFAULT '{}' NOT NULL;",
+      "ALTER TABLE `memory` ADD `lang` text DEFAULT 'en' NOT NULL;",
+      "ALTER TABLE `memory` ADD `tr` text DEFAULT '{}' NOT NULL;",
+      "ALTER TABLE `person` ADD `lang` text DEFAULT 'en' NOT NULL;",
+      "ALTER TABLE `person` ADD `tr` text DEFAULT '{}' NOT NULL;",
+      "ALTER TABLE `user` ADD `language` text;"
+    ]
   }
 ];

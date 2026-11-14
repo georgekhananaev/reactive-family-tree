@@ -1,5 +1,8 @@
 /* The rules of a family tree, in one place. */
 
+export * from './lang';
+export * from './words';
+export * from './text';
 export * from './dates';
 export * from './graph';
 export * from './ops';

@@ -109,8 +109,9 @@ Only `data` is required.
 | `tints` | `ReadonlyMap<string, string> \| null` | Ring each person's leaf in a colour, by person id. |
 | `faces` | `boolean` | Show a round photo in place of the leaf, for everyone who has one. |
 | `portraitOf` | `(person) => string \| null` | Where someone's photo is. Asked only while `faces` is on, for people whose `portrait` is set. |
-| `insets` | `{ right: number; top: number }` | Room taken by an open side panel and a banner, in pixels. The tree keeps clear of it. |
+| `insets` | `{ right: number; top: number; left?: number }` | Room taken by an open side panel and a banner, in pixels. The tree keeps clear of it. A page read from the right opens its panel on the left. |
 | `label` | `string` | What a screen reader calls the drawing. The default is "The family tree". |
+| `labels` | `Partial<TreeLabels>` | The few words drawn on the tree or read out by a screen reader, in your page's language: `showBranch`, `livingRelative`, `unknown`, `draft`, `suggested`, `relations` (the word under each + bud) and `addRelation(relation)`. Anything left out is English. Names come from `data`, so put them in the reader's language there. |
 | `className` | `string` | A class for the stage. |
 | `ref` | `Ref<FamilyTreeHandle>` | The handle described below. |
 
@@ -154,6 +155,7 @@ The handle works from the moment the component is on the page. Before that, and 
 ## Look and motion
 
 - **Light and dark.** Every colour is a CSS custom property. Dark is `data-theme="dark"` on the `<html>` element.
+- **Right to left.** On a page with `dir="rtl"` the tree itself is not mirrored: a family is drawn the same way for everyone. Give the stage `direction: ltr` so its labels sit where they are placed, and pass `insets.left` for a panel that opens on the left.
 - **Type.** Names are set in Literata and controls in Source Sans 3. Load the two fonts yourself. Without them the tree falls back to Georgia and the system font.
 - **The sky.** By day there is a sun, and in the dark a moon and stars. The moon is the real one: it shows tonight's phase, worked out from the date and time, and its glow is strong when it is full and nearly gone when it is new. Give the tree a `place` and the moon is turned the way it is seen from there, lit on the right from the north, on the left from the south, and from below near the equator. Near sunrise and sunset in that place the sun is warmer. Without a place the moon is drawn as it is seen from the north. The sun, the moon and the stars are far away, so they keep their place and nearly their size while the tree is moved and zoomed, and they fade when someone comes close to read. While `playing` is on the moon is hidden, since it is tonight's moon and the years are going by.
 - **Reduced motion.** If the device asks for less motion, the tree is shown fully grown at once and nothing moves by itself. Adding `#still` to the page's address does the same. The component sets a `still` class on `<html>` so your own page can follow.

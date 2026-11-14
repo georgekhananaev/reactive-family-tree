@@ -34,7 +34,7 @@ This family tree has not been set up yet. Open this link to claim it:
 
 Open the link. The setup has five short steps:
 
-1. **You.** Your name and email. This makes you the owner of the tree.
+1. **You.** The language, then your name and email. This makes you the owner of the tree, and the language becomes the family's own.
 2. **The family.** What the tree is called. You can also create a passkey here, so signing in works before email is set up.
 3. **A starting point.** Your own leaf, or a GEDCOM file from other family tree software. You can skip this.
 4. **The look.** Whether the tree opens light or dark for the family. Skip it, and it follows each person's device. Either way, everyone can still switch for themselves.

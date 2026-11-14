@@ -1,8 +1,13 @@
 import type { Metadata } from 'next';
 
+import { getT } from '@/lib/i18n/server';
+
 import { Consent } from './Consent';
 
-export const metadata: Metadata = { title: 'Connect your AI', robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT();
+  return { title: t('Connect your AI'), robots: { index: false } };
+}
 
 /* The question an AI client's sign-in ends with: may it act for you? */
 export default function ConsentPage() {

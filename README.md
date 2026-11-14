@@ -27,6 +27,11 @@ own relatives, with nothing sent anywhere else.
   in tonight's phase. Tell the tree roughly where the family is, and the moon is
   turned the way it is seen from there, and the sun is warmer near sunrise and
   sunset.
+- **In English, Hebrew and Russian.** Everyone reads the tree in their own
+  language, with Hebrew read from the right. A person's names, story and
+  memories can be written in all three, so relatives who read different
+  languages see the same family. Where a translation is missing, the words
+  show as they were first written.
 - **The living stay private.** A new tree is closed to strangers. If the family
   opens it, living people still appear as unnamed leaves unless they choose
   otherwise themselves.

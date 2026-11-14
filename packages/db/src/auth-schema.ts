@@ -25,6 +25,7 @@ export const user = sqliteTable('user', {
     .notNull(),
   role: text('role').default('member'),
   personId: text('personId'),
+  language: text('language'),
 });
 
 export const session = sqliteTable(

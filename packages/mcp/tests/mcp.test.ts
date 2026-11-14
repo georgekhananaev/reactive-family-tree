@@ -135,7 +135,8 @@ test('a small local model is offered the simple set of tools, and an admin conne
   const admin = aiClient(keeper.token);
   const all: string[] = (await admin.rpc('tools/list')).body.result.tools.map((t: { name: string }) => t.name);
   expect(all).toContain('review_suggestion');
-  expect(all.length, 'everything a member is offered, and the five admin tools').toBe(27);
+  expect(all.length, 'everything a member is offered, and the seven admin tools').toBe(29);
+  expect(all).toEqual(expect.arrayContaining(['list_translations', 'set_translations']));
   const waiting = await admin.tool('list_suggestions');
   expect(waiting.data.suggestions.length).toBeGreaterThan(0);
 });
@@ -213,3 +214,60 @@ test('the official client library connects, and is told the house rules', async 
   expect(who.structuredContent).toMatchObject({ member: 'Nora Bell', changes_arrive_as: 'a draft the member approves' });
   await client.close();
 });
+
+test('an AI reads and writes in any of the three languages, and an admin\u2019s fills in what is missing', async () => {
+  const nora = browser(demo.app);
+  await nora.signInAs('nora');
+  const direct = aiClient((await nora.post('/api/connections', { name: 'Polyglot', mode: 'apply_directly' })).data.token);
+  const iris = demo.idOf('Iris');
+  const me = await direct.tool('whoami');
+  expect([me.data.languages, me.data.family_language]).toEqual([['en', 'he', 'ru'], 'en']);
+
+  // The member's words written in Hebrew are kept beside the English, and read back in either
+  expect((await direct.tool('update_person', { person: iris, given: 'איריס', language: 'he' })).data.status).toBe('applied');
+  expect((await direct.tool('get_person', { person: iris, language: 'he' })).data.given).toBe('איריס');
+  expect((await direct.tool('get_person', { person: iris })).data.given, 'the member reads English').toBe('Iris');
+  const shown = await direct.tool('get_person', { person: iris, language: 'ru' });
+  expect(shown.data.words.from, 'not written in Russian: shown as first written').toMatchObject({ given: 'en' });
+  expect((await direct.tool('search_people', { query: 'איריס' })).data.people.map((p: { id: string }) => p.id)).toContain(iris);
+  expect((await direct.tool('list_translations', { language: 'ru' })).rpcError || (await direct.tool('list_translations', { language: 'ru' })).isError, 'a member\u2019s AI is not offered the translation tools').toBeTruthy();
+
+  // An admin's AI lists what is missing in Russian and writes it
+  const peter = browser(demo.app);
+  await peter.signInAs('peter');
+  const keeper = aiClient((await peter.post('/api/connections', { name: 'Translator', access: 'admin', mode: 'apply_directly' })).data.token);
+  const missing = await keeper.tool('list_translations', { language: 'ru', person: iris });
+  const given = missing.data.items.find((item: { field: string }) => item.field === 'given');
+  expect([given.kind, given.written_in, given.original]).toEqual(['person', 'en', 'Iris']);
+  const written = await keeper.tool('set_translations', { language: 'ru', entries: [
+    { kind: 'person', id: iris, field: 'given', text: 'Ирис' },
+    { kind: 'family', id: 'family', field: 'familyName', text: 'Семья Марлоу' },
+  ] });
+  expect([written.data.edit.status, written.data.family_words_saved]).toEqual(['applied', ['familyName']]);
+  expect((await keeper.tool('get_person', { person: iris, language: 'ru' })).data.given).toBe('Ирис');
+  expect((await browser(demo.app, undefined, 'ru').get('/api/session')).data.settings.familyName).toBe('Семья Марлоу');
+  expect((await keeper.tool('list_translations', { language: 'ru', person: iris })).data.items.some((item: { field: string }) => item.field === 'given')).toBe(false);
+  expect((await keeper.tool('set_translations', { language: 'ru', entries: [{ kind: 'fact', id: 'x', field: 'given', text: 'x' }] })).isError).toBe(true);
+});
+
+test('what a member\u2019s AI is offered, and what it calls its edits, are in the member\u2019s language', async () => {
+  const nora = browser(demo.app);
+  await nora.signInAs('nora');
+  await nora.patch('/api/me/language', { language: 'ru' });
+  const ai = aiClient((await nora.post('/api/connections', { name: 'Russian', mode: 'apply_directly' })).data.token);
+  const prompts: { name: string; description: string }[] = (await ai.rpc('prompts/list')).body.result.prompts;
+  expect(prompts.map((prompt) => prompt.name), 'a prompt is called by the same name in every language').toContain('interview_me');
+  expect(prompts.every((prompt) => /[а-яё]/.test(prompt.description) && !/[a-z]{4,}/.test(prompt.description))).toBe(true);
+  const asked = (await ai.rpc('prompts/get', { name: 'tidy_my_branch' })).body.result.messages[0].content.text;
+  expect(asked).toMatch(/list_gaps/);
+  expect(asked).toMatch(/[а-яё]{4,}/);
+
+  // The edit is named for the family's history, where relatives read it
+  const saved = await ai.tool('update_person', { person: demo.idOf('Iris'), bio: 'Играет на виолончели.' });
+  expect(saved.data.status).toBe('applied');
+  const history = (await nora.get(`/api/edits?which=activity&person=${demo.idOf('Iris')}`)).data.edits[0];
+  expect(history.message).toMatch(/[а-яё]{3,}/);
+  expect(history.message).not.toMatch(/Update|Change/);
+  await nora.patch('/api/me/language', { language: null });
+});
+

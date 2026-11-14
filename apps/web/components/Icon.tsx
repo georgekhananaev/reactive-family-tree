@@ -32,6 +32,7 @@ const ICONS = {
   passkey: `${ring(8, 16, 3.5)} M10.5 13.5L19.5 4.5 M16 8l2.5 2.5 M13 11l2 2`,
   face: `${ring(12, 9, 3.8)} M4.8 20.5c.8-4 3.6-6 7.2-6s6.4 2 7.2 6`,
   chevron: 'M6.5 9.5l5.5 5.5 5.5-5.5',
+  globe: `${ring(12, 12, 8.5)} M3.5 12h17 M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5 M12 3.5c-2.4 2.3-3.6 5.1-3.6 8.5s1.2 6.2 3.6 8.5`,
 } as const;
 
 export type IconName = keyof typeof ICONS;

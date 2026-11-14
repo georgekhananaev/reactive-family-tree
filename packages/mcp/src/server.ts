@@ -8,6 +8,7 @@
  */
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/server';
+import { familyText } from '@reactive-family-tree/server';
 import type { App } from '@reactive-family-tree/server';
 
 import release from '../package.json';
@@ -20,7 +21,10 @@ const PLAIN = 'text/plain';
 export function buildServer(app: App, caller: Caller, recentWrites: RecentWrites): McpServer {
   const { store, views } = app;
   const { settings } = store;
-  const server = new McpServer({ name: 'reactive-family-tree', title: settings.familyName, version: release.version }, { instructions: INSTRUCTIONS });
+  // The family's own words, and what the member picks from, are in the language the member reads the tree in
+  const lang = caller.actor.lang ?? settings.language;
+  const familyName = familyText(settings, 'familyName', lang);
+  const server = new McpServer({ name: 'reactive-family-tree', title: familyName, version: release.version }, { instructions: INSTRUCTIONS });
 
   registerTools(server, app, caller, recentWrites);
 
@@ -32,16 +36,16 @@ export function buildServer(app: App, caller: Caller, recentWrites: RecentWrites
     const tree = await views.tree(caller.actor);
     const years = tree.people.flatMap((p) => (!p.masked && !p.pending && p.born ? [p.born] : []));
     const range = years.length ? `, born ${Math.min(...years)} to ${Math.max(...years)}` : '';
-    return `${settings.familyName}. ${settings.description}\n${tree.people.length} people${range}.\nYou act for ${caller.actor.name}.`;
+    return `${familyName}. ${familyText(settings, 'description', lang)}\n${tree.people.length} people${range}.\nYou act for ${caller.actor.name}.`;
   });
   fixed('guidelines', 'This family’s conventions for names and dates, and the rules every AI follows here.',
-    () => `${settings.guidelines || 'This family has not written its own conventions yet.'}\n\n${INSTRUCTIONS}`);
+    () => `${familyText(settings, 'guidelines', lang) || 'This family has not written its own conventions yet.'}\n\n${INSTRUCTIONS}`);
   fixed('schema', 'A short guide to the data: fact types, how dates are written, kinds of relatives.', () => SCHEMA_GUIDE);
   server.registerResource('person', new ResourceTemplate('tree://person/{id}', { list: undefined }), { description: 'One person as a document.', mimeType: PLAIN },
     async (uri, { id }) => ({ contents: [{ uri: uri.href, mimeType: PLAIN, text: JSON.stringify(await views.person(caller.actor, String(id)), null, 2) }] }));
 
   for (const prompt of PROMPTS) {
-    server.registerPrompt(prompt.name, { description: prompt.description }, () => ({ messages: [{ role: 'user', content: { type: 'text', text: prompt.text } }] }));
+    server.registerPrompt(prompt.name, { description: prompt.description[lang] }, () => ({ messages: [{ role: 'user', content: { type: 'text', text: prompt.text[lang] } }] }));
   }
   return server;
 }

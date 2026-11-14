@@ -13,6 +13,7 @@ import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react
 import type { CSSProperties, Ref } from 'react';
 
 import { usePresence } from '@/lib/hooks';
+import { useT } from '@/lib/i18n';
 
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
@@ -46,6 +47,7 @@ export interface PetalMenuHandle {
 }
 
 export function PetalMenu({ request, onClose, ref }: { request: PetalRequest | null; onClose(): void; ref: Ref<PetalMenuHandle> }) {
+  const { t } = useT();
   const { present, shown } = usePresence(request !== null, CLOSE_MS);
   // While it closes there is no request any more, so the last one stays drawn
   const last = useRef(request);
@@ -118,7 +120,7 @@ export function PetalMenu({ request, onClose, ref }: { request: PetalRequest | n
       className={shown ? 'petal-menu open' : 'petal-menu'}
       hidden={!present}
       role="menu"
-      aria-label={drawn ? `Actions for ${drawn.title}` : undefined}
+      aria-label={drawn ? t('Actions for {name}', { name: drawn.title }) : undefined}
       style={ring ? ({ '--x': `${ring.cx}px`, '--y': `${ring.cy}px` } as CSSProperties) : undefined}
       onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
       onContextMenu={(event) => event.preventDefault()}

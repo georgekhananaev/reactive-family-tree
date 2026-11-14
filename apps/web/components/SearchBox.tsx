@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { usePresence } from '@/lib/hooks';
+import { useT } from '@/lib/i18n';
 
 import { arrowThrough } from './ui';
 
@@ -25,6 +26,7 @@ export function SearchBox({ open, onClose, onMatches }: {
   onMatches(ids: ReadonlySet<string> | null): void;
 }) {
   const app = useApp();
+  const { t, tx } = useT();
   const { present, shown } = usePresence(open, 160);
   const [text, setText] = useState('');
   const [found, setFound] = useState<{ query: string; people: SearchHit[] }>({ query: '', people: [] });
@@ -77,23 +79,23 @@ export function SearchBox({ open, onClose, onMatches }: {
         }
       }}
     >
-      <input ref={input} id="searchInput" type="search" placeholder="Search by name, year or place" autoComplete="off" aria-label="Search people" aria-controls="searchResults" value={text} onChange={(event) => setText(event.target.value)} />
+      <input ref={input} id="searchInput" type="search" placeholder={t('Search by name, year or place')} autoComplete="off" aria-label={t('Search people')} aria-controls="searchResults" value={text} onChange={(event) => setText(event.target.value)} />
       <ul ref={list} id="searchResults">
         {found.people.length || !found.query ? found.people.map((person) => (
           <li key={person.id}>
             <button type="button" onClick={() => go(person)}>
               <span>
                 {marked(person.name, found.query)}
-                {person.birthName && <small> born {marked(person.birthName, found.query)}</small>}
+                {person.birthName && <small> {tx('born {name}', { name: marked(person.birthName, found.query) })}</small>}
               </span>
               <small>{person.born ? `${person.born}${person.died ? `–${person.died}` : ''}` : ''}</small>
             </button>
           </li>
         )) : (
-          <li className="empty">{app.session.user ? 'Nobody by that name.' : 'Nobody by that name. Living people can be found only by relatives who sign in.'}</li>
+          <li className="empty">{app.session.user ? t('Nobody by that name.') : t('Nobody by that name. Living people can be found only by relatives who sign in.')}</li>
         )}
       </ul>
-      <p className="search-keys" aria-hidden="true">Arrow keys to move, Enter to go, Esc to close</p>
+      <p className="search-keys" aria-hidden="true">{t('Arrow keys to move, Enter to go, Esc to close')}</p>
     </div>
   );
 }

@@ -5,20 +5,24 @@
  */
 
 import {
-  ADDITIVE, applyOps, birthUnions, bornYear, childrenOf, cloneState, factVisible, factsOf, formatDate, fullName, hostOf, indexOf,
-  isAdmin, isLiving, livingChildren, livingPartners, parentsOf, partnersOf, pathBetween, person, present, scopeOf, unionsOf, validate, viewOf, yearOf,
+  ADDITIVE, LANGS, TEXT_FIELDS, applyOps, birthUnions, bornYear, childrenOf, cloneState, factVisible, factsOf, formatDate, fullName, hostOf, indexOf,
+  isAdmin, isLiving, issueText, livingChildren, livingPartners, parentsOf, partnersOf, pathBetween, person, present, say, scopeOf, textOf, unionsOf, validate, viewOf, wordsOf, writtenIn, yearOf,
 } from '@reactive-family-tree/core';
 import type {
-  Actor, Change, Fact, FactType, HealthEntry, HealthReport, PendingMark, Person, PersonDetail, Reach, Relationship, RelativeBrief, Scope, SearchHit, State, TreePerson, TreeSnapshot,
+  Actor, Change, Fact, FactType, HealthEntry, HealthReport, Lang, PendingMark, Person, PersonDetail, Reach, Relationship, RelativeBrief, Scope, SearchHit, State, TreePerson, TreeSnapshot,
   TreeUnion,
 } from '@reactive-family-tree/core';
 
 import type { Edits } from './edits';
 import { forbidden, notFound } from './errors';
 import type { Members } from './members';
+import { familyText } from './settings';
 import type { FamilyStore } from './store';
 
 const thisYear = () => new Date().getFullYear();
+
+/* Text made ready for comparing: small letters, and no accents or Hebrew vowel points to trip over. */
+const fold = (text: string): string => text.normalize('NFKD').replace(/[\u0300-\u036f\u0591-\u05c7]/g, '').toLowerCase();
 
 /* Everything needed to answer "who can this viewer see, and how much". */
 interface Lens {
@@ -47,6 +51,8 @@ export class Views {
 
   private get state(): State { return this.store.state; }
   private get settings() { return this.store.settings; }
+  /* The language someone reads the tree in: their own, or the family's. */
+  langOf(actor: Pick<Actor, 'lang'>): Lang { return actor.lang ?? this.settings.language; }
 
   private lens(actor: Actor, state: State = this.state): Lens {
     const ix = indexOf(state);
@@ -99,7 +105,8 @@ export class Views {
 
   /* The whole tree, as much as this viewer may see. */
   async tree(actor: Actor): Promise<TreeSnapshot> {
-    const family = { name: this.settings.familyName, description: this.settings.description, visibility: this.settings.visibility };
+    const lang = this.langOf(actor);
+    const family = { name: familyText(this.settings, 'familyName', lang), description: familyText(this.settings, 'description', lang), visibility: this.settings.visibility };
     if (this.closedTo(actor)) return { seq: this.store.seq, family, closed: true, people: [], unions: [], rootId: null };
 
     const { state, marks } = await this.withPending(actor);
@@ -119,7 +126,7 @@ export class Views {
       }
       shown.set(p.id, p.id);
       people.push({
-        id: p.id, given: p.given, family: p.family, birthName: p.birthName, sex: p.sex,
+        id: p.id, given: textOf(p, 'given', lang), family: textOf(p, 'family', lang), birthName: textOf(p, 'birthName', lang), sex: p.sex,
         born: lens.born(p.id), died: lens.died(p.id),
         gone: !lens.living(p), privacy: p.privacy, portrait: p.portrait, pending, editing: pending ? 'none' : lens.editing(p.id),
       });
@@ -153,17 +160,18 @@ export class Views {
     const p = person(state, id);
     if (!p || lens.view(p) === 'masked') throw notFound('That person is not on the tree, or is private.');
     const { ix } = lens;
+    const lang = this.langOf(actor);
 
     const brief = (personId: string): RelativeBrief | null => {
       const other = person(state, personId);
       if (!other) return null;
-      if (lens.view(other) === 'masked') return { id: null, name: 'Living relative', masked: true };
-      return { id: other.id, name: fullName(other), born: lens.born(other.id), died: lens.died(other.id) };
+      if (lens.view(other) === 'masked') return { id: null, name: say(lang, 'Living relative'), masked: true };
+      return { id: other.id, name: fullName(other, lang), sex: other.sex, born: lens.born(other.id), died: lens.died(other.id) };
     };
     const briefs = (ids: string[]) => ids.map(brief).filter((relative): relative is RelativeBrief => relative !== null);
     const facts = factsOf(ix, id).filter((fact) => factVisible(actor, lens.scope, fact, id)).map((fact) => ({
-      id: fact.id, type: fact.type, date: fact.date, dateText: formatDate(fact.date), place: fact.place,
-      value: fact.value, note: fact.note, certainty: fact.certainty, privacy: fact.privacy,
+      id: fact.id, type: fact.type, date: fact.date, dateText: formatDate(fact.date, lang), place: textOf(fact, 'place', lang),
+      value: textOf(fact, 'value', lang), note: textOf(fact, 'note', lang), certainty: fact.certainty, privacy: fact.privacy, words: wordsOf(fact, TEXT_FIELDS.facts, lang),
     }));
     const unions = unionsOf(ix, id).map((union) => {
       const partner = briefs(livingPartners(state, union).filter((other) => other !== id))[0] ?? null;
@@ -178,16 +186,21 @@ export class Views {
     });
     const born = birthUnions(ix, id)[0] ?? null;
     const siblings = born ? briefs(livingChildren(state, born).filter((child) => child.id !== id).map((child) => child.id)) : [];
+    const editing = lens.editing(id);
+    // The people who may tell a memory again in another language: its author, the person it is about, whoever looks after them
+    const mayRetell = (m: { authorUserId: string | null }) => !actor.visitor && (isAdmin(actor) || m.authorUserId === actor.userId || id === actor.personId || lens.scope.core.has(id) || lens.scope.partners.has(id));
     const memories = [...state.memories.values()].filter((m) => present(m) && m.personId === id && !actor.visitor)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      .map((m) => ({ id: m.id, author: m.authorName, body: m.body, at: m.createdAt, mine: m.authorUserId === actor.userId }));
+      .map((m) => ({
+        id: m.id, author: m.authorName, body: textOf(m, 'body', lang), at: m.createdAt, mine: m.authorUserId === actor.userId,
+        canTranslate: mayRetell(m), words: wordsOf(m, TEXT_FIELDS.memories, lang),
+      }));
     const pending = await this.edits.pendingFor(actor);
     const waiting = await this.edits.presentAll(pending.filter((edit) => edit.status === 'suggested' && edit.touched.includes(id)), actor);
-    const editing = lens.editing(id);
 
     return {
-      id, given: p.given, family: p.family, birthName: p.birthName, name: fullName(p), sex: p.sex, living: p.living,
-      gone: !lens.living(p), privacy: p.privacy, consented: Boolean(p.consentAt), bio: p.bio, portrait: p.portrait,
+      id, given: textOf(p, 'given', lang), family: textOf(p, 'family', lang), birthName: textOf(p, 'birthName', lang), name: fullName(p, lang), sex: p.sex, living: p.living,
+      gone: !lens.living(p), privacy: p.privacy, consented: Boolean(p.consentAt), bio: textOf(p, 'bio', lang), portrait: p.portrait, words: wordsOf(p, TEXT_FIELDS.people, lang),
       born: lens.born(id), died: lens.died(id), facts, unions, siblings, memories, waiting,
       parents: briefs(parentsOf(state, ix, id)), parentUnionId: born?.id ?? null,
       isSelf: id === actor.personId, editing,
@@ -205,16 +218,19 @@ export class Views {
   search(actor: Actor, query: unknown): SearchHit[] {
     if (this.closedTo(actor)) return [];
     const lens = this.lens(actor);
-    const words = String(query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+    const lang = this.langOf(actor);
+    const words = fold(String(query ?? '')).split(/\s+/).filter(Boolean);
     if (!words.length) return [];
     const results: SearchHit[] = [];
     for (const p of this.state.people.values()) {
       if (!present(p) || lens.view(p) === 'masked') continue;
-      // Only what this viewer may see is searched, or a hit would give away what the card hides
-      const born = lens.born(p.id);
-      const hay = `${p.given} ${p.family} ${p.birthName} ${born ?? ''} ${lens.fact(p.id, 'birth')?.place ?? ''}`.toLowerCase();
+      // Only what this viewer may see is searched, or a hit would give away what the card hides.
+      // A person is found by their name in any language it is written in, whatever language the search is typed in.
+      const born = lens.born(p.id), place = lens.fact(p.id, 'birth');
+      const every = (thing: Parameters<typeof writtenIn>[0], field: string) => LANGS.map((one) => writtenIn(thing, field, one) ?? '').join(' ');
+      const hay = fold(`${every(p, 'given')} ${every(p, 'family')} ${every(p, 'birthName')} ${born ?? ''} ${place ? every(place, 'place') : ''}`);
       if (words.every((word) => hay.includes(word))) {
-        results.push({ id: p.id, name: fullName(p), birthName: p.birthName, born, died: lens.died(p.id) });
+        results.push({ id: p.id, name: fullName(p, lang), birthName: textOf(p, 'birthName', lang), born, died: lens.died(p.id) });
       }
     }
     return results.slice(0, 25);
@@ -225,13 +241,14 @@ export class Views {
     const lens = this.lens(actor);
     const seen = (id: string) => { const p = person(this.state, id); return p && lens.view(p) === 'full' ? p : null; };
     if (this.closedTo(actor) || !seen(fromId) || !seen(toId)) throw notFound('One of those people is not on the tree, or is private.');
+    const lang = this.langOf(actor);
     const path = pathBetween(this.state, lens.ix, fromId, toId);
     if (!path) return { connected: false, steps: [] };
     return {
       connected: true,
       steps: path.map((step) => {
         const shown = seen(step.person);
-        return { how: step.how, name: shown ? fullName(shown) : 'a living relative', sex: shown?.sex ?? 'unknown' };
+        return { how: step.how, name: shown ? fullName(shown, lang) : say(lang, 'a living relative'), sex: shown?.sex ?? 'unknown' };
       }),
     };
   }
@@ -243,12 +260,14 @@ export class Views {
   outline(actor: Actor, rootId: string, direction: 'descendants' | 'ancestors' | 'both', depth: number): string {
     const state = this.state;
     const lens = this.lens(actor);
+    const lang = this.langOf(actor);
+    // Written for an AI, which reads the plain words around the names in any language
     const label = (id: string): string => {
       const p = person(state, id);
-      if (!p || lens.view(p) === 'masked') return 'Living relative (private)';
-      const born = lens.born(id), died = lens.died(id);
+      if (!p || lens.view(p) === 'masked') return say(lang, 'Living relative (private)');
+      const born = lens.born(id), died = lens.died(id), birthName = textOf(p, 'birthName', lang);
       const years = born ? ` (${born}${died ? `–${died}` : ''})` : '';
-      return `${fullName(p)}${p.birthName ? ` born ${p.birthName}` : ''}${years} [${id}]`;
+      return `${fullName(p, lang)}${birthName ? ` born ${birthName}` : ''}${years} [${id}]`;
     };
     const lines: string[] = [];
     const seen = new Set<string>();
@@ -275,7 +294,8 @@ export class Views {
     const state = this.state;
     const mine = (id: string) => isAdmin(actor) || lens.scope.core.has(id) || lens.scope.partners.has(id) || id === actor.personId;
     const people = [...state.people.values()].filter((p) => present(p) && mine(p.id));
-    const entry = (p: Person): HealthEntry => ({ id: p.id, name: fullName(p), detail: '' });
+    const lang = this.langOf(actor);
+    const entry = (p: Person): HealthEntry => ({ id: p.id, name: fullName(p, lang), detail: '' });
 
     const seen = (id: string): boolean => { const other = person(state, id); return !other || lens.view(other) === 'full'; };
     const everyone: Change[] = people.map((p) => ({ kind: 'people', id: p.id, before: p, after: p }));
@@ -285,7 +305,8 @@ export class Views {
       noBirthDate: people.filter((p) => p.given && bornYear(ix, p.id) === null).map(entry),
       noParents: people.filter((p) => !parentsOf(state, ix, p.id).length && !partnersOf(state, ix, p.id).length).map(entry),
       // An issue about someone in their care can still name a parent they may not see
-      suspicious: [...new Map([...check.errors, ...check.warnings].filter((issue) => issue.code !== 'possible_duplicate' && (issue.people ?? []).every(seen)).map((issue) => [issue.message, issue])).values()],
+      suspicious: [...new Map([...check.errors, ...check.warnings].filter((issue) => issue.code !== 'possible_duplicate' && (issue.people ?? []).every(seen)).map((issue) => [issue.message, issue])).values()]
+        .map(({ said, ...issue }) => ({ ...issue, message: issueText({ ...issue, said }, lang, (id) => { const found = person(state, id); return found ? fullName(found, lang) : null; }) })),
     };
     if (isAdmin(actor)) {
       const covered = new Set<string>();

@@ -9,14 +9,31 @@
  * Pure functions, shared by the server and the browser.
  */
 
+import type { Lang } from './lang';
 import type { FuzzyDate } from './types';
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const GED_MONTHS = MONTHS.map((m) => m.slice(0, 3).toUpperCase());
+const MONTHS: Record<Lang, readonly string[]> = {
+  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  he: ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'],
+  ru: ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'],
+};
+/* Russian bends a month to what stands before it: "4 марта", "до марта", but "между мартом и маем". */
+const RU_OF = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const RU_WITH = ['январём', 'февралём', 'мартом', 'апрелем', 'маем', 'июнем', 'июлем', 'августом', 'сентябрём', 'октябрём', 'ноябрём', 'декабрём'];
+const GED_MONTHS = MONTHS.en.map((m) => m.slice(0, 3).toUpperCase());
+
+/* How each month's name starts in every language the tree reads, in whatever shape the word is bent to. Enough letters to tell the months apart. */
+const MONTH_STARTS: readonly (readonly string[])[] = [
+  ['jan', 'янв', 'ינו'], ['feb', 'фев', 'פבר'], ['mar', 'мар', 'מרץ', 'מרס', 'מארס'], ['apr', 'апр', 'אפר'],
+  ['may', 'май', 'мая', 'мае', 'מאי'], ['jun', 'июн', 'יונ'], ['jul', 'июл', 'יול'], ['aug', 'авг', 'אוג'],
+  ['sep', 'сен', 'ספט'], ['oct', 'окт', 'אוק'], ['nov', 'ноя', 'נוב'], ['dec', 'дек', 'דצמ'],
+];
 
 function monthNumber(word: string): number | null {
-  const key = word.slice(0, 3).toLowerCase();
-  const index = MONTHS.findIndex((m) => m.slice(0, 3).toLowerCase() === key);
+  const typed = word.toLowerCase();
+  // Hebrew writes "in" and "to" onto the month: "4 במרץ", "למאי"
+  const keys = /^[בל]/.test(typed) ? [typed, typed.slice(1)] : [typed];
+  const index = MONTH_STARTS.findIndex((starts) => starts.some((start) => keys.some((key) => key.startsWith(start))));
   return index < 0 ? null : index + 1;
 }
 
@@ -34,34 +51,60 @@ function validParts(year: number, month: number, day: number): boolean {
   return true;
 }
 
-/* One point in time: "1921", "March 1921", "4 March 1921", "March 4 1921", "1921-03-04". */
+/*
+ * One point in time, in any of the tree's languages: "1921", "March 1921",
+ * "4 March 1921", "March 4 1921", "1921-03-04", "4.3.1921", "4 марта 1921 г.",
+ * "4 במרץ 1921".
+ */
 function parsePoint(text: string): string | null {
-  const t = text.trim().replace(/[,.]/g, ' ').replace(/\s+/g, ' ');
+  const t = text.replace(/[,.]/g, ' ').replace(/\s+/g, ' ').trim()
+    // "в 1921 году", "1921 г", "בשנת 1921": the word for "year" says nothing more
+    .replace(/^(?:в|во|ב?שנת) /iu, '').replace(/ (?:г|год|года|году)$/iu, '');
   let m: RegExpMatchArray | null;
   let parts: [year: number, month: number | null, day: number] | null = null;
   if ((m = t.match(/^(\d{4})(?:-(\d{1,2}))?(?:-(\d{1,2}))?$/))) parts = [+m[1], m[2] ? +m[2] : 0, m[3] ? +m[3] : 0];
-  else if ((m = t.match(/^(\d{1,2}) ([a-z]{3,}) (\d{4})$/i))) parts = [+m[3], monthNumber(m[2]), +m[1]];
-  else if ((m = t.match(/^([a-z]{3,}) (\d{1,2}) (\d{4})$/i))) parts = [+m[3], monthNumber(m[1]), +m[2]];
-  else if ((m = t.match(/^([a-z]{3,}) (\d{4})$/i))) parts = [+m[2], monthNumber(m[1]), 0];
+  // Written with dots, the day comes first wherever dots are used
+  else if ((m = t.match(/^(\d{1,2}) (\d{1,2}) (\d{4})$/))) parts = [+m[3], +m[2], +m[1]];
+  else if ((m = t.match(/^(\d{1,2}) (\d{4})$/))) parts = [+m[2], +m[1], 0];
+  else if ((m = t.match(/^(\d{1,2}) (\p{L}{3,}) (\d{4})$/u))) parts = [+m[3], monthNumber(m[2]), +m[1]];
+  else if ((m = t.match(/^(\p{L}{3,}) (\d{1,2}) (\d{4})$/u))) parts = [+m[3], monthNumber(m[1]), +m[2]];
+  else if ((m = t.match(/^(\p{L}{3,}) (\d{4})$/u))) parts = [+m[2], monthNumber(m[1]), 0];
   if (!parts) return null;
   const [year, month, day] = parts;
   if (month === null || !validParts(year, month, day)) return null;
   return iso(year, month, day);
 }
 
-function formatPoint(point: string): string {
+/* `after` is what stands before the date in Russian: nothing, a word that takes "of" (около, до, после), or "между". */
+function formatPoint(point: string, lang: Lang, after: 'nothing' | 'of' | 'between' = 'nothing'): string {
   const [y, m, d] = point.split('-').map(Number);
   if (!m) return String(y);
-  return d ? `${d} ${MONTHS[m - 1]} ${y}` : `${MONTHS[m - 1]} ${y}`;
+  if (lang === 'he') return d ? `${d} ב${MONTHS.he[m - 1]} ${y}` : `${MONTHS.he[m - 1]} ${y}`;
+  if (lang === 'ru') return d ? `${d} ${RU_OF[m - 1]} ${y}` : `${(after === 'of' ? RU_OF : after === 'between' ? RU_WITH : MONTHS.ru)[m - 1]} ${y}`;
+  return d ? `${d} ${MONTHS.en[m - 1]} ${y}` : `${MONTHS.en[m - 1]} ${y}`;
 }
 
+/* The words that make a date less than exact, in every language the tree reads. */
 const PREFIXES: [kind: 'about' | 'before' | 'after', pattern: RegExp][] = [
-  ['about', /^(?:about|abt|around|circa|ca|c)\.?\s+(.+)$/i],
-  ['before', /^(?:before|bef)\.?\s+(.+)$/i],
-  ['after', /^(?:after|aft)\.?\s+(.+)$/i],
+  ['about', /^(?:about|abt|around|circa|ca|c|около|примерно|приблизительно|ок|בערך|סביב|בסביבות)\.?\s+(.+)$/iu],
+  // Hebrew also writes "about" as one letter joined to the year: "כ-1890"
+  ['about', /^כ[-־]?\s*(\d.*)$/u],
+  ['before', /^(?:before|bef|до|раньше|ранее|לפני)\.?\s+(.+)$/iu],
+  ['after', /^(?:after|aft|после|позже|позднее|אחרי|לאחר)\.?\s+(.+)$/iu],
+];
+/* Two dates. A span typed as one ("from 1939 to 1945", "с 1939 по 1945", "מ-1939 עד 1945", "1939-1945") is kept as a time between the two. */
+const RANGES: [kind: 'between' | 'or', pattern: RegExp][] = [
+  ['or', /^(?:between\s+)?(.+?)\s+(?:or|или|או)\s+(.+)$/iu],
+  ['between', /^(?:between\s+|from\s+|между\s+)?(.+?)\s+(?:and|to|и)\s+(.+)$/iu],
+  ['between', /^с\s+(.+?)\s+(?:по|до)\s+(.+)$/iu],
+  ['between', /^בין\s+(.+?)\s+(?:לבין\s+|ל[-־]?\s*|ו[-־]?\s*)(.+)$/u],
+  ['between', /^מ[-־]?\s*(.+?)\s+עד\s+(.+)$/u],
+  ['between', /^(.+?)\s*[–—]\s*(.+)$/],
+  // A plain hyphen only between two years, so that a date written with hyphens is not split
+  ['between', /^(\d{3,4})\s*-\s*(\d{3,4})$/],
 ];
 
-/* Turn what a person typed into a fuzzy date. Empty input is null. */
+/* Turn what a person typed into a fuzzy date, whichever of the tree's languages they typed it in. Empty input is null. */
 export function parseDate(input: string | null | undefined): FuzzyDate | null {
   const raw = String(input ?? '').trim();
   if (!raw) return null;
@@ -70,27 +113,50 @@ export function parseDate(input: string | null | undefined): FuzzyDate | null {
     const from = m && parsePoint(m[1]);
     if (from) return { kind, from };
   }
-  const range = raw.match(/^(?:between\s+)?(.+?)\s+(and|or|to)\s+(.+)$/i) || raw.match(/^(.+?)\s*([–—])\s*(.+)$/);
-  if (range) {
-    const from = parsePoint(range[1]);
-    const to = parsePoint(range[3]);
-    if (from && to) return { kind: range[2].toLowerCase() === 'or' ? 'or' : 'between', from, to };
+  for (const [kind, pattern] of RANGES) {
+    const m = raw.match(pattern);
+    const from = m && parsePoint(m[1]), to = m && parsePoint(m[2]);
+    if (from && to) return { kind, from, to };
   }
   const from = parsePoint(raw);
   return from ? { kind: 'exact', from } : { kind: 'text', text: raw };
 }
 
-/* Say a fuzzy date the way a person would. */
-export function formatDate(date: FuzzyDate | null | undefined): string {
+/* Say a fuzzy date the way a person would, in their language. */
+export function formatDate(date: FuzzyDate | null | undefined, lang: Lang = 'en'): string {
   if (!date) return '';
+  if (date.kind === 'text') return date.text ?? '';
+  const from = (after: 'nothing' | 'of' | 'between' = 'nothing') => formatPoint(date.from, lang, after);
+  const to = (after: 'nothing' | 'of' | 'between' = 'nothing') => ('to' in date ? formatPoint(date.to, lang, after) : '');
+  if (lang === 'he') {
+    switch (date.kind) {
+      // "בערך במרץ 1921", the way it is said: in March. A year or a day needs no ב.
+      case 'about': return `בערך ${/^\d/.test(from()) ? '' : 'ב'}${from()}`;
+      case 'before': return `לפני ${from()}`;
+      case 'after': return `אחרי ${from()}`;
+      // "בין 1921 ל-1922", "בין מרץ 1921 למאי 1922": ל is written onto a word, and takes a hyphen before a number
+      case 'between': return `בין ${from()} ${/^\d/.test(to()) ? 'ל-' : 'ל'}${to()}`;
+      case 'or': return `${from()} או ${to()}`;
+      default: return from();
+    }
+  }
+  if (lang === 'ru') {
+    switch (date.kind) {
+      case 'about': return `около ${from('of')}`;
+      case 'before': return `до ${from('of')}`;
+      case 'after': return `после ${from('of')}`;
+      case 'between': return `между ${from('between')} и ${to('between')}`;
+      case 'or': return `${from()} или ${to()}`;
+      default: return from();
+    }
+  }
   switch (date.kind) {
-    case 'exact': return formatPoint(date.from);
-    case 'about': return `about ${formatPoint(date.from)}`;
-    case 'before': return `before ${formatPoint(date.from)}`;
-    case 'after': return `after ${formatPoint(date.from)}`;
-    case 'between': return `between ${formatPoint(date.from)} and ${formatPoint(date.to)}`;
-    case 'or': return `${formatPoint(date.from)} or ${formatPoint(date.to)}`;
-    default: return date.text ?? '';
+    case 'about': return `about ${from()}`;
+    case 'before': return `before ${from()}`;
+    case 'after': return `after ${from()}`;
+    case 'between': return `between ${from()} and ${to()}`;
+    case 'or': return `${from()} or ${to()}`;
+    default: return from();
   }
 }
 

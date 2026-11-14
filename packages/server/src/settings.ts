@@ -1,6 +1,8 @@
 /* What the admin can set from the UI, with the safe choices as defaults. */
 
-import type { AdminSettings, PublicSettings } from '@reactive-family-tree/core';
+import { isLang, readIn, wordsOf, writeIn } from '@reactive-family-tree/core';
+import type { AdminSettings, AdminSettingsView, Lang, PublicSettings, Translations } from '@reactive-family-tree/core';
+import type { Worded } from '@reactive-family-tree/core';
 
 export interface DemoAccountSetting {
   email: string;
@@ -13,6 +15,36 @@ export interface Settings extends AdminSettings {
   rootPersonId: string | null;
   /* Ready-made accounts planted with the demo family. Offered only when the install runs in demo mode. */
   demoAccounts: DemoAccountSetting[];
+  /* The language the family's name, line and guidelines were first written in, and the same words in other languages. */
+  familyLang: Lang;
+  familyWords: Translations;
+}
+
+/* The family's own words, which are kept like a person's: in one language, with others beside it. */
+export const FAMILY_FIELDS = ['familyName', 'description', 'guidelines'] as const;
+type FamilyField = (typeof FAMILY_FIELDS)[number];
+export const isFamilyField = (key: string): key is FamilyField => (FAMILY_FIELDS as readonly string[]).includes(key);
+
+/* The family's words as one thing with a language, the way a person's are. */
+export const familyThing = (settings: Settings): Worded & Record<FamilyField, string> => ({
+  lang: settings.familyLang, tr: settings.familyWords, familyName: settings.familyName, description: settings.description, guidelines: settings.guidelines,
+});
+
+/* One of the family's words for a reader. */
+export const familyText = (settings: Settings, field: FamilyField, lang: Lang): string => readIn(familyThing(settings), field, lang).text;
+
+/*
+ * The settings to save when an admin, reading the tree in `lang`, changes some
+ * of the family's words. In the language they were first written in they are
+ * simply changed. In another they are kept as that language's version.
+ */
+export function familyPatch(settings: Settings, set: Partial<Record<FamilyField, string>>, lang: Lang): Partial<Settings> {
+  // Words nobody has written yet are first written now, in this language: a family set up in Hebrew is a Hebrew family
+  const unwritten = settings.familyName === DEFAULT_SETTINGS.familyName && !settings.description && !settings.guidelines && !Object.keys(settings.familyWords).length;
+  if (unwritten && lang !== settings.familyLang) return { ...set, familyLang: lang };
+  const thing = familyThing(settings);
+  writeIn(thing, FAMILY_FIELDS, set, lang);
+  return lang === settings.familyLang ? set : { familyWords: thing.tr };
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -37,7 +69,10 @@ export const DEFAULT_SETTINGS: Settings = {
   timezone: '',
   latitude: null,
   longitude: null,
+  language: 'en',
   demoAccounts: [],
+  familyLang: 'en',
+  familyWords: {},
 };
 
 const bool = (value: unknown): value is boolean => typeof value === 'boolean';
@@ -79,6 +114,7 @@ export const SETTING_RULES: Record<keyof AdminSettings, (value: unknown) => bool
   timezone,
   latitude: degrees(90),
   longitude: degrees(180),
+  language: isLang,
 };
 
 /* What to tell someone whose typing a rule turned down. The other settings are picked from a list and cannot go wrong. */
@@ -96,14 +132,21 @@ export const SETTING_HINTS: Partial<Record<keyof AdminSettings, string>> = {
 export const ADMIN_SETTING_KEYS = Object.keys(SETTING_RULES) as (keyof AdminSettings)[];
 
 /* What every browser is told, signed in or not. */
-const PUBLIC_KEYS = ['familyName', 'description', 'visibility', 'visitorsCanSuggest', 'allowJoinRequests', 'allowAi', 'allowAiDirect', 'stewardsCanInvite', 'music', 'playMusic', 'melody', 'playMelody', 'latitude', 'longitude'] as const satisfies readonly (keyof PublicSettings)[];
+const PUBLIC_KEYS = ['familyName', 'description', 'language', 'visibility', 'visitorsCanSuggest', 'allowJoinRequests', 'allowAi', 'allowAiDirect', 'stewardsCanInvite', 'music', 'playMusic', 'melody', 'playMelody', 'latitude', 'longitude'] as const satisfies readonly (keyof PublicSettings)[];
 
-export function publicSettings(settings: Settings, relative: boolean): PublicSettings {
-  const told = Object.fromEntries(PUBLIC_KEYS.map((key) => [key, settings[key]])) as unknown as PublicSettings;
+/* What every browser is told, with the family's name and line in the reader's language. */
+export function publicSettings(settings: Settings, relative: boolean, lang: Lang = settings.language): PublicSettings {
+  const told = {
+    ...Object.fromEntries(PUBLIC_KEYS.map((key) => [key, settings[key]])),
+    familyName: familyText(settings, 'familyName', lang), description: familyText(settings, 'description', lang),
+  } as unknown as PublicSettings;
   // Where the family is, is not for a stranger at the door of a private tree
   return relative || settings.visibility !== 'private' ? told : { ...told, latitude: null, longitude: null };
 }
 
-export function adminSettings(settings: Settings): AdminSettings {
-  return Object.fromEntries(ADMIN_SETTING_KEYS.map((key) => [key, settings[key]])) as unknown as AdminSettings;
+/* The settings for an admin reading the tree in `lang`. */
+export function adminSettings(settings: Settings, lang: Lang = settings.language): AdminSettingsView {
+  const plain = Object.fromEntries(ADMIN_SETTING_KEYS.map((key) => [key, settings[key]])) as unknown as AdminSettings;
+  const thing = familyThing(settings);
+  return { ...plain, ...Object.fromEntries(FAMILY_FIELDS.map((field) => [field, readIn(thing, field, lang).text])), words: wordsOf(thing, FAMILY_FIELDS, lang) };
 }

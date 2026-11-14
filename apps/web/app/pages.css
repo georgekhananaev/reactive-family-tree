@@ -4,10 +4,11 @@
  * colours and type as the app.
  */
 
+/* Each letter is drawn by the first face that has it: Latin, then Cyrillic, then Hebrew. */
 :root {
-  --display: var(--font-display), Georgia, serif;
-  --display-slanted: var(--font-display-slanted), Georgia, serif;
-  --ui: var(--font-ui), "Segoe UI", system-ui, sans-serif;
+  --display: var(--font-display), var(--font-display-cyrillic), var(--font-display-hebrew), Georgia, serif;
+  --display-slanted: var(--font-display-slanted), var(--font-display-cyrillic), var(--font-display-hebrew), Georgia, serif;
+  --ui: var(--font-ui), var(--font-ui-cyrillic), var(--font-ui-hebrew), "Segoe UI", system-ui, sans-serif;
 }
 
 /* The app itself never scrolls. These pages do, inside their own frame. */
@@ -59,3 +60,6 @@
   .page { padding: 20px 10px 40px; }
   .sheet { padding: 20px 18px; }
 }
+
+/* Hebrew is read from the right */
+[dir="rtl"] .sheet ul { padding-left: 0; padding-right: 1.2em; }

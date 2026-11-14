@@ -5,6 +5,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ComponentProps, ReactNode } from 'react';
 
+import { useT } from '@/lib/i18n';
+
 /* A labelled control. */
 export function Field({ label, wide = false, hidden = false, children }: { label: string; wide?: boolean; hidden?: boolean; children: ReactNode }) {
   return (
@@ -34,6 +36,7 @@ export function Select<Value extends string>({
 
 /* A value with a button that copies it. */
 export function CopyRow({ value }: { value: string }) {
+  const { t } = useT();
   const [copied, setCopied] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -54,7 +57,7 @@ export function CopyRow({ value }: { value: string }) {
     <div className="copy">
       <input ref={input} type="text" readOnly value={value} onFocus={(event) => event.target.select()} />
       <button type="button" className="small" onClick={copy}>
-        {copied ? 'Copied' : 'Copy'}
+        {copied ? t('Copied') : t('Copy')}
       </button>
     </div>
   );

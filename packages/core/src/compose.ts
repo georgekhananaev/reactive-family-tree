@@ -10,11 +10,19 @@
  */
 
 import { parseDate } from './dates';
+import type { Lang } from './lang';
 import type { Living, Op, Ref, Relation, Sex, Union } from './types';
+import { say } from './words';
+import type { Phrase } from './words';
 
 export const RELATIONS: readonly Relation[] = ['child', 'partner', 'parent', 'sibling'];
 
-export class ComposeError extends Error {}
+/* What stands in the way, kept as its English sentence and said in the reader's language on the way out. */
+export class ComposeError extends Error {
+  constructor(message: Phrase) {
+    super(message);
+  }
+}
 
 /* A partnership, as far as this module needs to know it. */
 type Couple = Pick<Union, 'id' | 'partners'>;
@@ -89,8 +97,12 @@ export function addRelative(
   return { ops, ref: fresh };
 }
 
-/* A sentence for the edit's message. */
-export function relativeMessage(relation: Relation, details: Pick<RelativeDetails, 'given' | 'family'>, ofName: string): string {
-  const name = [details.given, details.family].filter(Boolean).join(' ') || 'someone';
-  return `Add ${name} as ${relation} of ${ofName}`;
+const ADDED_AS: Record<Relation, Phrase> = {
+  child: 'Add {name} as child of {of}', partner: 'Add {name} as partner of {of}', parent: 'Add {name} as parent of {of}', sibling: 'Add {name} as sibling of {of}',
+};
+
+/* A sentence for the edit's message, in the language of whoever makes the edit. */
+export function relativeMessage(relation: Relation, details: Pick<RelativeDetails, 'given' | 'family'>, ofName: string, lang: Lang = 'en'): string {
+  const name = [details.given, details.family].filter(Boolean).join(' ') || say(lang, 'someone');
+  return say(lang, ADDED_AS[relation], { name, of: ofName });
 }

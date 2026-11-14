@@ -2,6 +2,8 @@
 
 import { formatDate, parseDate } from '@reactive-family-tree/core';
 
+import { useT } from '@/lib/i18n';
+
 /* A date box that says back how it was understood, so "abt 1890" is seen to mean "about 1890". */
 export function DateField({ label, value, onChange, placeholder, hidden = false }: {
   label: string;
@@ -10,9 +12,10 @@ export function DateField({ label, value, onChange, placeholder, hidden = false 
   placeholder?: string;
   hidden?: boolean;
 }) {
+  const { lang, t } = useT();
   const date = parseDate(value);
-  const spoken = date && date.kind !== 'text' ? formatDate(date) : '';
-  const reads = !date || spoken === value.trim() ? '' : spoken ? `Read as ${spoken}` : 'Not read as a date. Kept as you wrote it.';
+  const spoken = date && date.kind !== 'text' ? formatDate(date, lang) : '';
+  const reads = !date || spoken === value.trim() ? '' : spoken ? t('Read as {date}', { date: spoken }) : t('Not read as a date. Kept as you wrote it.');
   return (
     <label hidden={hidden}>
       {label}

@@ -12,23 +12,24 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import type { AppController, PanelArgs } from '@/lib/app-context';
 import { useApp } from '@/lib/app-context';
-import { when } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 
 import type { PanelDef, PanelProps } from '../Drawer';
 import { ConfirmButton } from '../ui';
 
 import type { Retyped, Unticked } from './EditCard';
 import { EditCard, adjusted, chosen } from './EditCard';
-import { Loading, tryIt, useEdits } from './shared';
+import type { Say } from './shared';
+import { Loading, tryIt, useEdits, useWhen } from './shared';
 
 /*
  * The way from an edit to the first person it is about. For an edit about
  * nobody who is on the tree this is the number 0, as it was in the demo, and
  * a card that does not filter its buttons shows that 0.
  */
-const showOnTree = (app: AppController, edit: EditView) => edit.touched.length > 0 && (
+const showOnTree = (app: AppController, edit: EditView, t: Say) => edit.touched.length > 0 && (
   <button key="show" type="button" className="small" onClick={() => { app.closePanel(); app.select(edit.touched[0], { fly: true }); }}>
-    Show on tree
+    {t('Show on tree')}
   </button>
 );
 
@@ -64,6 +65,7 @@ function CommentLine({ editId, placeholder, label }: { editId: string; placehold
  */
 function ReviewCard({ edit, retyped, onRetyped }: { edit: EditView; retyped: Retyped | null; onRetyped(retyped: Retyped | null): void }) {
   const app = useApp();
+  const { t } = useT();
   const [declining, setDeclining] = useState(false);
   const [note, setNote] = useState('');
   const noteInput = useRef<HTMLInputElement>(null);
@@ -84,28 +86,28 @@ function ReviewCard({ edit, retyped, onRetyped }: { edit: EditView; retyped: Ret
           key="approve"
           type="button"
           className="primary"
-          onClick={() => (retyped ? review({ action: 'approve', ops: adjusted(edit, retyped) }, 'Approved with your adjustments') : review({ action: 'approve' }, 'Approved. It is on the tree.'))}
+          onClick={() => (retyped ? review({ action: 'approve', ops: adjusted(edit, retyped) }, t('Approved with your adjustments')) : review({ action: 'approve' }, t('Approved. It is on the tree.')))}
         >
-          {retyped ? 'Approve with these values' : 'Approve'}
+          {retyped ? t('Approve with these values') : t('Approve')}
         </button>,
         edit.lines.some((line) => line.fields.length) && (
           <button key="adjust" type="button" onClick={() => onRetyped(retyped ? null : {})}>
-            {retyped ? 'Cancel adjusting' : 'Edit and approve'}
+            {retyped ? t('Cancel adjusting') : t('Edit and approve')}
           </button>
         ),
         <button
           key="decline"
           type="button"
           className="danger"
-          onClick={() => (declining ? void review({ action: 'decline', note }, 'Declined. The author has been told why.') : setDeclining(true))}
+          onClick={() => (declining ? void review({ action: 'decline', note }, t('Declined. The author has been told why.')) : setDeclining(true))}
         >
-          Decline
+          {t('Decline')}
         </button>,
-        showOnTree(app, edit),
+        showOnTree(app, edit, t),
       ]}
     >
-      <input ref={noteInput} type="text" placeholder="Why? The author will see this" hidden={!declining} value={note} onChange={(event) => setNote(event.target.value)} />
-      <CommentLine editId={edit.id} placeholder="Ask the author a question" label="Ask" />
+      <input ref={noteInput} type="text" placeholder={t('Why? The author will see this')} hidden={!declining} value={note} onChange={(event) => setNote(event.target.value)} />
+      <CommentLine editId={edit.id} placeholder={t('Ask the author a question')} label={t('Ask')} />
     </EditCard>
   );
 }
@@ -113,6 +115,7 @@ function ReviewCard({ edit, retyped, onRetyped }: { edit: EditView; retyped: Ret
 /* One of the viewer's own edits that is not history yet: a draft, to apply whole or in part. */
 function DraftCard({ edit }: { edit: EditView }) {
   const app = useApp();
+  const { t } = useT();
   const [unticked, setUnticked] = useState<Unticked>(new Set());
   const several = edit.lines.length > 1;
   const apply = (indexes: number[] | null) => tryIt(app, async () => {
@@ -120,17 +123,21 @@ function DraftCard({ edit }: { edit: EditView }) {
     // What is left of the draft starts out ticked again
     setUnticked(new Set());
     return result;
-  }, (result) => `${result.status === 'applied' ? 'Applied to the tree' : 'Sent for review'}${result.remaining ? `. ${result.remaining} left in the draft.` : '.'}`);
+  }, ({ status, remaining }) => {
+    const applied = status === 'applied';
+    if (!remaining) return applied ? t('Applied to the tree.') : t('Sent for review.');
+    return applied ? t('Applied to the tree. {n} left in the draft.', { n: remaining }) : t('Sent for review. {n} left in the draft.', { n: remaining });
+  });
 
   return (
     <EditCard
       edit={edit}
       selectable={several ? { value: unticked, onChange: setUnticked } : undefined}
       actions={[
-        <button key="all" type="button" className="primary" onClick={() => apply(null)}>Apply all</button>,
-        several && <button key="selected" type="button" onClick={() => apply(chosen(edit, unticked))}>Apply selected</button>,
-        <ConfirmButton key="discard" label="Discard" sure="Really discard?" onConfirm={() => tryIt(app, () => api.post(`/api/edits/${edit.id}/discard`), 'Draft discarded')} className="danger" />,
-        showOnTree(app, edit),
+        <button key="all" type="button" className="primary" onClick={() => apply(null)}>{t('Apply all')}</button>,
+        several && <button key="selected" type="button" onClick={() => apply(chosen(edit, unticked))}>{t('Apply selected')}</button>,
+        <ConfirmButton key="discard" label={t('Delete draft')} sure={t('Delete this draft?')} onConfirm={() => tryIt(app, () => api.post(`/api/edits/${edit.id}/discard`), t('Draft discarded'))} className="danger" />,
+        showOnTree(app, edit, t),
       ]}
     />
   );
@@ -139,16 +146,17 @@ function DraftCard({ edit }: { edit: EditView }) {
 /* One of the viewer's own edits that is not history yet: a suggestion, waiting or decided. */
 function SentCard({ edit }: { edit: EditView }) {
   const app = useApp();
+  const { t } = useT();
   const waiting = edit.status === 'suggested';
   return (
     <EditCard
       edit={edit}
       actions={[
-        waiting && <ConfirmButton key="withdraw" label="Withdraw" sure="Really withdraw?" onConfirm={() => tryIt(app, () => api.post(`/api/edits/${edit.id}/withdraw`), 'Suggestion withdrawn')} />,
-        showOnTree(app, edit),
+        waiting && <ConfirmButton key="withdraw" label={t('Withdraw')} sure={t('Really withdraw?')} onConfirm={() => tryIt(app, () => api.post(`/api/edits/${edit.id}/withdraw`), t('Suggestion withdrawn'))} />,
+        showOnTree(app, edit, t),
       ].filter(Boolean)}
     >
-      {waiting && edit.comments.length > 0 && <CommentLine editId={edit.id} placeholder="Reply" label="Send" />}
+      {waiting && edit.comments.length > 0 && <CommentLine editId={edit.id} placeholder={t('Reply')} label={t('Send')} />}
     </EditCard>
   );
 }
@@ -156,24 +164,26 @@ function SentCard({ edit }: { edit: EditView }) {
 /* A published edit, with Undo for those who may. */
 export function ActivityCard({ edit }: { edit: EditView }) {
   const app = useApp();
+  const { t } = useT();
   return (
     <EditCard
       edit={edit}
       actions={[
-        edit.canRevert && <ConfirmButton key="undo" label="Undo" sure="Really undo?" onConfirm={() => tryIt(app, () => api.post(`/api/edits/${edit.id}/revert`), 'Undone')} className="small" />,
-        showOnTree(app, edit),
+        edit.canRevert && <ConfirmButton key="undo" label={t('Undo')} sure={t('Really undo?')} onConfirm={() => tryIt(app, () => api.post(`/api/edits/${edit.id}/revert`), t('Undone'))} className="small" />,
+        showOnTree(app, edit, t),
       ].filter(Boolean)}
     />
   );
 }
 
 function Review({ editId }: { editId: PanelArgs['editId'] }) {
+  const { t } = useT();
   const { data, error } = useEdits('review');
   // One suggestion at a time is being adjusted
   const [adjusting, setAdjusting] = useState<{ id: string; retyped: Retyped } | null>(null);
   useScrollTo(editId, data?.edits);
   if (!data) return <Loading error={error} />;
-  if (!data.edits.length) return <p className="empty">Nothing is waiting for you. Suggestions for your branches will appear here.</p>;
+  if (!data.edits.length) return <p className="empty">{t('Nothing is waiting for you. Suggestions for your branches will appear here.')}</p>;
   return data.edits.map((edit) => (
     <ReviewCard
       key={edit.id}
@@ -185,15 +195,18 @@ function Review({ editId }: { editId: PanelArgs['editId'] }) {
 }
 
 function Mine({ editId }: { editId: PanelArgs['editId'] }) {
+  const { t } = useT();
   const { data, error } = useEdits('mine');
   useScrollTo(editId, data?.edits);
   if (!data) return <Loading error={error} />;
-  if (!data.edits.length) return <p className="empty">Your drafts and suggestions will appear here. Tap a fact on someone’s card to suggest a fix.</p>;
+  if (!data.edits.length) return <p className="empty">{t('Your drafts and suggestions will appear here. Tap a fact on someone’s card to suggest a fix.')}</p>;
   return data.edits.map((edit) => (edit.status === 'draft' ? <DraftCard key={edit.id} edit={edit} /> : <SentCard key={edit.id} edit={edit} />));
 }
 
 function News() {
   const app = useApp();
+  const { t } = useT();
+  const when = useWhen();
   const { data, error } = useQuery({ queryKey: ['notifications'], queryFn: () => api.get<{ notifications: NotificationView[] }>('/api/notifications') });
   const { unread } = app.session.counts;
   const shown = data !== undefined;
@@ -206,7 +219,7 @@ function News() {
   }, [shown, unread]);
 
   if (!data) return <Loading error={error} />;
-  if (!data.notifications.length) return <p className="empty">Nothing new.</p>;
+  if (!data.notifications.length) return <p className="empty">{t('Nothing new.')}</p>;
   return data.notifications.map((item) => (
     <div key={item.id} className="row">
       <div className="main">
@@ -224,27 +237,28 @@ function InboxBody({ args }: PanelProps) {
 }
 
 function HistoryBody({ args }: PanelProps) {
+  const { t } = useT();
   const { data, error } = useEdits('activity', args.personId);
   if (!data) return <Loading error={error} />;
-  if (!data.edits.length) return <p className="empty">No changes recorded yet.</p>;
+  if (!data.edits.length) return <p className="empty">{t('No changes recorded yet.')}</p>;
   return data.edits.map((edit) => <ActivityCard key={edit.id} edit={edit} />);
 }
 
 type Tab = readonly [string, string];
 
 export const inbox: PanelDef = {
-  title: () => 'Inbox',
-  tabs(app) {
+  title: (_args, _app, t) => t('Inbox'),
+  tabs(app, _args, t) {
     const { counts, user } = app.session;
-    const review: Tab = ['review', `To review${counts.review ? ` (${counts.review})` : ''}`];
-    const mine: Tab = ['mine', `Mine${counts.drafts ? ` (${counts.drafts})` : ''}`];
-    const news: Tab = ['news', `News${counts.unread ? ` (${counts.unread})` : ''}`];
+    const review: Tab = ['review', counts.review ? t('To review ({n})', { n: counts.review }) : t('To review')];
+    const mine: Tab = ['mine', counts.drafts ? t('Mine ({n})', { n: counts.drafts }) : t('Mine')];
+    const news: Tab = ['news', counts.unread ? t('News ({n})', { n: counts.unread }) : t('News')];
     return counts.review || app.isAdmin || user?.anchors.length ? [review, mine, news] : [mine, news];
   },
   Body: InboxBody,
 };
 
 export const history: PanelDef = {
-  title: (args) => `History of ${args.name}`,
+  title: (args, _app, t) => t('History of {name}', { name: args.name }),
   Body: HistoryBody,
 };

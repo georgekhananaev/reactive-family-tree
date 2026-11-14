@@ -1,7 +1,9 @@
+import { familyText } from '@reactive-family-tree/server';
 import type { Metadata } from 'next';
 
 import { Explorer } from '@/components/Explorer';
 import { buildInfo } from '@/lib/build';
+import { getT } from '@/lib/i18n/server';
 import { getApp } from '@/lib/server';
 
 export const dynamic = 'force-dynamic';
@@ -9,8 +11,11 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
   const { store, config } = await getApp();
   await store.fresh();
-  const { familyName, description, visibility } = store.settings;
-  const about = description || `The ${familyName} tree.`;
+  const { lang, t } = await getT();
+  // The family's name and line as this reader reads them
+  const familyName = familyText(store.settings, 'familyName', lang), description = familyText(store.settings, 'description', lang);
+  const { visibility } = store.settings;
+  const about = description || t('The {family} tree.', { family: familyName });
   return {
     // The address this install is reached at is only known while it runs, so links are made whole here
     metadataBase: new URL(config.baseUrl),

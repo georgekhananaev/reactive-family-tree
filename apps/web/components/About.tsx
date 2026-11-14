@@ -1,7 +1,11 @@
 'use client';
 
+import type { Lang } from '@reactive-family-tree/core';
 import { useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+
+import { useT } from '@/lib/i18n';
+import type { WebPhrase } from '@/lib/i18n';
 
 import { Icon } from './Icon';
 
@@ -18,19 +22,19 @@ const HOME = 'https://github.com/georgekhananaev/reactive-family-tree';
 const MAKER = 'https://george.khananaev.com';
 const REPORTS = 'report@khananaev.com';
 
-const dayOf = (made: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(made));
+const dayOf = (made: string, lang: Lang) => new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : lang, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(made));
 
-const PRIVACY: readonly string[] = [
+const PRIVACY: readonly WebPhrase[] = [
   'What a family puts on its tree is kept where that family chose to keep it. The software sends nothing to its maker.',
   'There is no advertising and no tracking, and the pages load nothing from other companies.',
   'Living people are never shown to visitors unless they choose it themselves.',
-  'Cookies are used only for signing in. Choices such as light or dark stay in your browser.',
+  'Cookies are used only for signing in and for remembering the language. Choices such as light or dark stay in your browser.',
   'Email addresses are used to sign in and to invite relatives. The mail goes out through the service this family set up.',
   'A relative may connect an AI assistant of their own, where the family allows it. It can see and do only what that relative can.',
 ];
 
-const REFERENCES: readonly string[] = [
-  'Literata, by TypeTogether, and Source Sans, by Adobe: the two typefaces, under the SIL Open Font License.',
+const REFERENCES: readonly WebPhrase[] = [
+  'Literata, by TypeTogether, and Source Sans, by Adobe: the two typefaces, under the SIL Open Font License. Frank Ruhl Libre and Assistant draw the Hebrew letters.',
   'The Astronomical Almanac, for the sums that place the sun and the moon.',
   'GEDCOM, the file format that family history programs share, and the Model Context Protocol, by which an AI assistant connects.',
   'Next.js, React, SQLite and Better Auth, which the app is built with.',
@@ -40,12 +44,13 @@ type PartName = 'Privacy' | 'References';
 
 /* One part of the card that unfolds under its heading. What is folded away is out of reach of the keyboard and of a screen reader, as well as out of sight. */
 function Part({ title, open, onToggle, children }: { title: PartName; open: boolean; onToggle(): void; children: ReactNode }) {
+  const { t } = useT();
   const body = useId();
   return (
     <section className={open ? 'about-part open' : 'about-part'}>
       <h3>
         <button type="button" aria-expanded={open} aria-controls={body} onClick={onToggle}>
-          {title}
+          {t(title)}
           <Icon name="chevron" />
         </button>
       </h3>
@@ -64,6 +69,7 @@ function Part({ title, open, onToggle, children }: { title: PartName; open: bool
  * to others. Escape, the cross, or a press anywhere beside the card closes it.
  */
 export function About({ build, family }: { build: BuildInfo; family: string }) {
+  const { lang, t, tx } = useT();
   const card = useRef<HTMLDialogElement>(null);
   const close = useRef<HTMLButtonElement>(null);
   const title = useId();
@@ -79,7 +85,7 @@ export function About({ build, family }: { build: BuildInfo; family: string }) {
   );
   return (
     <>
-      <button type="button" className="about-open" aria-haspopup="dialog" aria-label={`About Reactive Family Tree, version ${version}`} onClick={open}>
+      <button type="button" className="about-open" aria-haspopup="dialog" aria-label={t('About Reactive Family Tree, version {version}', { version })} onClick={open}>
         v{version}
       </button>
       {/* A press beside the card lands on the dialog itself. Closed, it folds its parts away again for next time. */}
@@ -87,29 +93,31 @@ export function About({ build, family }: { build: BuildInfo; family: string }) {
         <div className="about-card panel">
           <header>
             <h2 id={title}>Reactive Family Tree</h2>
-            <button ref={close} type="button" className="close" aria-label="Close" onClick={() => card.current?.close()}>×</button>
+            <button ref={close} type="button" className="close" aria-label={t('Close')} onClick={() => card.current?.close()}>×</button>
           </header>
           <p className="about-build">
-            Version {version}
-            {revision && <>, build {link(`${HOME}/commit/${revision}`, revision.slice(0, 7))}</>}
-            {made && ` of ${dayOf(made)}`}
+            {t('Version {version}', { version })}
+            {revision && tx(', build {build}', { build: link(`${HOME}/commit/${revision}`, revision.slice(0, 7)) })}
+            {made && t(' of {day}', { day: dayOf(made, lang) })}
           </p>
-          <p>The software that the {family} tree runs on. Each family runs a copy of its own, on a server it chose.</p>
-          <p>Made by {link(MAKER, 'George Khananaev')}, and free for anyone to use under the MIT licence.</p>
+          <p>{t('The software that the {family} tree runs on. Each family runs a copy of its own, on a server it chose.', { family })}</p>
+          <p>{tx('Made by {maker}, and free for anyone to use under the MIT licence.', { maker: link(MAKER, 'George Khananaev') })}</p>
           <p className="about-links">
-            {link(HOME, 'Source on GitHub')}
-            {link(`${HOME}/blob/v${version}/CHANGELOG.md`, 'What changed in each version')}
+            {link(HOME, t('Source on GitHub'))}
+            {link(`${HOME}/blob/v${version}/CHANGELOG.md`, t('What changed in each version'))}
           </p>
           <p className="about-report">
-            Something wrong with the software? Write to <a href={`mailto:${REPORTS}?subject=${encodeURIComponent(`Reactive Family Tree ${version}${revision ? `, build ${revision.slice(0, 7)}` : ''}`)}`}>{REPORTS}</a>
+            {tx('Something wrong with the software? Write to {address}', {
+              address: <a href={`mailto:${REPORTS}?subject=${encodeURIComponent(`Reactive Family Tree ${version}${revision ? `, build ${revision.slice(0, 7)}` : ''}`)}`}>{REPORTS}</a>,
+            })}
           </p>
           {part('Privacy', (
             <>
-              <ul>{PRIVACY.map((line) => <li key={line}>{line}</li>)}</ul>
-              <p>Whoever runs this tree decides who may see it, and can correct or remove anything kept here. Questions about the tree itself go to them.</p>
+              <ul>{PRIVACY.map((line) => <li key={line}>{t(line)}</li>)}</ul>
+              <p>{t('Whoever runs this tree decides who may see it, and can correct or remove anything kept here. Questions about the tree itself go to them.')}</p>
             </>
           ))}
-          {part('References', <ul>{REFERENCES.map((line) => <li key={line}>{line}</li>)}</ul>)}
+          {part('References', <ul>{REFERENCES.map((line) => <li key={line}>{t(line)}</li>)}</ul>)}
         </div>
       </dialog>
     </>

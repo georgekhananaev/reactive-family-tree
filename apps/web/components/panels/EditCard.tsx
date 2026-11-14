@@ -9,13 +9,16 @@ import { parseDate } from '@reactive-family-tree/core';
 import type { EditLineField, EditStatus, EditView, Op } from '@reactive-family-tree/core';
 import type { ReactNode } from 'react';
 
-import { when } from '@/lib/format';
+import { useT } from '@/lib/i18n';
+import type { WebPhrase } from '@/lib/i18n';
 
-const FIELD_LABELS: Readonly<Record<string, string | undefined>> = {
+import { useWhen } from './shared';
+
+const FIELD_LABELS: Readonly<Record<string, WebPhrase | undefined>> = {
   given: 'Given name', family: 'Family name', birthName: 'Born as', sex: 'Sex', living: 'Living', bio: 'Story', privacy: 'Privacy',
   date: 'Date', place: 'Place', value: 'Detail', note: 'Note', certainty: 'Certainty', since: 'Since', status: 'Status', kind: 'Kind', host: 'Drawn with',
 };
-const STATUS_LABELS: Readonly<Record<EditStatus, string>> = { draft: 'Draft', suggested: 'Waiting for review', declined: 'Declined', withdrawn: 'Withdrawn', reverted: 'Undone', applied: '' };
+const STATUS_LABELS: Readonly<Record<EditStatus, WebPhrase | null>> = { draft: 'Draft', suggested: 'Waiting for review', declined: 'Declined', withdrawn: 'Withdrawn', reverted: 'Undone', applied: null };
 /* Fields a reviewer can retype before approving. The rest are choices, not text. */
 const ADJUSTABLE = new Set(['given', 'family', 'birthName', 'bio', 'date', 'place', 'value', 'note']);
 
@@ -59,14 +62,16 @@ function flipped(unticked: Unticked, index: number): Unticked {
 
 /* One field of a change: what it was, what it becomes, and what it is now if something else changed it meanwhile. */
 function Change({ change, retype }: { change: EditLineField; retype?: Held<string> }) {
+  const { t } = useT();
+  const label = FIELD_LABELS[change.field];
   return (
     <>
-      <span className="field">{FIELD_LABELS[change.field] ?? change.field}</span>
+      <span className="field">{label ? t(label) : change.field}</span>
       <span>
-        {change.was !== undefined && <span className="was">{change.was || 'empty'}</span>}
+        {change.was !== undefined && <span className="was">{change.was || t('empty')}</span>}
         {change.was !== undefined && ' '}
-        {retype ? <input type="text" value={retype.value} onChange={(event) => retype.onChange(event.target.value)} /> : <span className="to">{change.to || 'empty'}</span>}
-        {change.now !== undefined && <span className="now">{` (is now ${change.now || 'empty'})`}</span>}
+        {retype ? <input type="text" value={retype.value} onChange={(event) => retype.onChange(event.target.value)} /> : <span className="to">{change.to || t('empty')}</span>}
+        {change.now !== undefined && <span className="now">{` ${t('(is now {value})', { value: change.now || t('empty') })}`}</span>}
       </span>
     </>
   );
@@ -89,20 +94,22 @@ export function EditCard({ edit, selectable, adjusting, actions = [], children }
   actions?: ReactNode[];
   children?: ReactNode;
 }) {
+  const { t } = useT();
+  const when = useWhen();
   const fromAi = edit.origin === 'mcp';
   const status = STATUS_LABELS[edit.status];
 
   return (
     <article className={`edit${edit.status === 'suggested' || edit.status === 'draft' ? ' waiting' : ''}`} data-edit={edit.id}>
       <header>
-        <strong>{edit.message || 'An edit'}</strong>
+        <strong>{edit.message || t('An edit')}</strong>
         <small>{when(edit.appliedAt ?? edit.createdAt)}</small>
       </header>
       <p className="by">
-        {`${edit.author}${edit.byVisitor ? ' (a visitor)' : ''} `}
-        {fromAi && <span className="status ai">{`with AI${edit.client ? `, ${edit.client}` : ''}`}</span>}{' '}
-        {status && <span className="status">{status}</span>}
-        {edit.reviewedBy && edit.status === 'applied' && ` Approved by ${edit.reviewedBy}.`}
+        {`${edit.byVisitor ? t('{name} (a visitor)', { name: edit.author }) : edit.author} `}
+        {fromAi && <span className="status ai">{edit.client ? t('with AI, {client}', { client: edit.client }) : t('with AI')}</span>}{' '}
+        {status && <span className="status">{t(status)}</span>}
+        {edit.reviewedBy && edit.status === 'applied' && ` ${t('Approved by {name}.', { name: edit.reviewedBy })}`}
       </p>
       {edit.note && <p className="note">{edit.note}</p>}
       <ul>

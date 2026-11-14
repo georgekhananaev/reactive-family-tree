@@ -76,6 +76,33 @@ export interface TreeEngineEvents {
   moved?(): void;
 }
 
+/* The words the tree writes on itself. A page in another language gives its own. */
+export interface TreeLabels {
+  /* The bud at the end of a folded branch, for a screen reader. */
+  showBranch: string;
+  /* A living relative kept private, for a screen reader. */
+  livingRelative: string;
+  /* Someone whose name nobody has written down. */
+  unknown: string;
+  /* Under a leaf in place of its years: a draft only its author sees, or a suggestion waiting for review. */
+  draft: string;
+  suggested: string;
+  /* The word under each + bud, and on the twig while one is pulled out. */
+  relations: Readonly<Record<Relation, string>>;
+  /* What a + bud is called, for a screen reader. */
+  addRelation(relation: Relation): string;
+}
+
+const ENGLISH: TreeLabels = {
+  showBranch: 'Show this branch',
+  livingRelative: 'Living relative',
+  unknown: 'Unknown',
+  draft: 'draft',
+  suggested: 'suggested',
+  relations: { child: 'child', partner: 'partner', parent: 'parent', sibling: 'sibling' },
+  addRelation: (relation) => `Add ${relation}`,
+};
+
 export interface TreeEngineOptions {
   stage: HTMLElement;
   world: HTMLElement;
@@ -95,10 +122,11 @@ export interface Camera {
   k: number;
 }
 
-/* Space taken by an open side panel and a banner, kept clear when fitting. */
+/* Space taken by an open side panel and a banner, kept clear when fitting. A page read from the right opens its panel on the left. */
 export interface TreeInsets {
   right: number;
   top: number;
+  left?: number;
 }
 
 export interface BranchState {
@@ -406,6 +434,7 @@ export class TreeEngine {
   private readonly on: TreeEngineEvents;
   private readonly portraitOf: TreeEngineOptions['portraitOf'];
   private faces = false;
+  private labels = ENGLISH;
 
   private year: number;
   private hoverId: string | null;
@@ -729,7 +758,7 @@ export class TreeEngine {
         n.blossomEl.innerHTML = `<g class="unfurl">${BLOSSOM}</g>`;
       }
       if (n.children.length) {
-        n.budEl = el('g', { class: 'bud', 'data-node': n.id, tabindex: '-1', role: 'button', 'aria-label': 'Show this branch' }, this.layer.leaves);
+        n.budEl = el('g', { class: 'bud', 'data-node': n.id, tabindex: '-1', role: 'button', 'aria-label': this.labels.showBranch }, this.layer.leaves);
         n.budEl.innerHTML = '<g class="unfurl"><circle class="bud-shape" r="18"/><text class="bud-count" text-anchor="middle" y="5.5"></text></g>';
       }
     }
@@ -807,6 +836,19 @@ export class TreeEngine {
     if (faces) for (const leaf of this.leaves) this.addFace(leaf);
     // A face reaches further than a leaf, so the names step out of its way, and back
     if (this.shift >= 1) this.placeLabels();
+  }
+
+  /* The words the tree writes on itself. Any left out are in English. */
+  setLabels(labels: Partial<TreeLabels> = {}): void {
+    this.labels = { ...ENGLISH, ...labels };
+    // What is drawn already is written again in the new words
+    for (const n of this.nodes) n.budEl?.setAttribute('aria-label', this.labels.showBranch);
+    for (const leaf of this.leaves) {
+      leaf.yearsNow = undefined;
+      this.syncLeaf(leaf, leaf.on);
+    }
+    if (this.shift >= 1) this.placeLabels();
+    this.drawHandles();
   }
 
   /* The tree is one stop for the Tab key. Arrow keys travel from there along the family. */
@@ -930,13 +972,13 @@ export class TreeEngine {
   }
 
   private nameOf(person: TreePerson): string {
-    if (person.masked) return 'Living relative';
-    return person.given || 'Unknown';
+    if (person.masked) return this.labels.livingRelative;
+    return person.given || this.labels.unknown;
   }
 
   private yearsOf(person: TreePerson): string {
     if (person.masked) return '';
-    if (person.pending) return person.pending.status === 'draft' ? 'draft' : 'suggested';
+    if (person.pending) return person.pending.status === 'draft' ? this.labels.draft : this.labels.suggested;
     if (!person.born) return '';
     return person.died && person.died <= this.year ? `${person.born}–${person.died}` : String(person.born);
   }
@@ -1288,11 +1330,11 @@ export class TreeEngine {
     for (const relation of this.addable(leaf.person.id)) {
       const [ox, oy] = spots[relation];
       const handle: HandleElement = Object.assign(el('g', {
-        class: 'handle', 'data-relation': relation, tabindex: '0', role: 'button', 'aria-label': `Add ${relation}`,
+        class: 'handle', 'data-relation': relation, tabindex: '0', role: 'button', 'aria-label': this.labels.addRelation(relation),
         transform: `translate(${(n.x + ox).toFixed(1)} ${(n.y + oy).toFixed(1)})`,
       }, this.layer.handles), { relation, origin: { x: n.x + dx * 30, y: n.y + dy * 30 } });
       handle.innerHTML = '<circle class="handle-shape" r="17"/><path class="handle-plus" d="M-7,0 H7 M0,-7 V7"/>';
-      el('text', { class: 'handle-label', 'text-anchor': 'middle', y: '34' }, handle).textContent = relation;
+      el('text', { class: 'handle-label', 'text-anchor': 'middle', y: '34' }, handle).textContent = this.labels.relations[relation];
     }
   }
 
@@ -1416,25 +1458,29 @@ export class TreeEngine {
     return this.stageBox.left + this.cam.x;
   }
 
-  /* The width of the stage not covered by an open side panel. */
+  /* The width of the stage not covered by an open side panel, and where that width begins. */
   get freeWidth(): number {
-    return this.stageBox.width - this.insets.right;
+    return this.stageBox.width - this.insets.right - this.freeLeft;
+  }
+
+  private get freeLeft(): number {
+    return this.insets.left ?? 0;
   }
 
   /* The tree can be pushed around freely, but never lost: if it is dragged out of sight it eases back. */
   private keepInReach(): void {
     if (this.pointers.size) return;
-    const { cam, bounds: b } = this, w = this.freeWidth, h = this.stageBox.height;
+    const { cam, bounds: b, freeLeft: from } = this, w = this.freeWidth, h = this.stageBox.height;
     const reach = Math.min(w, h) * 0.22;
     const left = cam.x + b.x0 * cam.k, right = cam.x + b.x1 * cam.k, top = cam.y + b.y0 * cam.k, bottom = cam.y + b.y1 * cam.k;
-    const dx = right < reach ? reach - right : left > w - reach ? w - reach - left : 0;
+    const dx = right < from + reach ? from + reach - right : left > from + w - reach ? from + w - reach - left : 0;
     const dy = bottom < reach ? reach - bottom : top > h - reach ? h - reach - top : 0;
     if (dx || dy) this.glideTo({ x: cam.x + dx, y: cam.y + dy, k: cam.k }, 380);
   }
 
   /* A side panel or a banner opened or closed. If the tree has not been moved by hand, it re-centres in the space left. */
   setInsets(insets: TreeInsets): void {
-    if (insets.right === this.insets.right && insets.top === this.insets.top) return;
+    if (insets.right === this.insets.right && insets.top === this.insets.top && (insets.left ?? 0) === this.freeLeft) return;
     this.insets = insets;
     if (!this.userMoved) this.fit(false, true);
   }
@@ -1471,7 +1517,7 @@ export class TreeEngine {
     if (!whole && aw / bw < ah / bh && k < 0.44) k = Math.min(0.66, ah / bh);
     return {
       k,
-      x: bw * k <= aw + 1 ? pad.side + (aw - bw * k) / 2 - this.bounds.x0 * k : this.freeWidth / 2,
+      x: this.freeLeft + (bw * k <= aw + 1 ? pad.side + (aw - bw * k) / 2 - this.bounds.x0 * k : this.freeWidth / 2),
       y: pad.top + (ah - bh * k) / 2 - this.bounds.y0 * k,
     };
   }
@@ -1507,7 +1553,7 @@ export class TreeEngine {
     const aw = this.freeWidth - side * 2, ah = this.stageBox.height - top - bottom;
     const k = Math.max(MIN_ZOOM, Math.min(0.9, aw / (box.x1 - box.x0 + 220), ah / (box.y1 - box.y0 + 220)));
     this.userMoved = true;
-    this.glideTo({ k, x: side + aw / 2 - ((box.x0 + box.x1) / 2) * k, y: top + ah / 2 - ((box.y0 + box.y1) / 2) * k }, 750);
+    this.glideTo({ k, x: this.freeLeft + side + aw / 2 - ((box.x0 + box.x1) / 2) * k, y: top + ah / 2 - ((box.y0 + box.y1) / 2) * k }, 750);
   }
 
   /* Where the camera is gliding to, or where it is when it is at rest. */
@@ -1539,14 +1585,14 @@ export class TreeEngine {
     if (!leaf) return;
     const k = Math.max(this.cam.k, 0.7);
     this.userMoved = true;
-    this.glideTo({ k, x: this.freeWidth / 2 - leaf.node.tx * k, y: this.stageBox.height / 2 - leaf.node.ty * k }, 800);
+    this.glideTo({ k, x: this.freeLeft + this.freeWidth / 2 - leaf.node.tx * k, y: this.stageBox.height / 2 - leaf.node.ty * k }, 800);
   }
 
   /* Nudge the tree, if needed, so a leaf the keyboard has moved to is comfortably on screen. */
   private reveal(leaf: Leaf): void {
     const box = leaf.el.getBoundingClientRect(), edge = 72;
-    const right = this.stageBox.left + this.freeWidth, bottom = this.stageBox.bottom;
-    const dx = box.left < this.stageBox.left + edge ? this.stageBox.left + edge - box.left : box.right > right - edge ? right - edge - box.right : 0;
+    const left = this.stageBox.left + this.freeLeft, right = left + this.freeWidth, bottom = this.stageBox.bottom;
+    const dx = box.left < left + edge ? left + edge - box.left : box.right > right - edge ? right - edge - box.right : 0;
     const dy = box.top < this.stageBox.top + edge + 20 ? this.stageBox.top + edge + 20 - box.top : box.bottom > bottom - edge - 40 ? bottom - edge - 40 - box.bottom : 0;
     if (dx || dy) this.panBy(dx, dy);
   }
@@ -1560,7 +1606,7 @@ export class TreeEngine {
 
   /* One step in or out, about the middle of the screen. For the zoom buttons and the + and - keys. */
   zoomStep(factor: number): void {
-    this.zoomTo(this.freeWidth / 2, this.stageBox.height / 2, this.cam.k * factor);
+    this.zoomTo(this.freeLeft + this.freeWidth / 2, this.stageBox.height / 2, this.cam.k * factor);
   }
 
   private zoomAt(px: number, py: number, factor: number): void {
@@ -1583,7 +1629,7 @@ export class TreeEngine {
     const from = handle.origin;
     this.twig.setAttribute('d', `M${from.x.toFixed(1)},${from.y.toFixed(1)} Q${((from.x + to.x) / 2).toFixed(1)},${(from.y + (to.y - from.y) * 0.2).toFixed(1)} ${to.x.toFixed(1)},${to.y.toFixed(1)}`);
     this.twigTip.setAttribute('transform', `translate(${to.x.toFixed(1)} ${to.y.toFixed(1)})`);
-    this.twigTip.lastChild!.textContent = handle.getAttribute('data-relation');   // the label the constructor put there
+    this.twigTip.lastChild!.textContent = this.labels.relations[handle.relation];   // the label the constructor put there
   }
 
   private listen(): void {

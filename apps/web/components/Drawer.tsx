@@ -14,6 +14,7 @@ import type { ComponentType } from 'react';
 import type { AppController, PanelArgs, PanelName } from '@/lib/app-context';
 import { useApp } from '@/lib/app-context';
 import { usePresence } from '@/lib/hooks';
+import { useT } from '@/lib/i18n';
 
 import { arrowThrough } from './ui';
 
@@ -23,9 +24,12 @@ export interface PanelProps {
   setArgs(patch: Partial<PanelArgs>): void;
 }
 
+/* The page's own `t`: a panel says its title and the names of its tabs with it, in the reader's language. */
+type Say = ReturnType<typeof useT>['t'];
+
 export interface PanelDef {
-  title(args: PanelArgs, app: AppController): string;
-  tabs?(app: AppController, args: PanelArgs): readonly (readonly [string, string])[];
+  title(args: PanelArgs, app: AppController, t: Say): string;
+  tabs?(app: AppController, args: PanelArgs, t: Say): readonly (readonly [string, string])[];
   Body: ComponentType<PanelProps>;
 }
 
@@ -45,6 +49,7 @@ export function Drawer({ current, panels, onArgs, onClose }: {
   onClose(): void;
 }) {
   const app = useApp();
+  const { t } = useT();
   const { present, shown } = usePresence(current !== null, SLIDE_MS);
   // While it slides out there is no current panel any more, so the last one stays drawn
   const last = useRef(current);
@@ -68,7 +73,7 @@ export function Drawer({ current, panels, onArgs, onClose }: {
   }, [isOpen]);
 
   const panel = drawn ? panels[drawn.name] : null;
-  const tabs = (drawn && panel?.tabs?.(app, drawn.args)) || [];
+  const tabs = (drawn && panel?.tabs?.(app, drawn.args, t)) || [];
   const tab = tabs.some(([key]) => key === drawn?.args.tab) ? drawn?.args.tab : tabs[0]?.[0];
   const args = drawn ? { ...drawn.args, tab } : {};
 
@@ -82,10 +87,10 @@ export function Drawer({ current, panels, onArgs, onClose }: {
   };
 
   return (
-    <aside id="drawer" className={shown ? 'drawer open' : 'drawer'} hidden={!present} aria-label="Panel">
+    <aside id="drawer" className={shown ? 'drawer open' : 'drawer'} hidden={!present} aria-label={t('Panel')}>
       <header>
-        <h2 id="drawerTitle">{drawn && panel ? panel.title(args, app) : ''}</h2>
-        <button ref={closeButton} id="drawerClose" type="button" className="close" aria-label="Close" onClick={onClose}>
+        <h2 id="drawerTitle">{drawn && panel ? panel.title(args, app, t) : ''}</h2>
+        <button ref={closeButton} id="drawerClose" type="button" className="close" aria-label={t('Close')} onClick={onClose}>
           ×
         </button>
       </header>

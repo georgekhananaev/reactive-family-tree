@@ -12,9 +12,14 @@
 
 import { isValidDate } from './dates';
 import { livingPartners, present } from './graph';
+import { isLang, listed, sayFrom } from './lang';
+import type { Lang, Values } from './lang';
+import { TEXT_FIELDS, writeIn } from './text';
+import { say } from './words';
+import type { Phrase } from './words';
 import type {
   Applied, Certainty, Change, ChildKind, Entity, EntityKind, EntityOf, FactFields, FactType, Living, Op, OpEnv, OpType,
-  PersonFields, Privacy, Ref, Sex, State, UnionFields, UnionKind, UnionStatus,
+  Person, PersonFields, Privacy, Ref, Sex, State, UnionFields, UnionKind, UnionStatus,
 } from './types';
 
 export const SEXES: readonly Sex[] = ['female', 'male', 'other', 'unknown'];
@@ -29,21 +34,33 @@ export const FACT_TYPES: readonly FactType[] = ['birth', 'death', 'burial', 'res
 /* Operations that only add new things. A pending edit's additions can be drawn on the tree in pencil. */
 export const ADDITIVE: ReadonlySet<OpType> = new Set<OpType>(['person.create', 'union.create', 'union.add_partner', 'child.link', 'fact.add']);
 
+/* Text has had a language since languages were added. Anything kept from before is given the first one. */
+function withLanguage(entity: Entity, kind: EntityKind): Entity {
+  if (kind === 'unions') return entity;
+  const worded = entity as Partial<Pick<Person, 'lang' | 'tr'>>;
+  worded.lang ??= 'en';
+  worded.tr ??= {};
+  return entity;
+}
+
 export class OpError extends Error {
   code: string;
   index: number;
+  /* The sentence with its gaps still open and what fills them, where there is something to fill, so it can be said in another language. */
+  said: { phrase: string; values: Values } | null;
 
-  constructor(code: string, message: string, index: number) {
-    super(message);
+  constructor(code: string, message: string, index: number, values?: Values) {
+    super(values ? sayFrom(null, 'en', message, values) : message);
     this.code = code;
     this.index = index;
+    this.said = values ? { phrase: message, values } : null;
   }
 }
 
 /* ---------- Field rules ---------- */
 
 type Rule = (value: unknown) => boolean;
-type Fail = (code: string, message: string) => never;
+type Fail = (code: string, message: string, values?: Values) => never;
 
 const text = (max: number): Rule => (value) => typeof value === 'string' && value.length <= max;
 const oneOf = (list: readonly unknown[]): Rule => (value) => list.includes(value);
@@ -71,8 +88,8 @@ function pick<F>(rules: Record<string, Rule>, source: Partial<F> | undefined, fa
   for (const [key, value] of Object.entries<unknown>(source ?? {})) {
     // Only the fields named in the rules. "constructor" and the like, which every object carries, are not fields.
     const rule = Object.hasOwn(rules, key) ? rules[key] : undefined;
-    if (!rule) fail('unknown_field', `"${key}" is not something that can be set here.`);
-    else if (!rule(value)) fail('bad_value', `"${key}" has a value that is not allowed.`);
+    if (!rule) fail('unknown_field', '"{key}" is not something that can be set here.', { key });
+    else if (!rule(value)) fail('bad_value', '"{key}" has a value that is not allowed.', { key });
     out[key] = value;
   }
   // Every value has just passed the rule for its field
@@ -108,18 +125,18 @@ export function applyOps(state: State, ops: readonly Op[], env: OpEnv): Applied 
   const created: Record<string, string> = {};
   let index = 0;
 
-  const fail: Fail = (code, message) => { throw new OpError(code, message, index); };
+  const fail: Fail = (code, message, values) => { throw new OpError(code, message, index, values); };
   const resolve = (value: Ref): string => {
     if (typeof value !== 'string' || !value) fail('bad_reference', 'An operation is missing who or what it is about.');
     if (!value.startsWith('$')) return value;
-    if (!created[value]) fail('unknown_reference', `Nothing in this edit is called ${value}.`);
+    if (!created[value]) fail('unknown_reference', 'Nothing in this edit is called {name}.', { name: value });
     return created[value];
   };
 
   /* Take an entity out for changing. The first touch remembers how it was. */
   const open = <K extends EntityKind>(kind: K, id: string, { deleted = false } = {}): EntityOf[K] => {
     const current = tables[kind].get(id);
-    if (!current || (!deleted && current.deletedAt)) fail('not_found', `That ${NOUNS[kind]} does not exist.`);
+    if (!current || (!deleted && current.deletedAt)) fail('not_found', MISSING[kind]);
     const key = `${kind}:${id}`;
     // Already taken out: what the state holds is the copy being changed
     if (changes.has(key)) return current;
@@ -135,28 +152,33 @@ export function applyOps(state: State, ops: readonly Op[], env: OpEnv): Applied 
     tables[kind].set(id, after);
     changes.set(`${kind}:${id}`, { kind, id, before: null, after });
     if (ref) {
-      if (!/^\$[\w-]+$/.test(ref) || created[ref]) fail('bad_reference', `"${ref}" cannot be used as a name for something new.`);
+      if (!/^\$[\w-]+$/.test(ref) || created[ref]) fail('bad_reference', '"{ref}" cannot be used as a name for something new.', { ref });
       created[ref] = id;
     }
   };
   /* Check that something exists without marking it as changed. */
   const need = (kind: EntityKind, value: Ref): string => {
     const id = resolve(value);
-    if (!present(state[kind].get(id))) fail('not_found', `That ${NOUNS[kind]} does not exist.`);
+    if (!present(state[kind].get(id))) fail('not_found', MISSING[kind]);
     return id;
   };
   const somebody = (value: Ref) => need('people', value);
+  /* The language some new text is in: the one the operation names, or the author's. */
+  const written = (lang: Lang | undefined): Lang => {
+    if (lang !== undefined && !isLang(lang)) fail('bad_value', 'That is not one of the tree’s languages.');
+    return lang ?? env.lang ?? 'en';
+  };
 
   const handlers: Handlers = {
     'person.create'(op) {
       const fields = pick(PERSON_FIELDS, op.set, fail);
       add('people', 'p', op.ref, {
-        given: '', family: '', birthName: '', sex: 'unknown', living: 'unknown', privacy: 'default', bio: '', portrait: null, consentAt: null, ...fields,
+        given: '', family: '', birthName: '', sex: 'unknown', living: 'unknown', privacy: 'default', bio: '', portrait: null, consentAt: null, ...fields, lang: written(op.lang), tr: {},
       });
     },
     'person.update'(op) {
       const target = open('people', resolve(op.person));
-      Object.assign(target, pick(PERSON_FIELDS, op.set, fail));
+      writeIn(target, TEXT_FIELDS.people, pick(PERSON_FIELDS, op.set, fail), op.lang && written(op.lang));
       // Consent to being public belongs to one choice of privacy and does not outlive it
       if ('privacy' in (op.set ?? {})) target.consentAt = op.set?.privacy === 'public' && op.consent ? env.now : null;
     },
@@ -226,10 +248,10 @@ export function applyOps(state: State, ops: readonly Op[], env: OpEnv): Applied 
       const subject = { type, id: need(type === 'person' ? 'people' : 'unions', op.subject.id) };
       const fields = pick(FACT_FIELDS, op.set, fail);
       if (!fields.type) fail('bad_value', 'A fact needs a type, such as birth or occupation.');
-      add('facts', 'f', op.ref, { date: null, place: '', value: '', note: '', certainty: 'certain', privacy: 'default', ...fields, type: fields.type, subject });
+      add('facts', 'f', op.ref, { date: null, place: '', value: '', note: '', certainty: 'certain', privacy: 'default', ...fields, type: fields.type, subject, lang: written(op.lang), tr: {} });
     },
     'fact.update'(op) {
-      Object.assign(open('facts', resolve(op.fact)), pick(FACT_FIELDS, op.set, fail));
+      writeIn(open('facts', resolve(op.fact)), TEXT_FIELDS.facts, pick(FACT_FIELDS, op.set, fail), op.lang && written(op.lang));
     },
     'fact.remove'(op) {
       open('facts', resolve(op.fact)).deletedAt = env.now;
@@ -237,7 +259,14 @@ export function applyOps(state: State, ops: readonly Op[], env: OpEnv): Applied 
     'memory.add'(op) {
       const personId = somebody(op.person);
       if (!text(4000)(op.body) || !op.body.trim()) fail('bad_value', 'A memory needs some words, up to 4,000 characters.');
-      add('memories', 'm', op.ref, { personId, authorUserId: env.userId, authorName: env.userName, body: op.body.trim(), createdAt: env.now });
+      add('memories', 'm', op.ref, { personId, authorUserId: env.userId, authorName: env.userName, body: op.body.trim(), createdAt: env.now, lang: written(op.lang), tr: {} });
+    },
+    'memory.translate'(op) {
+      const memory = open('memories', resolve(op.memory));
+      if (!text(4000)(op.body)) fail('bad_value', 'A memory has at most 4,000 characters.');
+      // In its own language a memory stays as it was told
+      if (written(op.lang) === memory.lang) fail('bad_value', 'A memory is told again in another language, not rewritten in its own.');
+      writeIn(memory, TEXT_FIELDS.memories, { body: op.body.trim() }, op.lang);
     },
     'memory.remove'(op) {
       open('memories', resolve(op.memory)).deletedAt = env.now;
@@ -249,9 +278,10 @@ export function applyOps(state: State, ops: readonly Op[], env: OpEnv): Applied 
       // Undo is trusted to send a snapshot of the kind it names
       const table: Map<string, Entity> = state[op.kind];
       const before = table.get(op.id) ?? null;
-      if (!before && !op.snapshot) fail('not_found', `That ${NOUNS[op.kind]} does not exist.`);
+      if (!before && !op.snapshot) fail('not_found', MISSING[op.kind]);
       // With no snapshot the thing goes to the compost, and undo only does that to something that is there
-      const after = op.snapshot ? structuredClone(op.snapshot) : ({ ...before, deletedAt: env.now } as Entity);
+      // A snapshot from before text had a language is of something written in the family's first one, with nothing beside it
+      const after = op.snapshot ? withLanguage(structuredClone(op.snapshot), op.kind) : ({ ...before, deletedAt: env.now } as Entity);
       // Putting something back restores its revision number too, so that an earlier
       // edit of the same thing can then be undone in turn.
       const restored = Boolean(op.snapshot);
@@ -264,7 +294,7 @@ export function applyOps(state: State, ops: readonly Op[], env: OpEnv): Applied 
   /* Operations arrive as data, so one that no handler knows is refused here, whatever its type says. */
   const run = <T extends OpType>(type: T, op: OpOf[T]): void => {
     const handler = Object.hasOwn(handlers, type) ? handlers[type] : undefined;
-    if (!handler) fail('unknown_operation', `"${type}" is not an operation.`);
+    if (!handler) fail('unknown_operation', '"{type}" is not an operation.', { type });
     else handler(op);
   };
 
@@ -281,29 +311,73 @@ export function applyOps(state: State, ops: readonly Op[], env: OpEnv): Applied 
 }
 
 const NOUNS: Record<EntityKind, string> = { people: 'person', unions: 'partnership', facts: 'fact', memories: 'memory' };
+const MISSING: Record<EntityKind, string> = {
+  people: 'That person does not exist.', unions: 'That partnership does not exist.', facts: 'That fact does not exist.', memories: 'That memory does not exist.',
+};
 
-/* A sentence for each operation, for review cards, history and AI drafts. */
-export function describeOp(op: Op, nameOf: (id: string) => string | null | undefined): string {
-  const who = (id: string) => nameOf(id) ?? 'someone new';
-  const listed = (set: object | undefined) => Object.keys(set ?? {}).join(', ') || 'details';
+/* What each field is called when a sentence names it. */
+export const FIELD_WORDS: Readonly<Record<string, Phrase | undefined>> = {
+  given: 'given name', family: 'family name', birthName: 'birth name', bio: 'story', sex: 'sex', living: 'living', privacy: 'privacy', portrait: 'photo',
+  kind: 'kind', status: 'status', host: 'drawn with', since: 'since', type: 'type', date: 'date', place: 'place', value: 'detail', note: 'note', certainty: 'certainty',
+};
+
+/* A field by the word people know it by, for a sentence that names it. One that has no word is named as it is. */
+export function fieldWord(key: string, lang: Lang): string {
+  const word = FIELD_WORDS[key];
+  return word ? say(lang, word) : key;
+}
+
+/* "in Russian", for each language a thing can be written in. */
+export const IN_LANGUAGE: Record<Lang, Phrase> = { en: 'in English', he: 'in Hebrew', ru: 'in Russian' };
+
+/* What a sentence about a change may need to look up beyond people's names. */
+export interface Known {
+  /* The language a person or a fact is itself written in, so that text added in another one is told apart from a change to the original. */
+  langOf?(id: string): Lang | null | undefined;
+  /* Whom a memory is about. */
+  memoryOf?(id: string): string | null | undefined;
+}
+
+/* A sentence for each operation, for review cards, history and AI drafts, in the reader's language. */
+export function describeOp(op: Op, nameOf: (id: string) => string | null | undefined, lang: Lang = 'en', known: Known = {}): string {
+  const who = (id: string | null | undefined) => (id ? nameOf(id) : null) ?? say(lang, 'someone new');
+  /* The words for "in Russian", when the operation writes in a language that is not the thing's own. */
+  const another = (id: string, written: Lang | undefined): string | null => {
+    const its = known.langOf?.(id);
+    return written && its && written !== its && isLang(written) ? say(lang, IN_LANGUAGE[written]) : null;
+  };
+  const fields = (set: object | undefined) => Object.keys(set ?? {}).map((key) => fieldWord(key, lang)).join(', ') || say(lang, 'details');
   switch (op.type) {
-    case 'person.create': return `Add ${[op.set?.given, op.set?.family].filter(Boolean).join(' ') || 'an unnamed person'}`;
-    case 'person.update': return `Change ${listed(op.set)} of ${who(op.person)}`;
-    case 'person.remove': return `Remove ${who(op.person)}`;
-    case 'person.restore': return `Restore ${who(op.person)}`;
-    case 'union.create': return `Join ${op.partners.map(who).join(' and ')} as partners`;
-    case 'union.update': return `Change ${listed(op.set)} of a partnership`;
-    case 'union.remove': return 'Remove a partnership';
-    case 'union.add_partner': return `Add ${who(op.person)} as a partner`;
-    case 'union.remove_partner': return `Remove ${who(op.person)} from a partnership`;
-    case 'child.link': return `Add ${who(op.child)} as a child`;
-    case 'child.unlink': return `Remove ${who(op.child)} as a child`;
-    case 'fact.add': return `Add ${op.set?.type ?? 'a fact'} for ${who(op.subject?.id)}`;
-    case 'fact.update': return `Change ${listed(op.set)} of a fact`;
-    case 'fact.remove': return 'Remove a fact';
-    case 'memory.add': return `Add a memory of ${who(op.person)}`;
-    case 'memory.remove': return 'Remove a memory';
-    case 'entity.set': return 'Put something back as it was';
+    case 'person.create': {
+      const name = [op.set?.given, op.set?.family].filter(Boolean).join(' ');
+      return name ? say(lang, 'Add {name}', { name }) : say(lang, 'Add an unnamed person');
+    }
+    case 'person.update': {
+      const inLanguage = another(op.person, op.lang);
+      return say(lang, inLanguage ? 'Write {fields} of {who} {inLanguage}' : 'Change {fields} of {who}', { fields: fields(op.set), who: who(op.person), inLanguage });
+    }
+    case 'person.remove': return say(lang, 'Remove {who}', { who: who(op.person) });
+    case 'person.restore': return say(lang, 'Restore {who}', { who: who(op.person) });
+    case 'union.create': return say(lang, 'Join {names} as partners', { names: listed(lang, op.partners.map(who)) });
+    case 'union.update': return say(lang, 'Change {fields} of a partnership', { fields: fields(op.set) });
+    case 'union.remove': return say(lang, 'Remove a partnership');
+    case 'union.add_partner': return say(lang, 'Add {who} as a partner', { who: who(op.person) });
+    case 'union.remove_partner': return say(lang, 'Remove {who} from a partnership', { who: who(op.person) });
+    case 'child.link': return say(lang, 'Add {who} as a child', { who: who(op.child) });
+    case 'child.unlink': return say(lang, 'Remove {who} as a child', { who: who(op.child) });
+    case 'fact.add': {
+      const type = op.set?.type;
+      return type ? say(lang, 'Add {type} for {who}', { type: FACT_TYPES.includes(type) ? say(lang, type) : type, who: who(op.subject?.id) }) : say(lang, 'Add a fact for {who}', { who: who(op.subject?.id) });
+    }
+    case 'fact.update': {
+      const inLanguage = another(op.fact, op.lang);
+      return say(lang, inLanguage ? 'Write {fields} of a fact {inLanguage}' : 'Change {fields} of a fact', { fields: fields(op.set), inLanguage });
+    }
+    case 'fact.remove': return say(lang, 'Remove a fact');
+    case 'memory.add': return say(lang, 'Add a memory of {who}', { who: who(op.person) });
+    case 'memory.translate': return say(lang, 'Write a memory of {who} {inLanguage}', { who: who(known.memoryOf?.(op.memory)), inLanguage: isLang(op.lang) ? say(lang, IN_LANGUAGE[op.lang]) : '' });
+    case 'memory.remove': return say(lang, 'Remove a memory');
+    case 'entity.set': return say(lang, 'Put something back as it was');
     // The types leave nothing over, but an operation is data and may still be something else
     default: return (op as Op).type;
   }

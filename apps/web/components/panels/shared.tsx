@@ -1,12 +1,28 @@
 'use client';
 
-/* What the panels have in common: asking the server, waiting for its answer, and changing something. */
+/* What the panels have in common: asking the server, waiting for its answer, changing something, and saying it in the reader's words. */
 
 import type { EditView, MembersInfo } from '@reactive-family-tree/core';
 import { useQuery } from '@tanstack/react-query';
 
 import { api, messageOf } from '@/lib/api';
 import type { AppController } from '@/lib/app-context';
+import { when } from '@/lib/format';
+import { useT } from '@/lib/i18n';
+import type { WebPhrase } from '@/lib/i18n';
+
+/* The page's `t`, for the helpers that are not components. */
+export type Say = ReturnType<typeof useT>['t'];
+
+
+/* Choices for a list, with their words in the reader's language. */
+export const inWords = <Value extends string>(t: Say, options: readonly (readonly [Value, WebPhrase])[]) => options.map(([value, label]) => [value, t(label)] as const);
+
+/* When something happened, the way the reader's language says it: "today, 14:05" or "3 Nov 2026". */
+export function useWhen(): (isoTime: string | null | undefined) => string {
+  const { lang, t } = useT();
+  return (isoTime) => when(isoTime, lang, (time) => t('today, {time}', { time }));
+}
 
 /* One list of edits: those to review, the viewer's own, or what has been published (about one person, if given). */
 export function useEdits(which: 'review' | 'mine' | 'activity', personId?: string) {

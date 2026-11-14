@@ -325,6 +325,12 @@ body { --inset: 0px; --slide: 0.36s cubic-bezier(0.2, 0.9, 0.3, 1); }
 .menu [role="menuitem"] svg { color: var(--muted); transition: color 0.25s; }
 .menu [role="menuitem"]:hover svg, .menu [role="menuitem"]:focus-visible svg { color: var(--action); }
 .menu hr { margin: 6px 0; border: 0; border-top: 1px solid var(--line); }
+/* The languages, each under its own name, below the button that opens them */
+.languages { position: relative; }
+.languages .tool span { font-weight: 600; letter-spacing: 0.02em; }
+.menu.languages-menu { top: calc(100% + 8px); right: 0; width: 200px; transform-origin: 100% 0; }
+.languages-menu [role="menuitemradio"] { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 0; border-radius: 8px; font-size: 1.0625rem; }
+.languages-menu [role="menuitemradio"][aria-checked="true"]::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--action); }
 /* The warning before a sign-out that would leave no way back in */
 .menu .hint-line { margin: 2px 12px 8px; max-width: 34ch; color: var(--ink); }
 .menu .who { display: flex; align-items: center; gap: 12px; padding: 8px 12px 12px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
@@ -920,3 +926,73 @@ dl.keys dd { margin: 0; color: var(--muted); }
 
 .still .toast, .still .zoom, .still .banner, .still .petal-item, .still .card-body, .still .card-ask, .still .drawer-page, .still .photo-large, .still .photo-large::backdrop, .still .about-open { animation: none !important; }
 .still .about, .still .about::backdrop, .still .about-fold, .still .about-fold > div, .still .about-part .icon { transition: none !important; }
+
+/* ---------- Words in more than one language ---------- */
+
+/* A small button inside a line of muted text keeps that line's size */
+.hint-line button.link, .memory button.link, #card .facts button.link, .lang-tag button.link { min-height: 0; padding: 0; font-size: inherit; }
+/* Which language a text is shown in, when it is not the reader's */
+.lang-tag { color: var(--muted); font-size: 0.8125rem; white-space: nowrap; }
+/* The three languages to choose from, at the start of the setup */
+.language-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.language-row .choice { flex: 1 1 120px; }
+/* A row of the Translations tab: the original, and the same words in the language being written */
+.translation { white-space: pre-wrap; overflow-wrap: anywhere; }
+.translation-filters { margin-top: 8px; }
+
+/* ---------- Right to left ----------
+ * Hebrew is read from the right, so the page around the tree is mirrored: the
+ * panel opens from the left, the menus drop from the left corner, the view
+ * buttons and the version change sides, and text starts at the right. The
+ * tree itself and the year slider are not mirrored: a family is drawn the
+ * same for everyone, and years run the same way on every timeline.
+ */
+/* The drawing keeps the left-to-right sense its labels are placed by. A Hebrew name inside it still reads from the right. */
+[dir="rtl"] #stage { direction: ltr; }
+[dir="rtl"] .appearance::before { left: auto; right: 3px; }
+:root[dir="rtl"][data-theme="dark"] .appearance::before { transform: translateX(-100%); }
+
+[dir="rtl"] .top { padding-right: calc(20px + env(safe-area-inset-right)); padding-left: calc(20px + var(--inset) + env(safe-area-inset-left)); transition: padding-left var(--slide); }
+[dir="rtl"] #menuOpen:not(.primary) { padding-left: 14px; padding-right: 7px; }
+[dir="rtl"] .badge { right: auto; left: -5px; }
+[dir="rtl"] .menu, [dir="rtl"] .search { right: auto; left: calc(20px + var(--inset) + env(safe-area-inset-left)); transform-origin: 0 0; }
+[dir="rtl"] .menu.languages-menu { left: 0; right: auto; transform-origin: 0 0; }
+[dir="rtl"] .menu [role="menuitem"], [dir="rtl"] .search li button, [dir="rtl"] .account, [dir="rtl"] .choice, [dir="rtl"] .about-part h3 button { text-align: right; }
+[dir="rtl"] .banner { left: calc(12px + var(--inset)); right: 12px; padding: 8px 16px 8px 8px; }
+[dir="rtl"] #toasts { left: calc(12px + var(--inset)); right: 12px; transition: left var(--slide); }
+[dir="rtl"] .toast { padding: 10px 16px 10px 10px; }
+
+/* The slider and its year stay as they are; only the space around them moves with the panel */
+[dir="rtl"] .timebar { left: calc(var(--inset) + (100% - var(--inset)) / 2); }
+[dir="rtl"] .timebar input[type="range"] { direction: ltr; }
+[dir="rtl"] .year-ghost { left: calc(var(--inset) + (100% - var(--inset)) / 2); }
+[dir="rtl"] .zoom { right: auto; left: calc(14px + var(--inset) + env(safe-area-inset-left)); transition: left var(--slide), bottom var(--slide), background-color 0.4s, border-color 0.4s; }
+
+[dir="rtl"] .about-open { left: auto; right: calc(8px + env(safe-area-inset-right)); }
+[dir="rtl"] .about { inset: auto calc(12px + env(safe-area-inset-right)) var(--about-foot) auto; transform-origin: calc(100% - 24px) 100%; }
+[dir="rtl"] .about .close { margin-right: 0; margin-left: -12px; }
+[dir="rtl"] .about-fold ul { padding: 0 1.1em 0 0; }
+
+[dir="rtl"] #card .close { right: auto; left: 4px; }
+[dir="rtl"] #card .head { padding: 20px 20px 12px 52px; }
+[dir="rtl"] .add-row button { padding: 0 8px 0 12px; }
+[dir="rtl"] .memory, [dir="rtl"] .edit .note { border-left: 0; border-right: 3px solid var(--line); }
+[dir="rtl"] .chip { margin: 3px 0 0 4px; padding: 2px 10px 2px 4px; }
+[dir="rtl"] .chip i { margin-right: 0; margin-left: 3px; }
+
+[dir="rtl"] select { padding-right: 14px; padding-left: 40px; background-position: left 14px center; }
+
+[dir="rtl"] .drawer { right: auto; left: 0; border-left: 0; border-right: 1px solid var(--line); transform: translateX(-100%); }
+[dir="rtl"] .drawer.open { transform: none; }
+[dir="rtl"] .drawer > header { padding: calc(14px + env(safe-area-inset-top)) 20px 8px 12px; }
+[dir="rtl"] .tabs { padding: 0 14px 0 28px; -webkit-mask-image: linear-gradient(270deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(270deg, #000 calc(100% - 28px), transparent); }
+
+@media (max-width: 640px) {
+  [dir="rtl"] .top { padding-right: calc(14px + env(safe-area-inset-right)); padding-left: calc(12px + env(safe-area-inset-left)); }
+  [dir="rtl"] .menu, [dir="rtl"] .search { left: 10px; right: auto; }
+  [dir="rtl"] .drawer { border-right: 0; }
+  [dir="rtl"] .zoom, [dir="rtl"] .tight .zoom { left: 10px; right: auto; }
+  [dir="rtl"] .about-open { right: 4px; left: auto; }
+  [dir="rtl"] #card .head { padding: 4px 16px 10px 48px; }
+}
+

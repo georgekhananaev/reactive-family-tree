@@ -78,15 +78,22 @@ export interface Browser {
   del(path: string): Promise<Answer>;
   signInAs(name: string): Promise<Answer>;
   edit(ops: Op[], extra?: Record<string, unknown>): Promise<Answer>;
+  /* Ask for every answer in this language, as the app does once someone has chosen one. Null stops asking. */
+  reads(lang: string | null): void;
+  /* Set a cookie by hand, as a page does. */
+  remember(name: string, value: string | null): void;
 }
 
 /* One browser: remembers its session cookie between requests. */
-/* `from` is the address on the network the browser is at, as a proxy in front of the tree would report it. */
-export function browser(app: App, from?: string): Browser {
+/* `from` is the address on the network the browser is at, as a proxy in front of the tree would report it. `speaks` is what its device says about languages. */
+export function browser(app: App, from?: string, speaks?: string): Browser {
   const cookies = new Map<string, string>();
+  let asking: string | null = null;
   async function call(method: string, path: string, body?: unknown): Promise<Answer> {
     const headers = new Headers({ host: new URL(BASE).host });
     if (from) headers.set('x-forwarded-for', from);
+    if (speaks) headers.set('accept-language', speaks);
+    if (asking) headers.set('x-language', asking);
     if (method !== 'GET') headers.set('origin', BASE);
     if (body !== undefined) headers.set('content-type', 'application/json');
     if (cookies.size) headers.set('cookie', [...cookies].map(([name, value]) => `${name}=${value}`).join('; '));
@@ -112,5 +119,7 @@ export function browser(app: App, from?: string): Browser {
     del: (path) => call('DELETE', path),
     signInAs: (name) => call('POST', '/api/auth/family/demo-sign-in', { email: `${name}@marlow.example` }),
     edit: (ops, extra = {}) => call('POST', '/api/edits', { ops, message: 'test', ...extra }),
+    reads: (lang) => { asking = lang; },
+    remember: (name, value) => { if (value === null) cookies.delete(name); else cookies.set(name, value); },
   };
 }

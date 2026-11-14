@@ -13,13 +13,15 @@ import { childrenOf, indexOf, livingPartners, person, scopeOf } from './graph';
 import { setsPhoto } from './ops';
 import { isAdmin, isLiving } from './privacy';
 import type { Actor, Decision, FactSubject, Op, RuleSettings, State, Step } from './types';
+import type { Phrase } from './words';
 
 const APPLY: Step = { outcome: 'apply' };
-const suggest = (reason: string): Step => ({ outcome: 'suggest', reason });
-const deny = (reason: string): Step => ({ outcome: 'deny', reason });
+/* A reason is kept as its English sentence, and said in the reader's language on the way out. */
+const suggest = (reason: Phrase): Step => ({ outcome: 'suggest', reason });
+const deny = (reason: Phrase): Step => ({ outcome: 'deny', reason });
 
-const OUTSIDE = 'This is outside your branch, so it goes to that branch’s steward for review.';
-const JOINS = 'Connecting someone from another branch changes that branch too, so it needs review.';
+const OUTSIDE: Phrase = 'This is outside your branch, so it goes to that branch’s steward for review.';
+const JOINS: Phrase = 'Connecting someone from another branch changes that branch too, so it needs review.';
 
 export function decideEdit(state: State, actor: Actor, ops: readonly Op[], settings: RuleSettings, thisYear: number = new Date().getFullYear()): Decision {
   const ix = indexOf(state);
@@ -76,10 +78,12 @@ export function decideEdit(state: State, actor: Actor, ops: readonly Op[], setti
       return deny('Only a living person can choose to be public, from their own account.');
     }
     if (op.type === 'memory.add') return APPLY;
-    if (op.type === 'memory.remove') {
+    // The people who may take a memory away are the people who may tell it again in another language
+    if (op.type === 'memory.remove' || op.type === 'memory.translate') {
       const memory = state.memories.get(op.memory);
       const mine = memory && (memory.authorUserId === actor.userId || memory.personId === actor.personId);
-      return admin || mine || (memory && reach(memory.personId)) ? APPLY : deny('Only its author, the person it is about, or a steward can remove a memory.');
+      if (admin || mine || (memory && reach(memory.personId))) return APPLY;
+      return deny(op.type === 'memory.remove' ? 'Only its author, the person it is about, or a steward can remove a memory.' : 'Only its author, the person it is about, or a steward can write a memory in another language.');
     }
     if (admin) return APPLY;
 
@@ -135,7 +139,8 @@ export function decideEdit(state: State, actor: Actor, ops: readonly Op[], setti
         return newFacts.has(op.fact) || subjectInBranch(state.facts.get(op.fact)?.subject) ? APPLY : suggest(OUTSIDE);
       // The types leave nothing over, but an operation is data and may still be something else
       default:
-        return deny(`"${(op as Op).type}" is not an operation.`);
+        // Said to whoever wrote the client, not to a relative, so it is not in the books
+        return { outcome: 'deny', reason: `"${(op as Op).type}" is not an operation.` };
     }
   }
 

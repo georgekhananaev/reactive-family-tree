@@ -9,7 +9,7 @@ export type { FamilyTreeHandle, FamilyTreeProps } from './FamilyTree';
 export { LeafPortrait } from './LeafPortrait';
 export type { LeafPortraitProps } from './LeafPortrait';
 export { TreeEngine } from './engine';
-export type { BranchState, Camera, TreeData, TreeEngineEvents, TreeEngineOptions, TreeInsets, YearRange } from './engine';
+export type { BranchState, Camera, TreeData, TreeEngineEvents, TreeEngineOptions, TreeInsets, TreeLabels, YearRange } from './engine';
 export type { LeafSubject } from './leaf';
 export { skyOver } from './sky';
 export type { Place, Sky } from './sky';

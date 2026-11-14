@@ -5,6 +5,8 @@
  * `deletedAt` set (the compost), and every question about the family ignores them.
  */
 
+import type { Lang } from './lang';
+
 export type Sex = 'female' | 'male' | 'other' | 'unknown';
 export type Living = 'yes' | 'no' | 'unknown';
 export type Privacy = 'default' | 'public' | 'members' | 'private';
@@ -26,6 +28,14 @@ export type FuzzyDate =
 
 /* ---------- The family ---------- */
 
+/* A text in another language than the one it was first written in, with the mark of the original it was written from. */
+export interface Translated {
+  text: string;
+  of: string;
+}
+/* The other languages a thing's text is written in: language, then field. */
+export type Translations = Partial<Record<Lang, Record<string, Translated>>>;
+
 export interface Person {
   id: string;
   rev: number;
@@ -40,6 +50,9 @@ export interface Person {
   portrait: string | null;
   /* When a living person chose, from their own account, to be public. */
   consentAt: string | null;
+  /* The language the names and the story above were written in, and the same in other languages. */
+  lang: Lang;
+  tr: Translations;
   deletedAt: string | null;
 }
 
@@ -77,6 +90,9 @@ export interface Fact {
   note: string;
   certainty: Certainty;
   privacy: Privacy;
+  /* The language the place, the detail and the note were written in, and the same in other languages. */
+  lang: Lang;
+  tr: Translations;
   deletedAt: string | null;
 }
 
@@ -88,6 +104,9 @@ export interface Memory {
   authorName: string;
   body: string;
   createdAt: string;
+  /* The language the memory was told in, and the same in other languages. */
+  lang: Lang;
+  tr: Translations;
   deletedAt: string | null;
 }
 
@@ -127,9 +146,15 @@ type Was = Record<string, unknown>;
 /* An id, or a "$name" given to something created earlier in the same edit. */
 export type Ref = string;
 
+/*
+ * An operation that carries text may say which language the text is in. For
+ * something new that becomes its own language. For a change to something that
+ * was written in another language, the text is kept as that language's version
+ * and the original is left alone.
+ */
 export type Op =
-  | { type: 'person.create'; ref?: Ref; set?: Partial<PersonFields> }
-  | { type: 'person.update'; person: Ref; set?: Partial<PersonFields>; consent?: boolean; was?: Was }
+  | { type: 'person.create'; ref?: Ref; set?: Partial<PersonFields>; lang?: Lang }
+  | { type: 'person.update'; person: Ref; set?: Partial<PersonFields>; lang?: Lang; consent?: boolean; was?: Was }
   | { type: 'person.remove'; person: Ref }
   | { type: 'person.restore'; person: Ref }
   | { type: 'union.create'; ref?: Ref; partners: Ref[]; set?: Partial<UnionFields> }
@@ -139,10 +164,12 @@ export type Op =
   | { type: 'union.remove_partner'; union: Ref; person: Ref }
   | { type: 'child.link'; union: Ref; child: Ref; kind?: ChildKind }
   | { type: 'child.unlink'; union: Ref; child: Ref }
-  | { type: 'fact.add'; ref?: Ref; subject: FactSubject; set?: Partial<FactFields> }
-  | { type: 'fact.update'; fact: Ref; set?: Partial<FactFields>; was?: Was }
+  | { type: 'fact.add'; ref?: Ref; subject: FactSubject; set?: Partial<FactFields>; lang?: Lang }
+  | { type: 'fact.update'; fact: Ref; set?: Partial<FactFields>; lang?: Lang; was?: Was }
   | { type: 'fact.remove'; fact: Ref }
-  | { type: 'memory.add'; ref?: Ref; person: Ref; body: string }
+  | { type: 'memory.add'; ref?: Ref; person: Ref; body: string; lang?: Lang }
+  /* A memory is never rewritten, but it can be told again in another language. An empty body takes that telling away. */
+  | { type: 'memory.translate'; memory: Ref; lang: Lang; body: string; was?: Was }
   | { type: 'memory.remove'; memory: Ref }
   /* Put one thing back exactly as it was. Only undo produces this. */
   | { type: 'entity.set'; kind: EntityKind; id: string; snapshot: Entity | null };
@@ -155,6 +182,8 @@ export interface OpEnv {
   now: string;
   userId: string | null;
   userName: string;
+  /* The language of new text that does not say its own: the author's, or the family's. English where nothing is said. */
+  lang?: Lang;
 }
 
 export interface Applied {
@@ -182,6 +211,8 @@ export interface Actor {
   anchors: string[];
   visitor: boolean;
   contact?: Contact | null;
+  /* The language they read the tree in, for what is said to them. The family's own language when it is not known. */
+  lang?: Lang;
 }
 
 export type Visibility = 'private' | 'public_masked' | 'public';
@@ -214,9 +245,12 @@ export interface Decision {
 
 export interface Issue {
   code: string;
+  /* In English, as it was when the issue was found. */
   message: string;
   /* The people already on the tree whom the message names or gives away. It is kept from anyone who may not see one of them. */
   people?: string[];
+  /* What it takes to say the same in another language: the sentence, the people it names by gap, and its numbers. */
+  said?: { phrase: string; names: Record<string, string>; values: Record<string, number>; as: Record<string, string> };
 }
 
 export interface Validation {

@@ -1,11 +1,13 @@
 /* Small questions about the tree as the browser holds it: the copy the server allowed this viewer to see. */
 
-import type { FamilyLookup, TreePerson, TreeSnapshot } from '@reactive-family-tree/core';
+import { say } from '@reactive-family-tree/core';
+import type { FamilyLookup, Lang, TreePerson, TreeSnapshot } from '@reactive-family-tree/core';
 
-export function displayName(person: TreePerson | null | undefined): string {
-  if (!person) return 'Unknown';
-  if (person.masked) return 'Living relative';
-  return [person.given, person.family].filter(Boolean).join(' ') || 'Unknown';
+/* Someone's name as the tree shows it. The server has already put it in the reader's language; only "nobody knows" is said here. */
+export function displayName(person: TreePerson | null | undefined, lang: Lang): string {
+  if (!person) return say(lang, 'Unknown');
+  if (person.masked) return say(lang, 'Living relative');
+  return [person.given, person.family].filter(Boolean).join(' ') || say(lang, 'Unknown');
 }
 
 /* The lookup that the shared "add a relative" builder needs. */
@@ -39,20 +41,19 @@ export function branchOf(tree: Pick<TreeSnapshot, 'unions'>, anchorId: string): 
   return members;
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/* "today, 14:05" or "3 Nov 2026" */
-export function when(isoTime: string | null | undefined): string {
+/* "today, 14:05" or "3 Nov 2026", the way the reader's language writes them. `today` is that language's "today, {time}". */
+export function when(isoTime: string | null | undefined, lang: Lang, today: (time: string) => string): string {
   if (!isoTime) return '';
   const date = new Date(isoTime);
-  const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-  if (date.toDateString() === new Date().toDateString()) return `today, ${time}`;
-  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+  const time = new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+  if (date.toDateString() === new Date().toDateString()) return today(time);
+  return new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : lang, { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
 }
 
-export function lifespan(person: { born?: number | null; died?: number | null }): string {
-  if (!person.born) return person.died ? `died ${person.died}` : '';
-  return person.died ? `${person.born} to ${person.died}` : `born ${person.born}`;
+/* The years of a life in words: "born 1921", "1921 to 1990". `t` is the page's own, so the words are the reader's. */
+export function lifespan(person: { born?: number | null; died?: number | null }, t: (phrase: 'born {year}' | 'died {year}' | '{born} to {died}', values: Record<string, number>) => string): string {
+  if (!person.born) return person.died ? t('died {year}', { year: person.died }) : '';
+  return person.died ? t('{born} to {died}', { born: person.born, died: person.died }) : t('born {year}', { year: person.born });
 }
 
 /* Where someone's photo is. The photo's own id is part of the address, so a new photo is fetched and an old one never is twice. */

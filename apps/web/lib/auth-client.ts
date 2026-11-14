@@ -8,12 +8,20 @@ import { createAuthClient } from 'better-auth/client';
 import { magicLinkClient } from 'better-auth/client/plugins';
 
 import { api } from './api';
+import type { WebPhrase } from './i18n';
+
+/* Says a sentence in the reader's language: pass `t` from useT(). Without it the words stay in English. */
+type Say = (phrase: WebPhrase) => string;
+const english: Say = (phrase) => phrase;
 
 const client = createAuthClient({ plugins: [magicLinkClient(), passkeyClient(), oauthProviderClient()] });
 
-/* The library answers with { data, error }. Here a failure is thrown, with the message written for the person. */
-function settle<T>(result: { data: T | null; error: { message?: string } | null }, otherwise: string): T | null {
-  if (result.error) throw new Error(result.error.message || otherwise);
+/*
+ * The library answers with { data, error }, and words its errors in English, for a programmer. Here a failure is
+ * thrown with the page's own sentence instead, which is in the reader's language.
+ */
+function settle<T>(result: { data: T | null; error: unknown }, otherwise: string): T | null {
+  if (result.error) throw new Error(otherwise);
   return result.data;
 }
 
@@ -31,26 +39,26 @@ export async function sendLink(email: string, backTo = '/'): Promise<void> {
  * technical words ("The operation either timed out or was not allowed"). These
  * two say what happened instead.
  */
-export async function signInWithPasskey(): Promise<void> {
+export async function signInWithPasskey(say: Say = english): Promise<void> {
   const { error } = await client.signIn.passkey();
-  if (error) throw new Error('No passkey was used. If you closed the prompt, try again, or ask for a link by email.');
+  if (error) throw new Error(say('No passkey was used. If you closed the prompt, try again, or ask for a link by email.'));
 }
 
 /* A passkey for the account that is signed in now, kept by this device or its password manager. */
-export async function addPasskey(): Promise<void> {
+export async function addPasskey(say: Say = english): Promise<void> {
   const { error } = await client.passkey.addPasskey();
   if (!error) return;
   throw new Error('code' in error && error.code === 'ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED'
-    ? 'This device already has a passkey for your account.'
-    : 'No passkey was made. If you closed the prompt, try again when you are ready.');
+    ? say('This device already has a passkey for your account.')
+    : say('No passkey was made. If you closed the prompt, try again when you are ready.'));
 }
 
-export async function signInWithGoogle(): Promise<void> {
-  settle(await client.signIn.social({ provider: 'google', callbackURL: '/', errorCallbackURL: '/?error=google' }), 'Google sign-in could not be started.');
+export async function signInWithGoogle(say: Say = english): Promise<void> {
+  settle(await client.signIn.social({ provider: 'google', callbackURL: '/', errorCallbackURL: '/?error=google' }), say('Google sign-in could not be started.'));
 }
 
-export async function signOut(): Promise<void> {
-  settle(await client.signOut(), 'Signing out did not work.');
+export async function signOut(say: Say = english): Promise<void> {
+  settle(await client.signOut(), say('Signing out did not work.'));
 }
 
 /* Three ways in that are particular to a family tree. Each ends in an ordinary session. */
@@ -61,8 +69,8 @@ export const family = {
 };
 
 /* An AI client is asking to act for the person signed in. Returns where to send the browser next. */
-export async function answerConsent(accept: boolean): Promise<string | null> {
-  const answer = settle(await client.oauth2.consent({ accept }), 'That did not work. Start again from your AI client.') as { uri?: string; url?: string; redirect_uri?: string } | null;
+export async function answerConsent(accept: boolean, say: Say = english): Promise<string | null> {
+  const answer = settle(await client.oauth2.consent({ accept }), say('That did not work. Start again from your AI client.')) as { uri?: string; url?: string; redirect_uri?: string } | null;
   return answer?.uri ?? answer?.url ?? answer?.redirect_uri ?? null;
 }
 

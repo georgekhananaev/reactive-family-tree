@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 
 import { api, messageOf } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 
 const VIEW = 220;        // the circle on screen, in CSS pixels
 const SENT = 320;        // the side of the square that is sent
@@ -40,6 +41,7 @@ function settle(picked: Picked, { x, y, zoom }: Placing): Placing & { scale: num
 }
 
 function Cropper({ picked, onUse, onCancel }: { picked: Picked; onUse(image: string, preview: string): Promise<void>; onCancel(): void }) {
+  const { t } = useT();
   const [placing, setPlacing] = useState<Placing>({ x: 0, y: 0, zoom: 1 });
   const [busy, setBusy] = useState(false);
   const picture = useRef<HTMLImageElement>(null);
@@ -96,7 +98,7 @@ function Cropper({ picked, onUse, onCancel }: { picked: Picked; onUse(image: str
         style={{ width: VIEW, height: VIEW }}
         tabIndex={0}
         role="group"
-        aria-label="Place the face in the circle. Drag, or use the arrow keys. Plus and minus zoom."
+        aria-label={t('Place the face in the circle. Drag, or use the arrow keys. Plus and minus zoom.')}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={() => { grip.current = null; }}
@@ -107,13 +109,13 @@ function Cropper({ picked, onUse, onCancel }: { picked: Picked; onUse(image: str
         <img ref={picture} src={picked.address} alt="" draggable={false} style={shown} />
       </div>
       <label className="crop-zoom">
-        <span>Zoom</span>
+        <span>{t('Zoom')}</span>
         <input type="range" min={1} max={MAX_ZOOM} step={0.01} value={placing.zoom} onChange={(event) => zoomTo(Number(event.target.value))} />
       </label>
-      <p className="hint-line">Drag the photo so the face sits in the circle.</p>
+      <p className="hint-line">{t('Drag the photo so the face sits in the circle.')}</p>
       <div className="form-actions">
-        <button type="button" className="primary" disabled={busy} onClick={() => void use()}>Use this photo</button>
-        <button type="button" disabled={busy} onClick={onCancel}>Cancel</button>
+        <button type="button" className="primary" disabled={busy} onClick={() => void use()}>{t('Use this photo')}</button>
+        <button type="button" disabled={busy} onClick={onCancel}>{t('Cancel')}</button>
       </div>
     </div>
   );
@@ -125,6 +127,7 @@ function Cropper({ picked, onUse, onCancel }: { picked: Picked; onUse(image: str
  * null to take the photo off.
  */
 export function PhotoField({ current, value, onChange }: { current: string | null; value: string | null | undefined; onChange(value: string | null): void }) {
+  const { t } = useT();
   const [picked, setPicked] = useState<Picked | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [problem, setProblem] = useState('');
@@ -141,7 +144,7 @@ export function PhotoField({ current, value, onChange }: { current: string | nul
     probe.onload = () => setPicked({ address, width: probe.naturalWidth, height: probe.naturalHeight });
     probe.onerror = () => {
       URL.revokeObjectURL(address);
-      setProblem('That file could not be opened as a photo. Try a JPEG or a PNG.');
+      setProblem(t('That file could not be opened as a photo. Try a JPEG or a PNG.'));
     };
     probe.src = address;
   };
@@ -159,12 +162,12 @@ export function PhotoField({ current, value, onChange }: { current: string | nul
   const showing = value === undefined ? current : value === null ? null : preview;
   return (
     <div className="photo-field wide">
-      <span className="photo-label">Photo</span>
+      <span className="photo-label">{t('Photo')}</span>
       {picked ? <Cropper picked={picked} onUse={send} onCancel={() => setPicked(null)} /> : (
         <div className="photo-row">
           <div className="photo-now">{showing ? <img src={showing} alt="" /> : <span aria-hidden="true" />}</div>
-          <button type="button" onClick={() => chooser.current?.click()}>{showing ? 'Change photo' : 'Add a photo'}</button>
-          {showing && <button type="button" className="danger" onClick={() => { setPreview(null); onChange(null); }}>Remove photo</button>}
+          <button type="button" onClick={() => chooser.current?.click()}>{showing ? t('Change photo') : t('Add a photo')}</button>
+          {showing && <button type="button" className="danger" onClick={() => { setPreview(null); onChange(null); }}>{t('Remove photo')}</button>}
         </div>
       )}
       {problem && <p className="warning" role="alert">{problem}</p>}

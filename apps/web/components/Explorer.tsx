@@ -12,7 +12,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { FamilyTree, useTreeMusic } from 'reactive-family-tree';
-import type { FamilyTreeHandle, MelodyTrial, TreeInsets } from 'reactive-family-tree';
+import type { FamilyTreeHandle, MelodyTrial, TreeInsets, TreeLabels } from 'reactive-family-tree';
 
 import { activity, api, messageOf } from '@/lib/api';
 import { AppProvider } from '@/lib/app-context';
@@ -21,6 +21,8 @@ import { OWN_CHOICE, themeFor } from '@/lib/appearance';
 import type { Theme } from '@/lib/appearance';
 import { signOut } from '@/lib/auth-client';
 import { branchOf, displayName, portraitUrl } from '@/lib/format';
+import { useT } from '@/lib/i18n';
+import type { WebPhrase } from '@/lib/i18n';
 import { useLiveUpdates } from '@/lib/use-live-updates';
 
 import { About } from './About';
@@ -29,6 +31,7 @@ import { AccountMenu, Avatar } from './AccountMenu';
 import { Drawer } from './Drawer';
 import type { OpenPanel } from './Drawer';
 import { Icon } from './Icon';
+import { LanguageMenu } from './LanguageMenu';
 import { PageNote } from './PageNote';
 import { PersonCard } from './PersonCard';
 import type { CardHandle } from './PersonCard';
@@ -46,6 +49,8 @@ import { ZoomButtons } from './ZoomButtons';
 const OPEN_PANELS = new Set<PanelName>(['signin', 'invite', 'help']);
 const NO_INSETS: TreeInsets = { right: 0, top: 0 };
 const THIS_YEAR = new Date().getFullYear();
+/* What a + bud and the ring of actions call adding each relative. */
+const ADD_RELATION: Record<Relation, WebPhrase> = { child: 'Add child', partner: 'Add partner', parent: 'Add parent', sibling: 'Add sibling' };
 
 interface Banner {
   content: ReactNode;
@@ -62,14 +67,15 @@ interface CardState {
 export function Explorer({ build }: { build: BuildInfo }) {
   const session = useQuery({ queryKey: ['session'], queryFn: () => api.get<SessionInfo>('/api/session') });
   const tree = useQuery({ queryKey: ['tree'], queryFn: () => api.get<TreeSnapshot>('/api/tree') });
+  const { t } = useT();
   if (session.data && tree.data) return <Family session={session.data} tree={tree.data} build={build} />;
   // Until both have answered there is an empty stage. If one could not, say so and offer another try, where there would be nothing at all.
   if (!session.error && !tree.error) return <div id="stage" />;
   return (
-    <PageNote title="The family tree could not be loaded">
-      <p>The server did not answer. It may be starting, or the connection may be down.</p>
+    <PageNote title={t('The family tree could not be loaded')}>
+      <p>{t('The server did not answer. It may be starting, or the connection may be down.')}</p>
       <div className="form-actions">
-        <button type="button" className="primary" onClick={() => { void session.refetch(); void tree.refetch(); }}>Try again</button>
+        <button type="button" className="primary" onClick={() => { void session.refetch(); void tree.refetch(); }}>{t('Try again')}</button>
       </div>
     </PageNote>
   );
@@ -77,6 +83,7 @@ export function Explorer({ build }: { build: BuildInfo }) {
 
 function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnapshot; build: BuildInfo }) {
   const queryClient = useQueryClient();
+  const { lang, dir, t, tx, list: listed, choose } = useT();
   const view = useRef<FamilyTreeHandle>(null);
   const card = useRef<CardHandle>(null);
   const petals = useRef<PetalMenuHandle>(null);
@@ -202,16 +209,17 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
           undoLast.current = null;
           try {
             await api.post(`/api/edits/${result.editId}/revert`);
-            toast('Undone');
+            toast(t('Undone'));
             await refresh();
           } catch (error) {
             fail(error);
           }
         };
         undoLast.current = undo;
-        toast(quiet ?? 'Saved', { action: 'Undo', onAction: () => void undo() });
+        toast(quiet ?? t('Saved'), { action: t('Undo'), onAction: () => void undo() });
       } else {
-        toast(`Sent for review. ${result.reasons[0] ?? ''}`.trim());
+        const reason = result.reasons[0];
+        toast(reason ? t('Sent for review. {reason}', { reason }) : t('Sent for review.'));
       }
       for (const warning of result.warnings.slice(0, 2)) toast(warning.message, { ms: 9000 });
       await refresh();
@@ -225,7 +233,7 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
       setFocusId(everyone ? null : personId);
       requestAnimationFrame(() => view.current?.fit(false, true));
       if (!everyone) {
-        toast(`Showing the family of ${displayName(findPerson(personId))}`, { action: 'Back to everyone', ms: 9000, onAction: () => void focusOn(currentTree().rootId ?? personId) });
+        toast(t('Showing the family of {name}', { name: displayName(findPerson(personId), lang) }), { action: t('Back to everyone'), ms: 9000, onAction: () => void focusOn(currentTree().rootId ?? personId) });
       }
     };
 
@@ -234,13 +242,15 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
       if (!me) return;
       try {
         const { connected, steps } = await api.get<Relationship>(`/api/relationship?from=${me}&to=${person.id}`);
-        if (!connected) return toast(`No connection between you and ${displayName(person)} is recorded yet.`);
-        const term = describeKinship(steps);
+        if (!connected) return toast(t('No connection between you and {name} is recorded yet.', { name: displayName(person, lang) }));
+        const term = describeKinship(steps, lang);
+        const name = <strong>{displayName(person, lang)}</strong>;
         select(null);
         showBanner(
           <span>
-            <strong>{displayName(person)}</strong>{term ? ` is ${term}.` : ' is connected to you.'}
-            <small>{['You', ...steps.map((step) => `${stepWord(step)} ${step.name}`)].join(' → ')}</small>
+            {term ? tx('{name} is {term}.', { name, term }) : tx('{name} is connected to you.', { name })}
+            {/* Hebrew reads from the right, so its arrows point left */}
+            <small>{[t('You'), ...steps.map((step) => t('{relation} {name}', { relation: stepWord(step, lang), name: step.name }))].join(dir === 'rtl' ? ' ← ' : ' → ')}</small>
           </span>,
           () => setRoute(null),
         );
@@ -262,7 +272,7 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
       closePanel();
       select(null, { force: true });
       setTintMembers(members);
-      showBanner(<span>Tap a person to give {member.name} their branch. Tap them again to take it away.</span>, () => {
+      showBanner(<span>{t('Tap a person to give {name} their branch. Tap them again to take it away.', { name: member.name })}</span>, () => {
         setPainting(null);
         openPanel('manage', { tab: 'branches' });
       });
@@ -279,7 +289,7 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
     };
 
     return { closePopovers, closeBanner, refresh, select, openCard, submit, focusOn, showRelationship, openPanel, closePanel, startPainting, signedIn, findPerson };
-  }, [queryClient, toast, fail]);
+  }, [queryClient, toast, fail, lang, dir, t, tx]);
 
   /* ---------- Light or dark ---------- */
 
@@ -335,9 +345,9 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
     const arrived = tree.people.filter((p): p is PersonLeaf => !p.masked && Boolean(p.given) && !p.pending && !before.ids.has(p.id));
     const [first] = arrived;
     if (first && arrived.length <= 3) {
-      toast(`New on the tree: ${arrived.map(displayName).join(', ')}`, { action: 'Show', ms: 9000, onAction: () => actions.select(first.id, { fly: true }) });
+      toast(t('New on the tree: {names}', { names: listed(arrived.map((person) => displayName(person, lang))) }), { action: t('Show'), ms: 9000, onAction: () => actions.select(first.id, { fly: true }) });
     }
-  }, [tree, user?.id, toast, actions]);
+  }, [tree, user?.id, toast, actions, lang, t, listed]);
 
   // The card closes when its person is no longer on the tree this viewer sees
   const cardPerson = cardState ? people.get(cardState.personId) ?? null : null;
@@ -354,14 +364,17 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
    */
   const makeRoom = useCallback(() => {
     const drawer = document.getElementById('drawer');
-    const right = now.current.panel && innerWidth > 900 ? drawer?.offsetWidth ?? 0 : 0;
+    const wide = now.current.panel && innerWidth > 900 ? drawer?.offsetWidth ?? 0 : 0;
     const top = bannerEl.current && !bannerEl.current.hidden ? bannerEl.current.offsetHeight + 8 : 0;
-    document.body.style.setProperty('--inset', `${right}px`);
-    document.body.classList.toggle('tight', innerWidth - right < 920);
-    setInsets((was) => (was.right === right && was.top === top ? was : { right, top }));
+    // Read from the right, the panel opens on the left
+    const fromRight = document.documentElement.dir === 'rtl', right = fromRight ? 0 : wide, left = fromRight ? wide : 0;
+    document.body.style.setProperty('--inset', `${wide}px`);
+    document.body.classList.toggle('tight', innerWidth - wide < 920);
+    setInsets((was) => (was.right === right && was.top === top && (was.left ?? 0) === left ? was : { right, top, left }));
     card.current?.place();
   }, []);
-  useLayoutEffect(makeRoom, [makeRoom, panel !== null, banner]);
+  // A switch to or from a language read from the right moves the panel to the other side
+  useLayoutEffect(makeRoom, [makeRoom, panel !== null, banner, lang]);
   useEffect(() => {
     addEventListener('resize', makeRoom);
     return () => removeEventListener('resize', makeRoom);
@@ -411,8 +424,8 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
     setEditing(on);
     if (!on || editHintShown.current) return;
     editHintShown.current = true;
-    toast('Tap a leaf, then pull a + bud to add a relative. Hold a leaf for more.', { ms: 7000 });
-  }, [toast]);
+    toast(t('Tap a leaf, then pull a + bud to add a relative. Hold a leaf for more.'), { ms: 7000 });
+  }, [toast, t]);
   // The card stands further off while the + buds are out
   useEffect(() => { card.current?.place(); }, [editing]);
   useEffect(() => { if (!user) setEditing(false); }, [user]);
@@ -424,20 +437,20 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
     const open = (mode?: CardMode, relation?: Relation) => () => actions.openCard(person, mode, { relation });
     if (editing && person.editing !== 'none') {
       return [
-        ...(tool?.addable(person.id) ?? []).map((relation) => ({ label: `Add ${relation}`, icon: relation, action: open('add', relation) })),
-        { label: person.editing === 'apply' ? 'Edit details' : 'Suggest a fix', icon: 'edit', action: open('edit') },
-        { label: 'Open', icon: 'open', action: open() },
+        ...(tool?.addable(person.id) ?? []).map((relation) => ({ label: t(ADD_RELATION[relation]), icon: relation, action: open('add', relation) })),
+        { label: person.editing === 'apply' ? t('Edit details') : t('Suggest a fix'), icon: 'edit', action: open('edit') },
+        { label: t('Open'), icon: 'open', action: open() },
       ];
     }
     const me = user?.personId;
     const branch = tool?.hasBranch(person.id);
     const items: (PetalItem | false | null | undefined)[] = [
-      { label: 'Open', icon: 'open', action: open() },
-      { label: 'Focus here', icon: 'focus', action: () => void actions.focusOn(person.id) },
-      Boolean(me) && me !== person.id && people.has(me ?? '') && { label: 'How are we related?', icon: 'related', action: () => void actions.showRelationship(person) },
-      person.editing !== 'none' && { label: person.editing === 'apply' ? 'Edit' : 'Suggest a fix', icon: 'edit', action: open('edit') },
-      branch && { label: branch.collapsed ? 'Show branch' : 'Fold branch', icon: branch.collapsed ? 'unfold' : 'fold', action: () => tool?.toggleBranch(person.id) },
-      { label: 'Copy link', icon: 'link', action: () => void copyLink(person) },
+      { label: t('Open'), icon: 'open', action: open() },
+      { label: t('Focus here'), icon: 'focus', action: () => void actions.focusOn(person.id) },
+      Boolean(me) && me !== person.id && people.has(me ?? '') && { label: t('How are we related?'), icon: 'related', action: () => void actions.showRelationship(person) },
+      person.editing !== 'none' && { label: person.editing === 'apply' ? t('Edit') : t('Suggest a fix'), icon: 'edit', action: open('edit') },
+      branch && { label: branch.collapsed ? t('Show branch') : t('Fold branch'), icon: branch.collapsed ? 'unfold' : 'fold', action: () => tool?.toggleBranch(person.id) },
+      { label: t('Copy link'), icon: 'link', action: () => void copyLink(person) },
     ];
     return items.filter((item): item is PetalItem => Boolean(item));
   };
@@ -445,7 +458,7 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
     const link = `${location.origin}/#person=${person.id}`;
     try {
       await navigator.clipboard.writeText(link);
-      toast(`Link to ${displayName(person)} copied`);
+      toast(t('Link to {name} copied', { name: displayName(person, lang) }));
     } catch {
       toast(link, { ms: 12000 });
     }
@@ -462,7 +475,7 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
     const invite = query.get('invite'), editId = fromHash('edit'), personId = fromHash('person');
     if (query.has('error')) {
       history.replaceState(null, '', location.pathname + location.hash);
-      toast('That sign-in link has expired or was already used. Ask for a new one.', { bad: true });
+      toast(t('That sign-in link has expired or was already used. Ask for a new one.'), { bad: true });
     } else if (invite && !user) {
       actions.openPanel('invite', { token: invite });
     } else if (editId) {
@@ -473,6 +486,14 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
     }
     // Once, when the app first has its data
   }, []);
+
+  // A member's choice of language follows them to a new device: once the page knows who they are, it switches to theirs, once
+  const spokenTo = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user || spokenTo.current === user.id) return;
+    spokenTo.current = user.id;
+    if (user.language && user.language !== lang) void choose(user.language);
+  }, [user, lang, choose]);
 
   // On a demo install, a first-time visitor on a wide screen is offered the ready-made accounts once the tree has grown
   const offered = useRef(false);
@@ -572,6 +593,15 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
   const hidden = tree.people.filter((p) => p.masked).length;
   const placing = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardTarget = useMemo(() => (cardState && cardPerson ? { person: cardPerson, mode: cardState.mode, relation: cardState.relation } : null), [cardState, cardPerson]);
+  const treeLabels = useMemo<TreeLabels>(() => ({
+    showBranch: t('Show this branch'),
+    livingRelative: t('Living relative'),
+    unknown: t('Unknown'),
+    draft: t('draft'),
+    suggested: t('suggested'),
+    relations: { child: t('child'), partner: t('partner'), parent: t('parent'), sibling: t('sibling') },
+    addRelation: (relation) => t(ADD_RELATION[relation]),
+  }), [t]);
 
   return (
     <AppProvider value={app}>
@@ -591,13 +621,15 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
         faces={faces && anyPhotos}
         portraitOf={portraitUrl}
         insets={insets}
+        label={t('The family tree')}
+        labels={treeLabels}
         onSelect={(person) => actions.select(person?.id ?? null)}
         onAdd={({ person, relation }) => { if (!person.masked) actions.openCard(person, 'add', { relation }); }}
         onHold={({ person, x, y, keyboard }) => {
           // A private or pencilled leaf has nothing more to offer than a tap does
           if (person.masked || person.pending || painting) return;
           const box = view.current?.leafRect(person.id);
-          setPetalRequest({ x: box ? box.left + box.width / 2 : x, y: box ? box.top + box.height / 2 : y, title: displayName(person), items: petalsFor(person), focus: keyboard });
+          setPetalRequest({ x: box ? box.left + box.width / 2 : x, y: box ? box.top + box.height / 2 : y, title: displayName(person, lang), items: petalsFor(person), focus: keyboard });
         }}
         onHoldMove={(x, y) => petals.current?.move(x, y)}
         onHoldEnd={(x, y) => petals.current?.release(x, y)}
@@ -609,9 +641,9 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
       />
       {tree.closed && (
         <div id="closedNote" className="closed-note">
-          <h2>{session.needsSetup ? 'Nothing is planted here yet' : 'This family tree is private'}</h2>
-          <p>{session.needsSetup ? 'This tree has not been set up. Whoever runs it can open the setup link from the server log to claim it.' : 'Relatives can sign in to see it.'}</p>
-          {!session.needsSetup && <div><button type="button" className="primary" onClick={() => actions.openPanel('signin')}>Sign in</button></div>}
+          <h2>{session.needsSetup ? t('Nothing is planted here yet') : t('This family tree is private')}</h2>
+          <p>{session.needsSetup ? t('This tree has not been set up. Whoever runs it can open the setup link from the server log to claim it.') : t('Relatives can sign in to see it.')}</p>
+          {!session.needsSetup && <div><button type="button" className="primary" onClick={() => actions.openPanel('signin')}>{t('Sign in')}</button></div>}
         </div>
       )}
 
@@ -625,27 +657,28 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
           <p id="familyLine">{tree.family.description}</p>
           {/* What a visitor is not being shown, said plainly */}
           <p id="note" className="note" hidden={Boolean(user) || !hidden}>
-            {hidden} living relative{hidden === 1 ? ' is' : 's are'} private.{' '}
-            <button type="button" className="link" onClick={() => actions.openPanel('signin')}>Sign in to see them</button>
+            {t('{n} {n#living relative is|living relatives are} private.', { n: hidden })}{' '}
+            <button type="button" className="link" onClick={() => actions.openPanel('signin')}>{t('Sign in to see them')}</button>
           </p>
         </div>
-        <nav className="tools" aria-label="Tools">
-          <button id="editToggle" type="button" className="tool" hidden={!user} aria-pressed={editing} title="Edit the tree (E)" onClick={() => toggleEditing(!editing)}>
-            <Icon name="edit" /><span>Edit</span>
+        <nav className="tools" aria-label={t('Tools')}>
+          <button id="editToggle" type="button" className="tool" hidden={!user} aria-pressed={editing} title={t('Edit the tree (E)')} onClick={() => toggleEditing(!editing)}>
+            <Icon name="edit" /><span>{t('Edit')}</span>
           </button>
-          <button id="searchOpen" type="button" className="tool icon" aria-label="Search" title="Search (/)" aria-expanded={searchOpen} onClick={() => { const was = searchOpen; actions.closePopovers(); setSearchOpen(!was); }}>
+          <button id="searchOpen" type="button" className="tool icon" aria-label={t('Search')} title={t('Search (/)')} aria-expanded={searchOpen} onClick={() => { const was = searchOpen; actions.closePopovers(); setSearchOpen(!was); }}>
             <Icon name="search" />
           </button>
-          <button id="inboxOpen" type="button" className="tool icon" aria-label={waiting ? `Inbox, ${waiting} waiting` : 'Inbox'} title="Inbox" hidden={!user} onClick={() => actions.openPanel('inbox', { tab: session.counts.review ? 'review' : 'mine' })}>
+          <button id="inboxOpen" type="button" className="tool icon" aria-label={waiting ? t('Inbox, {n} waiting', { n: waiting }) : t('Inbox')} title={t('Inbox')} hidden={!user} onClick={() => actions.openPanel('inbox', { tab: session.counts.review ? 'review' : 'mine' })}>
             <Icon name="inbox" /><b className="badge" hidden={!waiting}>{waiting}</b>
           </button>
+          <LanguageMenu signedIn={Boolean(user)} />
           <button id="menuOpen" type="button" className={user ? 'tool' : 'tool primary'} aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => {
             if (!user) return actions.openPanel('signin');
             const was = menuOpen;
             actions.closePopovers();
             setMenuOpen(!was);
           }}>
-            {user ? <><Avatar name={user.name} /><span>{user.name.split(' ')[0]}</span></> : 'Sign in'}
+            {user ? <><Avatar name={user.name} /><span>{user.name.split(' ')[0]}</span></> : t('Sign in')}
           </button>
         </nav>
       </header>
@@ -656,13 +689,13 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
         onClose={actions.closePopovers}
         onMyLeaf={goToMyLeaf}
         onAppearance={setAppearance}
-        onSignOut={() => void signOut().then(actions.signedIn, fail)}
+        onSignOut={() => void signOut(t).then(actions.signedIn, fail)}
       />
       <SearchBox open={searchOpen} onClose={actions.closePopovers} onMatches={setMatches} />
 
       <div ref={bannerEl} id="banner" className="banner panel" hidden={!banner}>
         {banner?.content}
-        {banner && <button type="button" className="primary small" onClick={actions.closeBanner}>Done</button>}
+        {banner && <button type="button" className="primary small" onClick={actions.closeBanner}>{t('Done')}</button>}
       </div>
 
       <PersonCard ref={card} target={cardTarget} onSwitch={(mode, relation) => setCardState((was) => (was ? { personId: was.personId, mode, relation } : was))} />

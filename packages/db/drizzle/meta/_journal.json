@@ -15,6 +15,13 @@
       "when": 1794571325793,
       "tag": "0001_portraits",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794659807189,
+      "tag": "0002_languages",
+      "breakpoints": true
     }
   ]
 }

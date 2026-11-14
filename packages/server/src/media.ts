@@ -19,7 +19,7 @@ import type { Database } from '@reactive-family-tree/db';
 import { and, eq, gt, lt, notInArray } from 'drizzle-orm';
 
 import type { AppConfig } from './config';
-import { badRequest, tooMany } from './errors';
+import { HttpError, badRequest, tooMany } from './errors';
 import { now } from './ids';
 import type { FamilyStore } from './store';
 
@@ -72,7 +72,7 @@ export function cleanJpeg(bytes: Uint8Array): CleanImage {
     if (!isNotes(marker)) kept.push(bytes.subarray(at, end));
     at = end;
   }
-  if (Math.min(width, height) < MIN_SIDE || Math.max(width, height) > MAX_SIDE) throw badRequest(`A photo must be between ${MIN_SIDE} and ${MAX_SIDE} pixels on each side.`);
+  if (Math.min(width, height) < MIN_SIDE || Math.max(width, height) > MAX_SIDE) throw HttpError.filled(badRequest, 'A photo must be between {min} and {max} pixels on each side.', { min: MIN_SIDE, max: MAX_SIDE });
 
   const clean = new Uint8Array(kept.reduce((total, part) => total + part.length, 0));
   let offset = 0;
