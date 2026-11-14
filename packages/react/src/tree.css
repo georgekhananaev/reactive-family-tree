@@ -320,20 +320,20 @@
 .moon { width: 0; height: 0; }
 .moon .halo {
   position: absolute;
-  left: calc(var(--disc) * -2.6);
-  top: calc(var(--disc) * -2.6);
-  width: calc(var(--disc) * 5.2);
-  height: calc(var(--disc) * 5.2);
-  background: radial-gradient(closest-side, rgba(244, 239, 208, 0.3), rgba(201, 207, 234, 0.11) 34%, rgba(201, 207, 234, 0));
+  left: calc(var(--disc) * -2.1);
+  top: calc(var(--disc) * -2.1);
+  width: calc(var(--disc) * 4.2);
+  height: calc(var(--disc) * 4.2);
+  background: radial-gradient(closest-side, rgba(206, 220, 242, 0.14), rgba(170, 188, 226, 0.05) 36%, rgba(170, 188, 226, 0));
   opacity: var(--glow, 0.6);
 }
 /* The drawing is 120 across for a disc of 118, which leaves the edge room to be smooth */
 .moon .disc { position: absolute; left: calc(var(--disc) * -0.5085); top: calc(var(--disc) * -0.5085); width: calc(var(--disc) * 1.017); height: calc(var(--disc) * 1.017); }
 .moon .unlit { fill: #141C35; }
 .moon .lit { fill: url(#moonFace); }
-/* Low over the horizon it is amber, as a rising moon is */
-.moon-middle { stop-color: color-mix(in srgb, #F4D9A0 calc(var(--low, 0) * 100%), #F8F4DE); }
-.moon-edge { stop-color: color-mix(in srgb, #E2BE80 calc(var(--low, 0) * 100%), #E4DDBB); }
+/* High in the night it is a cool, pale blue-grey, as moonlight looks against a dark sky. Low over the horizon it is amber, as a rising moon is. */
+.moon-middle { stop-color: color-mix(in srgb, #F4D9A0 calc(var(--low, 0) * 100%), #DCE5F1); }
+.moon-edge { stop-color: color-mix(in srgb, #E2BE80 calc(var(--low, 0) * 100%), #A9BAD2); }
 
 /* One sheet of stars about its own middle, and the few that twinkle laid over it. Each is placed and sized by how large the sheet is drawn. */
 .starfield { width: 0; height: 0; }
