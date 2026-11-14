@@ -338,6 +338,29 @@ test('the family chooses its music: the melody in the background, the tune for t
   await helen.patch('/api/settings', { music: 'off', playMusic: true, melody: 'morning-mist', playMelody: 'morning-mist' });
 });
 
+test('the family chooses whether the tree opens light or dark', async () => {
+  const helen = browser(demo.app), nora = browser(demo.app), visitor = browser(demo.app);
+  await helen.signInAs('helen');
+  await nora.signInAs('nora');
+  const opens = async () => (await helen.get('/api/settings')).data.appearance;
+
+  // Out of the box it is left to each person's device
+  expect(await opens()).toBe('device');
+  expect((await nora.patch('/api/settings', { appearance: 'dark' })).status, 'only an admin chooses').toBe(403);
+  expect((await helen.patch('/api/settings', { appearance: 'dark' })).status).toBe(200);
+  expect(await opens()).toBe('dark');
+
+  for (const wrong of [{ appearance: 'night' }, { appearance: 'Dark' }, { appearance: '' }, { appearance: true }, { appearance: null }]) {
+    expect((await helen.patch('/api/settings', wrong)).status, JSON.stringify(wrong)).toBe(400);
+  }
+  expect(await opens(), 'a wrong value changes nothing').toBe('dark');
+
+  // Each page is told as it is made, before anything is drawn. It is not among what a browser asks for afterwards.
+  expect(Object.keys((await visitor.get('/api/session')).data.settings)).not.toContain('appearance');
+  expect((await helen.patch('/api/settings', { appearance: 'device' })).status).toBe(200);
+  expect(await opens()).toBe('device');
+});
+
 test('the family says where it is, to the whole degree, and a stranger at a private tree is not told', async () => {
   const helen = browser(demo.app), nora = browser(demo.app), visitor = browser(demo.app);
   await helen.signInAs('helen');

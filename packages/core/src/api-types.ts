@@ -253,6 +253,9 @@ export interface DemoAccount {
 /* The melody in the background: none for anyone, off until a visitor turns it on, or on from a visitor's first click. */
 export type MusicMode = 'none' | 'off' | 'on';
 
+/* How the tree opens for someone who has not chosen for themselves: light, dark, or whichever of the two their device is set to. */
+export type Appearance = 'device' | 'light' | 'dark';
+
 /* What every browser is told, signed in or not. */
 export interface PublicSettings {
   familyName: string;
@@ -303,6 +306,8 @@ export interface AdminSettings {
   allowAi: boolean;
   allowAiDirect: boolean;
   aiWritesPerHour: number;
+  /* The page is told this as it is made, so the tree is never drawn one way and then the other. It is not part of what a browser asks for afterwards. */
+  appearance: Appearance;
   music: MusicMode;
   playMusic: boolean;
   melody: string;

@@ -13,6 +13,8 @@ import type { ReactNode } from 'react';
 
 import { Field, pickFile } from '@/components/ui';
 import { api, messageOf } from '@/lib/api';
+import { OWN_CHOICE } from '@/lib/appearance';
+import type { Theme } from '@/lib/appearance';
 import { addPasskey, family } from '@/lib/auth-client';
 
 const STEPS = ['You', 'The family', 'A starting point', 'The look', 'Who can see it'] as const;
@@ -44,6 +46,7 @@ export function SetupWizard() {
   const [leaf, setLeaf] = useState({ given: '', family: '', born: '' });
   const [start, setStart] = useState<'self' | 'gedcom' | null>(null);
   const [imported, setImported] = useState<string | null>(null);
+  const [look, setLook] = useState<Theme | null>(null);
   const [visibility, setVisibility] = useState<Visibility>('private');
 
   /* Do one step's work, say so if it fails, and move on if it did not. */
@@ -158,16 +161,24 @@ export function SetupWizard() {
         <>
           <h1>The look</h1>
           {imported && <p className="pencil">{imported}</p>}
-          <p className="lead">The same tree by day or after dark. Each relative can choose for themselves later.</p>
+          <p className="lead">How the tree opens for the family: by day, or after dark. Each relative can still choose for themselves.</p>
           <div className="choices">
             {(['light', 'dark'] as const).map((theme) => (
-              <Choice key={theme} title={theme === 'light' ? 'Light' : 'Dark'} onClick={() => {
-                try { localStorage.setItem('rft-appearance', theme); } catch { /* private browsing */ }
+              <Choice key={theme} pressed={look === theme} title={theme === 'light' ? 'Light' : 'Dark'} onClick={() => {
+                setLook(theme);
                 document.documentElement.setAttribute('data-theme', theme);
               }}>{theme === 'light' ? 'Ink and watercolour on white.' : 'The same tree after sunset.'}</Choice>
             ))}
           </div>
-          <div className="form-actions"><button type="button" className="primary" onClick={() => setStep(at + 1)}>Continue</button></div>
+          <p>Choose neither, and it opens light or dark as each person’s device is set.</p>
+          <div className="form-actions">
+            <button type="button" className="primary" disabled={busy} onClick={go(async () => {
+              if (!look) return;
+              await api.patch('/api/settings', { appearance: look });
+              // This browser follows what was just chosen for the family, whatever it had kept for itself before
+              try { localStorage.removeItem(OWN_CHOICE); } catch { /* private browsing */ }
+            })}>Continue</button>
+          </div>
         </>
       )}
 

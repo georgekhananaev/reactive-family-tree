@@ -1,8 +1,8 @@
 'use client';
 
-/* Manage family, the settings: what the family is called, who can see it, who reviews, what an AI may do, the music, where the family is, and how the family writes things down. */
+/* Manage family, the settings: what the family is called, who can see it, who reviews, what an AI may do, the look, the music, where the family is, and how the family writes things down. */
 
-import type { AdminSettings, MusicMode, Visibility } from '@reactive-family-tree/core';
+import type { AdminSettings, Appearance, MusicMode, Visibility } from '@reactive-family-tree/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { MELODIES, QUICK_TUNES, skyOver } from 'reactive-family-tree';
@@ -19,6 +19,12 @@ const VISIBILITY: readonly (readonly [Visibility, string])[] = [
   ['private', 'Private: only relatives who sign in'],
   ['public_masked', 'Public, living people hidden'],
   ['public', 'Public, living people shown only if they choose'],
+];
+
+const APPEARANCE: readonly (readonly [Appearance, string])[] = [
+  ['device', 'Light or dark, as each person’s device is set'],
+  ['light', 'Light'],
+  ['dark', 'Dark'],
 ];
 
 const MUSIC: readonly (readonly [MusicMode, string])[] = [
@@ -147,7 +153,10 @@ export function SettingsTab() {
       app.toast('Nothing changed');
       return;
     }
-    if (await tryIt(app, () => api.patch<{ ok: boolean }>('/api/settings', patch), 'Settings saved')) setChanged({});
+    if (!(await tryIt(app, () => api.patch<{ ok: boolean }>('/api/settings', patch), 'Settings saved'))) return;
+    setChanged({});
+    // Whoever sets the family's look sees it at once, in place of what this browser had chosen for itself
+    if (read.appearance !== current.appearance) app.followFamily(read.appearance);
   };
 
   return (
@@ -176,6 +185,11 @@ export function SettingsTab() {
         {check('allowAiDirect', 'Members may let their AI apply changes without a draft')}
         <Field label="Most changes one connection may make in an hour" wide>{text('aiWritesPerHour', 'numeric')}</Field>
       </div>
+      <h3>The look</h3>
+      <div className="fields">
+        <Field label="The tree opens" wide><Select options={APPEARANCE} value={shown.appearance} onChange={(value) => set('appearance', value)} /></Field>
+      </div>
+      <p className="hint-line">For everyone who has not chosen for themselves. Each person can still switch between light and dark from their own menu, and their browser remembers it. Saving a change here also switches this browser to it.</p>
       <h3>Music</h3>
       <p className="hint-line">Two separate things: a melody in the background while someone looks around, and a quick tune that goes with the Play button. Either can be had without the other.</p>
       <div className="fields">

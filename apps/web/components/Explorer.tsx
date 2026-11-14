@@ -7,7 +7,7 @@
  */
 
 import { describeKinship, stepWord } from '@reactive-family-tree/core';
-import type { EditResult, MemberView, MembersInfo, PersonLeaf, Relation, Relationship, SessionInfo, TreePerson, TreeSnapshot } from '@reactive-family-tree/core';
+import type { Appearance, EditResult, MemberView, MembersInfo, PersonLeaf, Relation, Relationship, SessionInfo, TreePerson, TreeSnapshot } from '@reactive-family-tree/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -17,6 +17,8 @@ import type { FamilyTreeHandle, MelodyTrial, TreeInsets } from 'reactive-family-
 import { activity, api, messageOf } from '@/lib/api';
 import { AppProvider } from '@/lib/app-context';
 import type { AppController, CardMode, Painting, PanelArgs, PanelName, ToastOptions } from '@/lib/app-context';
+import { OWN_CHOICE, themeFor } from '@/lib/appearance';
+import type { Theme } from '@/lib/appearance';
 import { signOut } from '@/lib/auth-client';
 import { branchOf, displayName, portraitUrl } from '@/lib/format';
 import { useLiveUpdates } from '@/lib/use-live-updates';
@@ -54,8 +56,6 @@ interface CardState {
   mode: CardMode;
   relation?: Relation;
 }
-
-type Theme = 'light' | 'dark';
 
 export function Explorer() {
   const session = useQuery({ queryKey: ['session'], queryFn: () => api.get<SessionInfo>('/api/session') });
@@ -279,14 +279,45 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
     return { closePopovers, closeBanner, refresh, select, openCard, submit, focusOn, showRelationship, openPanel, closePanel, startPainting, signedIn, findPerson };
   }, [queryClient, toast, fail]);
 
+  /* ---------- Light or dark ---------- */
+
+  useEffect(() => {
+    setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+  }, []);
+  /* A cross-fade where the browser can, with every colour inside switching at once. */
+  const showTheme = useCallback((next: Theme) => {
+    const root = document.documentElement;
+    if (next === root.getAttribute('data-theme')) return;
+    const show = () => {
+      root.setAttribute('data-theme', next);
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'dark' ? '#0C1322' : '#FFFFFF');
+      setTheme(next);
+    };
+    if (view.current?.still || !document.startViewTransition) return show();
+    root.classList.add('theme-cut');
+    void document.startViewTransition(show).updateCallbackDone.then(() => {
+      requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-cut')));
+    });
+  }, []);
+  /* Someone's own choice. Their browser keeps it, and it comes before what the family set. */
+  const setAppearance = useCallback((next: Theme) => {
+    if (next === document.documentElement.getAttribute('data-theme')) return;
+    try { localStorage.setItem(OWN_CHOICE, next); } catch { /* private browsing */ }
+    showTheme(next);
+  }, [showTheme]);
+  const followFamily = useCallback((family: Appearance) => {
+    try { localStorage.removeItem(OWN_CHOICE); } catch { /* private browsing */ }
+    showTheme(themeFor(family));
+  }, [showTheme]);
+
   const app = useMemo<AppController>(() => ({
     session, tree, people, isAdmin, painting,
     get view() { return view.current; },
     toast, fail,
     refresh: actions.refresh, signedIn: actions.signedIn, select: actions.select, openCard: actions.openCard, submit: actions.submit,
     focusOn: actions.focusOn, showRelationship: actions.showRelationship, openPanel: actions.openPanel, closePanel: actions.closePanel,
-    showBranches: setTintMembers, startPainting: actions.startPainting, audition: setAudition,
-  }), [session, tree, people, isAdmin, painting, toast, fail, actions]);
+    showBranches: setTintMembers, startPainting: actions.startPainting, audition: setAudition, followFamily,
+  }), [session, tree, people, isAdmin, painting, toast, fail, actions, followFamily]);
 
   /* ---------- Live updates, and what arrives with them ---------- */
 
@@ -383,26 +414,6 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
   // The card stands further off while the + buds are out
   useEffect(() => { card.current?.place(); }, [editing]);
   useEffect(() => { if (!user) setEditing(false); }, [user]);
-
-  useEffect(() => {
-    setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
-  }, []);
-  /* Light or dark. A cross-fade where the browser can, with every colour inside switching at once. */
-  const setAppearance = useCallback((next: Theme) => {
-    const root = document.documentElement;
-    if (next === root.getAttribute('data-theme')) return;
-    try { localStorage.setItem('rft-appearance', next); } catch { /* private browsing */ }
-    const show = () => {
-      root.setAttribute('data-theme', next);
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'dark' ? '#0C1322' : '#FFFFFF');
-      setTheme(next);
-    };
-    if (view.current?.still || !document.startViewTransition) return show();
-    root.classList.add('theme-cut');
-    void document.startViewTransition(show).updateCallbackDone.then(() => {
-      requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-cut')));
-    });
-  }, []);
 
   /* ---------- The ring of actions around a leaf ---------- */
 

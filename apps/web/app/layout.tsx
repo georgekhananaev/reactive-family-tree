@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import { Literata, Source_Sans_3 } from 'next/font/google';
+import { connection } from 'next/server';
 import type { ReactNode } from 'react';
+
+import { appearanceScript } from '@/lib/appearance';
+import { getApp } from '@/lib/server';
 
 import 'reactive-family-tree/tree.css';
 import './app.css';
@@ -25,20 +29,16 @@ export const viewport: Viewport = {
   themeColor: '#FFFFFF',
 };
 
-/* Choose light or dark before anything is drawn: a saved choice first, otherwise the device setting. */
-const APPEARANCE = `(function () {
-  var saved = null;
-  try { saved = localStorage.getItem('rft-appearance'); } catch (e) {}
-  var fromAddress = /(?:^|[#&])theme=(light|dark)/.exec(location.hash);
-  var theme = fromAddress ? fromAddress[1] : saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  document.documentElement.setAttribute('data-theme', theme);
-})();`;
-
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // How the family wants the tree to open is known only while the tree runs, so no page is made ahead of the request for it
+  await connection();
+  const { store } = await getApp();
+  await store.fresh();
   return (
     <html lang="en" className={`${display.variable} ${slanted.variable} ${ui.variable}`} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: APPEARANCE }} />
+        {/* Light or dark is chosen before anything is drawn */}
+        <script dangerouslySetInnerHTML={{ __html: appearanceScript(store.settings.appearance) }} />
       </head>
       <body>
         <Providers>{children}</Providers>

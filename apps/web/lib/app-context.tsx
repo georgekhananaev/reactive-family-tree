@@ -6,7 +6,7 @@
  * (say something in a toast, open a panel, send an edit).
  */
 
-import type { Contact, EditResult, MemberView, Op, PersonLeaf, Relation, SessionInfo, TreePerson, TreeSnapshot } from '@reactive-family-tree/core';
+import type { Appearance, Contact, EditResult, MemberView, Op, PersonLeaf, Relation, SessionInfo, TreePerson, TreeSnapshot } from '@reactive-family-tree/core';
 import { createContext, useContext } from 'react';
 import type { FamilyTreeHandle, MelodyTrial } from 'reactive-family-tree';
 
@@ -83,6 +83,8 @@ export interface AppController {
 
   /* Play a melody for someone choosing one, as the calm one or as the quick tune, whatever their own music is set to. Null stops it. */
   audition(trial: MelodyTrial | null): void;
+  /* The family's look was just set from this browser: it lets go of its own choice of light or dark, and shows the family's. */
+  followFamily(family: Appearance): void;
 
   /* Ring everyone in the colour of the steward who looks after them. Null clears it. */
   showBranches(members: MemberView[] | null): void;

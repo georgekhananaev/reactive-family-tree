@@ -37,7 +37,7 @@ Open the link. The setup has five short steps:
 1. **You.** Your name and email. This makes you the owner of the tree.
 2. **The family.** What the tree is called. You can also create a passkey here, so signing in works before email is set up.
 3. **A starting point.** Your own leaf, or a GEDCOM file from other family tree software. You can skip this.
-4. **The look.** Light or dark.
+4. **The look.** Whether the tree opens light or dark for the family. Skip it, and it follows each person's device. Either way, everyone can still switch for themselves.
 5. **Who can see it.** Private, public with the living hidden, or public.
 
 Only that link opens the setup, so a stranger who finds a new install cannot claim it. Every start prints a new link until someone has claimed the tree.
