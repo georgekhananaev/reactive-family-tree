@@ -8,6 +8,11 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-14
+
+### Added
+- **app**: A small About window shows the version and build
+
 ## [0.2.0] - 2026-11-14
 
 ### Added
