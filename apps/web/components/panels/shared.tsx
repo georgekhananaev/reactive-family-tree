@@ -2,7 +2,7 @@
 
 /* What the panels have in common: asking the server, waiting for its answer, changing something, and saying it in the reader's words. */
 
-import type { EditView, MembersInfo } from '@reactive-family-tree/core';
+import type { AdminSettings, EditView, MembersInfo } from '@reactive-family-tree/core';
 import { useQuery } from '@tanstack/react-query';
 
 import { api, messageOf } from '@/lib/api';
@@ -55,6 +55,20 @@ export function Check({ label, checked, onChange }: { label: string; checked: bo
  * Run something that changes the family, say how it went, and draw everything
  * again. Gives back the server's answer, or null if it went wrong.
  */
+/*
+ * Save the settings a tab has changed, and say so: only what differs from `current` is sent. Says when nothing changed.
+ * True once something is saved.
+ */
+export async function saveSettings(app: AppController, t: Say, read: AdminSettings, current: AdminSettings): Promise<boolean> {
+  // Object.entries gives the names back as plain strings
+  const patch = Object.fromEntries(Object.entries(read).filter(([key, value]) => value !== current[key as keyof AdminSettings]));
+  if (!Object.keys(patch).length) {
+    app.toast(t('Nothing changed'));
+    return false;
+  }
+  return (await tryIt(app, () => api.patch<{ ok: boolean }>('/api/settings', patch), t('Settings saved'))) !== null;
+}
+
 export async function tryIt<Result>(app: AppController, work: () => Promise<Result>, done?: string | ((result: Result) => string)): Promise<Result | null> {
   try {
     const result = await work();

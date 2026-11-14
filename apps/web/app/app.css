@@ -606,7 +606,7 @@ body.tight { --about-rise: 88px; }
 
 label { display: block; font-size: 0.9375rem; color: var(--muted); }
 label > input, label > select, label > textarea { margin-top: 3px; }
-input[type="text"], input[type="email"], input[type="search"], select, textarea {
+input[type="text"], input[type="email"], input[type="search"], input[type="date"], select, textarea {
   display: block;
   width: 100%;
   min-height: 44px;
@@ -637,7 +637,7 @@ select {
 }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--action); outline-offset: 1px; border-color: transparent; }
 @media (hover: hover) {
-  input[type="text"]:hover, input[type="email"]:hover, input[type="search"]:hover, select:hover, textarea:hover { border-color: color-mix(in srgb, var(--action) 55%, var(--line)); }
+  input[type="text"]:hover, input[type="email"]:hover, input[type="search"]:hover, input[type="date"]:hover, select:hover, textarea:hover { border-color: color-mix(in srgb, var(--action) 55%, var(--line)); }
 }
 .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
 .fields .wide { grid-column: 1 / -1; }

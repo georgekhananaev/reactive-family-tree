@@ -19,7 +19,8 @@
 import type { PersonLeaf, Relation, TreePerson, TreeSnapshot, TreeUnion } from '@reactive-family-tree/core';
 import { SHAPES, THIS_YEAR, goldOf, stateOf } from './leaf';
 import type { LeafShape, LeafState, ShapeName } from './leaf';
-import { litOutline, skyOver } from './sky';
+import { litOutline, moonFor, skyOver } from './sky';
+import type { MoonChoice } from './sky';
 import type { Place } from './sky';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -42,18 +43,13 @@ const GRAFT_SHAPES: readonly ShapeName[] = ['olive', 'ginkgo', 'linden'];
 const RELATIONS: readonly Relation[] = ['child', 'partner', 'parent', 'sibling'];
 
 /*
- * The moon: a dark disc, the lit part over it, and the grey seas, which show
- * only where the light falls. paintSky() gives the lit part its outline, and
- * turns it and the seas the way they are seen tonight. The seas are where
- * they are on the real moon, with its north at the top: the wide one down the
- * left, three across the upper right, and the small round one near the edge.
+ * The moon: a dark disc and the lit part over it, plain, as it looks from a
+ * distance. paintSky() gives the lit part its outline, turned the way it is
+ * seen tonight.
  */
-const SEAS = [[-34, -4, 15, 26], [-14, -27, 17, 13], [14, -22, 10, 10], [25, -6, 12, 9], [43, -17, 5, 8], [37, 9, 7, 10], [-14, 23, 14, 9], [-31, 25, 6, 6]]
-  .map(([cx, cy, rx, ry]) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`).join('');
 const MOON = '<i class="halo"></i><svg class="disc" viewBox="-60 -60 120 120">' +
   `<radialGradient id="moonFace" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="${MOON_RADIUS}"><stop class="moon-middle" offset="0.3"/><stop class="moon-edge" offset="1"/></radialGradient>` +
-  '<clipPath id="moonLit"><path/></clipPath>' +
-  `<circle class="unlit" r="${MOON_RADIUS}"/><path class="lit"/><g clip-path="url(#moonLit)"><g class="seas">${SEAS}</g></g></svg>`;
+  `<circle class="unlit" r="${MOON_RADIUS}"/><path class="lit"/></svg>`;
 
 /* How much of the warm light of the horizon something has, from 0 to 1 by how high it stands: all of it within a few degrees of the horizon, none a hand's width above it or once it is well down. */
 const lowLight = (height: number | null): number => (height === null ? 0 : Math.max(0, Math.min(1, (14 - height) / 10, (height + 6) / 5)));
@@ -478,6 +474,8 @@ export class TreeEngine {
   private far: { el: HTMLElement; x: number; y: number; sheet: { w: number; h: number } | null }[] = [];
   /* Where the family is, if the tree has been told. The moon is turned as it is seen from there. */
   private place: Place | null = null;
+  /* Which moon the family chose to show after dark. */
+  private moon: MoonChoice = 'tonight';
   private skyClock: ReturnType<typeof setInterval> | undefined;
   private cameraQueued = false;
   private goal: CameraGoal | null = null;
@@ -1218,6 +1216,12 @@ export class TreeEngine {
     this.paintSky();
   }
 
+  /* Which moon to show after dark: tonight's, a full one, the moon of a day, or none. */
+  setMoon(moon: MoonChoice): void {
+    this.moon = moon;
+    this.paintSky();
+  }
+
   toggleBranch(nodeId: string): void {
     if (this.collapsed.has(nodeId)) this.collapsed.delete(nodeId);
     else this.collapsed.add(nodeId);
@@ -1415,22 +1419,21 @@ export class TreeEngine {
   }
 
   /*
-   * The real sky, as it is right now. The moon is in the phase it is in
-   * tonight and turned the way it is seen from the family's place, and it
-   * glows by how much of it is lit: a full moon far more than a half one.
-   * Low over the horizon there it is a little amber, as a rising moon is,
-   * and the sun is warmer near sunrise and sunset.
+   * The sky. The moon is the one the family chose, tonight's unless it chose
+   * another, turned the way it is seen from the family's place, and it glows
+   * by how much of it is lit: a full moon far more than a half one. Low over
+   * the horizon there it is a little amber, as a rising moon is. The sun is
+   * the real one, warmer near sunrise and sunset.
    */
   private paintSky(): void {
     const moon = this.heavens.querySelector<HTMLElement>('.moon');
     if (!moon) return;
-    const { lit, face, limb, sunHeight, moonHeight } = skyOver(new Date(), this.place);
-    // The lit part, and the window the seas are seen through, which is the same shape
-    for (const part of moon.querySelectorAll('path')) {
-      part.setAttribute('d', litOutline(lit, MOON_RADIUS));
-      part.setAttribute('transform', `rotate(${limb.toFixed(1)})`);
-    }
-    moon.querySelector('.seas')?.setAttribute('transform', `rotate(${face.toFixed(1)})`);
+    const now = new Date(), shown = moonFor(this.moon, this.place, now);
+    this.heavens.classList.toggle('moonless', !shown);
+    const { lit, limb, sunHeight, moonHeight } = shown ?? skyOver(now, this.place);
+    const part = moon.querySelector('path.lit');
+    part?.setAttribute('d', litOutline(lit, MOON_RADIUS));
+    part?.setAttribute('transform', `rotate(${limb.toFixed(1)})`);
     moon.style.setProperty('--glow', (0.05 + 0.95 * lit ** 1.5).toFixed(3));
     // A moon under the horizon is drawn as it stands when highest, so it has none of the horizon's colour
     moon.style.setProperty('--low', lowLight(moonHeight !== null && moonHeight > 0 ? moonHeight : null).toFixed(2));

@@ -8,7 +8,7 @@
 
 import type { Appearance, Contact, EditResult, MemberView, Op, PersonLeaf, Relation, SessionInfo, TreePerson, TreeSnapshot } from '@reactive-family-tree/core';
 import { createContext, useContext } from 'react';
-import type { FamilyTreeHandle, MelodyTrial } from 'reactive-family-tree';
+import type { FamilyTreeHandle, MelodyTrial, Place } from 'reactive-family-tree';
 
 export type PanelName = 'signin' | 'invite' | 'inbox' | 'history' | 'manage' | 'connect' | 'help';
 
@@ -85,8 +85,8 @@ export interface AppController {
   audition(trial: MelodyTrial | null): void;
   /* Call inside the click that asks for music: an iPhone lets a page start its sound only then. */
   wakeSound(): void;
-  /* The family's look was just set from this browser: it lets go of its own choice of light or dark, and shows the family's. */
-  followFamily(family: Appearance): void;
+  /* The family's look was just set from this browser: it lets go of its own choice of light or dark, and shows the family's. By the sun, at this place. */
+  followFamily(family: Appearance, place: Place | null): void;
 
   /* Ring everyone in the colour of the steward who looks after them. Null clears it. */
   showBranches(members: MemberView[] | null): void;

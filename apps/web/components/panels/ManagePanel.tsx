@@ -21,6 +21,7 @@ import { ConfirmButton } from '../ui';
 import { ActivityCard } from './InboxPanel';
 import { DataTab } from './ManageData';
 import { BranchChip, MembersTab } from './ManageMembers';
+import { LookTab } from './ManageLook';
 import { SettingsTab } from './ManageSettings';
 import { TranslationsTab } from './ManageTranslations';
 import { Loading, tryIt, useEdits, useMembers, useWhen } from './shared';
@@ -159,7 +160,7 @@ function HealthTab() {
 }
 
 const TABS: Readonly<Record<string, ComponentType | undefined>> = {
-  members: MembersTab, branches: BranchesTab, activity: ActivityTab, compost: CompostTab, health: HealthTab, settings: SettingsTab, translations: TranslationsTab, data: DataTab,
+  members: MembersTab, branches: BranchesTab, activity: ActivityTab, compost: CompostTab, health: HealthTab, settings: SettingsTab, look: LookTab, translations: TranslationsTab, data: DataTab,
 };
 
 function ManageBody({ args }: PanelProps) {
@@ -170,7 +171,7 @@ function ManageBody({ args }: PanelProps) {
 export const manage: PanelDef = {
   title: (_args, app, t) => (app.isAdmin ? t('Manage family') : t('Manage my branch')),
   tabs: (app, _args, t) => (app.isAdmin
-    ? [['members', t('Members')], ['branches', t('Branches')], ['activity', t('Activity')], ['compost', t('Compost')], ['health', t('Health')], ['settings', t('Settings')], ['translations', t('Translations')], ['data', t('Data')]]
+    ? [['members', t('Members')], ['branches', t('Branches')], ['activity', t('Activity')], ['compost', t('Compost')], ['health', t('Health')], ['settings', t('Settings')], ['look', t('The look')], ['translations', t('Translations')], ['data', t('Data')]]
     : [['activity', t('Activity')], ['health', t('Health')]]),
   Body: ManageBody,
 };

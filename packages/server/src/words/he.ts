@@ -137,6 +137,8 @@ export const he = {
   'Enter the latitude as a whole number between -90 and 90, or leave it empty.': 'קו רוחב הוא מספר שלם בין ‎-90 ל-90. אפשר גם להשאיר ריק.',
   'Enter the longitude as a whole number between -180 and 180, or leave it empty.': 'קו אורך הוא מספר שלם בין ‎-180 ל-180. אפשר גם להשאיר ריק.',
   'Choose English, Hebrew or Russian.': 'אפשר לבחור אנגלית, עברית או רוסית.',
+  'Choose the day whose moon the tree shows.': 'צריך לבחור את היום שהירח שלו יופיע בעץ.',
+  'Choose a day from the calendar.': 'צריך לבחור יום בלוח השנה.',
   'That is not a backup made by this version of the app.': 'זה לא גיבוי שנוצר בגרסה הזו של האפליקציה.',
 
   // ---------- History, as a reader sees it ----------

@@ -7,7 +7,7 @@
 
 import { expect, test } from 'vitest';
 
-import { litOutline, skyOver } from '../src/sky';
+import { eveningOf, litOutline, moonFor, skyOver } from '../src/sky';
 import type { Place } from '../src/sky';
 
 const at = (moment: string): Date => new Date(moment);
@@ -103,4 +103,25 @@ test('the lit part is drawn as a crescent, a half, and a full disc', () => {
   expect(litOutline(1, 59)).toBe('M0 -59A59 59 0 0 1 0 59A59.00 59 0 0 1 0 -59Z');
   // A quarter lit is a crescent: the line bows toward the lit edge. Three quarters lit, it bows away from it.
   expect([litOutline(0.25, 59), litOutline(0.75, 59)]).toEqual(['M0 -59A59 59 0 0 1 0 59A29.50 59 0 0 0 0 -59Z', 'M0 -59A59 59 0 0 1 0 59A29.50 59 0 0 1 0 -59Z']);
+});
+
+test('the moon the family chose: tonight’s, always full, none, or the moon of a night that is on record', () => {
+  const now = new Date(Date.UTC(2026, 10, 15, 21)), jerusalem = { latitude: 32, longitude: 35 };
+  expect(moonFor('tonight', jerusalem, now)).toEqual(skyOver(now, jerusalem));
+  expect(moonFor('full', jerusalem, now)?.lit).toBe(1);
+  expect(moonFor('none', jerusalem, now)).toBeNull();
+  // The full moon of 23 April 2024, and the new moon of the eclipse on 8 April 2024
+  expect(moonFor({ day: '2024-04-23' }, jerusalem, now)?.lit).toBeGreaterThan(0.97);
+  expect(moonFor({ day: '2024-04-08' }, jerusalem, now)?.lit).toBeLessThan(0.03);
+  // Whatever the night, the sun is the one in the sky now
+  expect(moonFor({ day: '2024-04-23' }, jerusalem, now)?.sunHeight).toBe(skyOver(now, jerusalem).sunHeight);
+  expect(moonFor({ day: 'not a day' }, jerusalem, now), 'what is not a day shows tonight’s moon').toEqual(skyOver(now, jerusalem));
+});
+
+test('a night’s moon is the one at ten in the evening by the sun where the family is', () => {
+  // Ten by the sun at 35 degrees east is 7:40 in the evening in Greenwich
+  expect(eveningOf('2024-04-23', { latitude: 32, longitude: 35 })?.toISOString()).toBe('2024-04-23T19:40:00.000Z');
+  expect(eveningOf('2024-04-23')?.toISOString()).toBe('2024-04-23T22:00:00.000Z');
+  expect(eveningOf('0045-03-01')?.getUTCFullYear(), 'a year before 100 is that year').toBe(45);
+  expect([eveningOf('2024-02-30'), eveningOf('1922')]).toEqual([null, null]);
 });

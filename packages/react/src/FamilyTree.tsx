@@ -20,7 +20,7 @@ import type { PersonLeaf, Relation, TreePerson } from '@reactive-family-tree/cor
 import { FACE_RADIUS, TreeEngine } from './engine';
 import type { BranchState, TreeData, TreeInsets, TreeLabels, YearRange } from './engine';
 import { THIS_YEAR } from './leaf';
-import type { Place } from './sky';
+import type { MoonChoice, Place } from './sky';
 
 export interface FamilyTreeProps {
   data: TreeData;
@@ -34,6 +34,8 @@ export interface FamilyTreeProps {
   playing?: boolean;
   /* Where the family is. The sun and the moon are drawn as they stand over that place right now. Without one, the moon is seen from the north. */
   place?: Place | null;
+  /* Which moon to show after dark: tonight's real one (the default), 'full', 'none', or the moon of a day, as { day: '1922-04-12' }. */
+  moon?: MoonChoice;
   editing?: boolean;
   selectedId?: string | null;
   /* Search: these keep their colour, everyone else steps back. */
@@ -123,7 +125,7 @@ function clearDrawing(stage: HTMLElement, world: HTMLElement, svg: SVGSVGElement
 }
 
 export function FamilyTree({
-  data, viewerId = null, focusId = null, year = THIS_YEAR, playing = false, place = null, editing = false, selectedId = null, matches = null, route = null, tints = null,
+  data, viewerId = null, focusId = null, year = THIS_YEAR, playing = false, place = null, moon = 'tonight', editing = false, selectedId = null, matches = null, route = null, tints = null,
   faces = false, portraitOf, insets, label = 'The family tree', labels, className, onSelect, onAdd, onHold, onHoldMove, onHoldEnd, onMoved, ref,
 }: FamilyTreeProps): ReactElement {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -186,6 +188,11 @@ export function FamilyTree({
   useEffect(() => {
     engineRef.current?.setPlace(latitude === null || longitude === null ? null : { latitude, longitude });
   }, [latitude, longitude]);
+  // The same, for the moon: a day written in a new object is not a new choice
+  const moonDay = typeof moon === 'object' ? moon.day : null, moonKind = typeof moon === 'string' ? moon : null;
+  useEffect(() => {
+    engineRef.current?.setMoon(moonDay !== null ? { day: moonDay } : moonKind ?? 'tonight');
+  }, [moonDay, moonKind]);
 
   const right = insets?.right ?? 0, top = insets?.top ?? 0;
   useEffect(() => {

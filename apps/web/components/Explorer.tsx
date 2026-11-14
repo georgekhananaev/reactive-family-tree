@@ -12,12 +12,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { FamilyTree, useTreeMusic } from 'reactive-family-tree';
-import type { FamilyTreeHandle, MelodyTrial, TreeInsets, TreeLabels } from 'reactive-family-tree';
+import type { FamilyTreeHandle, MelodyTrial, Place, TreeInsets, TreeLabels } from 'reactive-family-tree';
 
 import { activity, api, messageOf } from '@/lib/api';
 import { AppProvider } from '@/lib/app-context';
 import type { AppController, CardMode, Painting, PanelArgs, PanelName, ToastOptions } from '@/lib/app-context';
-import { OWN_CHOICE, themeFor } from '@/lib/appearance';
+import { OWN_CHOICE, bySun, placeOf, themeFor } from '@/lib/appearance';
 import type { Theme } from '@/lib/appearance';
 import { signOut } from '@/lib/auth-client';
 import { branchOf, displayName, portraitUrl } from '@/lib/format';
@@ -105,7 +105,7 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
   const [playing, setPlaying] = useState(false);
   // A calm melody, and a quicker one while the years play. The family chooses which, and whether there is any.
   const [audition, setAudition] = useState<MelodyTrial | null>(null);
-  const { music: mode, playMusic, melody, playMelody, latitude, longitude } = session.settings;
+  const { music: mode, playMusic, melody, playMelody, latitude, longitude, appearance, moon, moonDay } = session.settings;
   const music = useTreeMusic(playing, { mode, playMusic, melody, playMelody, audition });
   const { wake: wakeSound } = music;
   // Leaves, or the faces of those who have a photo. Each person's own choice, kept on their device.
@@ -318,10 +318,24 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
     try { localStorage.setItem(OWN_CHOICE, next); } catch { /* private browsing */ }
     showTheme(next);
   }, [showTheme]);
-  const followFamily = useCallback((family: Appearance) => {
+  const followFamily = useCallback((family: Appearance, place: Place | null) => {
     try { localStorage.removeItem(OWN_CHOICE); } catch { /* private browsing */ }
-    showTheme(themeFor(family));
+    showTheme(themeFor(family, place));
   }, [showTheme]);
+  // By the sun, the tree turns dark at sunset where the family is, and light at sunrise, while the page is open. Not for someone who chose for themselves.
+  useEffect(() => {
+    const place = placeOf({ latitude, longitude });
+    if (appearance !== 'sun' || !place) return;
+    const follow = () => {
+      let own: string | null = null;
+      try { own = localStorage.getItem(OWN_CHOICE); } catch { /* private browsing */ }
+      const theme = bySun(place);
+      if (own !== 'light' && own !== 'dark' && !/(?:^|[#&])theme=/.test(location.hash) && theme) showTheme(theme);
+    };
+    follow();
+    const clock = setInterval(follow, 60_000);
+    return () => clearInterval(clock);
+  }, [appearance, latitude, longitude, showTheme]);
 
   const app = useMemo<AppController>(() => ({
     session, tree, people, isAdmin, painting,
@@ -615,7 +629,8 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
         focusId={focusId}
         year={shownYear}
         playing={playing}
-        place={latitude === null || longitude === null ? null : { latitude, longitude }}
+        place={placeOf({ latitude, longitude })}
+        moon={moon === 'day' ? (moonDay ? { day: moonDay } : 'tonight') : moon}
         editing={editing}
         selectedId={selectedId}
         matches={matches}

@@ -291,6 +291,9 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
     }
     // The family's name, line and guidelines are written in the admin's language: changed in their own, or kept beside it in another
     if (Object.keys(words).length) Object.assign(patch, familyPatch(store.settings, words, ctx.lang));
+    // The moon of a day needs the day
+    const next = { ...store.settings, ...patch };
+    if (next.moon === 'day' && !next.moonDay) throw badRequest('Choose the day whose moon the tree shows.');
     await store.saveSettings(patch);
     hub.changed(store.seq);     // visibility or the living rule may have changed what people see
     return { ok: true };

@@ -24,9 +24,11 @@ own relatives, with nothing sent anywhere else.
   which an admin can turn off apart from the other, and make from a different
   melody.
 - **Tonight's moon over it.** In the dark the tree stands under the real moon,
-  in tonight's phase. Tell the tree roughly where the family is, and the moon is
-  turned the way it is seen from there, and the sun is warmer near sunrise and
-  sunset.
+  in tonight's phase, or under the one the family chooses: always full, none at
+  all, or the moon exactly as it was on a day that matters to them. Tell the tree
+  roughly where the family is, and the moon is turned the way it is seen from
+  there, the sun is warmer near sunrise and sunset, and the tree can turn dark
+  at sunset there by itself.
 - **In English, Hebrew and Russian.** Everyone reads the tree in their own
   language, with Hebrew read from the right. A person's names, story and
   memories can be written in all three, so relatives who read different

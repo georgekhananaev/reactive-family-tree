@@ -276,8 +276,14 @@ export interface DemoAccount {
 /* The melody in the background: none for anyone, off until a visitor turns it on, or on from a visitor's first click. */
 export type MusicMode = 'none' | 'off' | 'on';
 
-/* How the tree opens for someone who has not chosen for themselves: light, dark, or whichever of the two their device is set to. */
-export type Appearance = 'device' | 'light' | 'dark';
+/*
+ * How the tree opens for someone who has not chosen for themselves: light, dark, whichever of the two their device is
+ * set to, or by the sun: light by day and dark after sunset where the family is.
+ */
+export type Appearance = 'device' | 'light' | 'dark' | 'sun';
+
+/* The moon over the tree after dark: tonight's real one, always full, the moon of a day the family chose, or none at all. */
+export type MoonMode = 'tonight' | 'full' | 'day' | 'none';
 
 /* What every browser is told, signed in or not. */
 export interface PublicSettings {
@@ -302,6 +308,11 @@ export interface PublicSettings {
   /* Where the family is, to the nearest whole degree, for the sun and the moon on the tree. North and east are the positive ways. Both are null until an admin says, and for a stranger at a private tree. */
   latitude: number | null;
   longitude: number | null;
+  /* How the tree opens for someone who has not chosen for themselves. A page follows the sun with it while it is open. */
+  appearance: Appearance;
+  moon: MoonMode;
+  /* The day whose moon the tree shows, as 2026-11-15, when `moon` is "day". Empty for a stranger at a private tree. */
+  moonDay: string;
 }
 
 export interface SessionInfo {
@@ -336,8 +347,10 @@ export interface AdminSettings {
   allowAi: boolean;
   allowAiDirect: boolean;
   aiWritesPerHour: number;
-  /* The page is told this as it is made, so the tree is never drawn one way and then the other. It is not part of what a browser asks for afterwards. */
+  /* The page is told this as it is made, so the tree is never drawn one way and then the other. */
   appearance: Appearance;
+  moon: MoonMode;
+  moonDay: string;
   music: MusicMode;
   playMusic: boolean;
   melody: string;

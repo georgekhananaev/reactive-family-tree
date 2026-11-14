@@ -110,6 +110,7 @@ Only `data` is required.
 | `faces` | `boolean` | Show a round photo in place of the leaf, for everyone who has one. |
 | `portraitOf` | `(person) => string \| null` | Where someone's photo is. Asked only while `faces` is on, for people whose `portrait` is set. |
 | `insets` | `{ right: number; top: number; left?: number }` | Room taken by an open side panel and a banner, in pixels. The tree keeps clear of it. A page read from the right opens its panel on the left. |
+| `moon` | `MoonChoice` | Which moon shows after dark: `'tonight'` (the default, the real one), `'full'`, `'none'`, or the moon of a day as `{ day: '1922-04-12' }`, which is the moon of that night at ten in the evening by the sun at `place`. |
 | `label` | `string` | What a screen reader calls the drawing. The default is "The family tree". |
 | `labels` | `Partial<TreeLabels>` | The few words drawn on the tree or read out by a screen reader, in your page's language: `showBranch`, `livingRelative`, `unknown`, `draft`, `suggested`, `relations` (the word under each + bud) and `addRelation(relation)`. Anything left out is English. Names come from `data`, so put them in the reader's language there. |
 | `className` | `string` | A class for the stage. |
@@ -172,7 +173,8 @@ The tree is one stop for the Tab key. From there the arrow keys travel along the
 - `MELODIES` and `QUICK_TUNES`: the calm melodies and the quick tunes to choose from, each with an `id`, a `name` and a line `about` it. Every melody brings a quick tune under its own id, and there are more quick tunes besides. Nothing is a recording: the browser plays every note, so there are no audio files to host.
 - `TreeMusic`: the player under the hook, with no React. `new TreeMusic(melody, quickTune, context)` plays on an `AudioContext` you hand it, and leaves stopping and closing that context to you. Without one it makes its own.
 - `skyOver(when, place)`: the arithmetic behind the sky, for a line of words of your own. It gives how much of the moon is lit (`lit`, 0 to 1), whether that is growing (`waxing`), and with a place how high the sun and the moon stand over it, in degrees (`sunHeight`, `moonHeight`).
-- The types: `FamilyTreeProps`, `FamilyTreeHandle`, `TreeData`, `TreeInsets`, `YearRange`, `BranchState`, `Camera`, `TreeEngineEvents`, `TreeEngineOptions`, `LeafPortraitProps`, `LeafState`, `LeafSubject`, `Melody`, `Mood`, `TreeMusicOptions`, `TreeMusicSwitch`, `Place` and `Sky`.
+- `moonFor(choice, place, now?)`: which moon the tree shows for a `MoonChoice`, as a `Sky` with the sun of `now`, or `null` for `'none'`. For a line of words about it of your own.
+- The types: `FamilyTreeProps`, `FamilyTreeHandle`, `TreeData`, `TreeInsets`, `YearRange`, `BranchState`, `Camera`, `TreeEngineEvents`, `TreeEngineOptions`, `LeafPortraitProps`, `LeafState`, `LeafSubject`, `Melody`, `MoonChoice`, `Mood`, `TreeMusicOptions`, `TreeMusicSwitch`, `Place` and `Sky`.
 
 ## Not built yet
 

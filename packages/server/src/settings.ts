@@ -62,6 +62,8 @@ export const DEFAULT_SETTINGS: Settings = {
   allowAiDirect: true,
   aiWritesPerHour: 120,
   appearance: 'device',
+  moon: 'tonight',
+  moonDay: '',
   music: 'off',
   playMusic: true,
   melody: 'morning-mist',
@@ -90,6 +92,13 @@ const timezone = (value: unknown) => {
     return false;
   }
 };
+/* A real day of the calendar, written as 1922-04-12, or nothing. */
+const day = (value: unknown) => {
+  if (value === '') return true;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number) as [number, number, number], date = new Date(Date.UTC(y, m - 1, d));
+  return y >= 1 && date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+};
 const text = (max: number, required = false) => (value: unknown) => typeof value === 'string' && value.length <= max && (!required || value.trim().length > 0);
 
 /* What each setting the admin can change must look like. */
@@ -106,7 +115,9 @@ export const SETTING_RULES: Record<keyof AdminSettings, (value: unknown) => bool
   livingAge: whole(80, 130),
   aiWritesPerHour: whole(1, 1000),
   guidelines: text(4000),
-  appearance: (value) => value === 'device' || value === 'light' || value === 'dark',
+  appearance: (value) => value === 'device' || value === 'light' || value === 'dark' || value === 'sun',
+  moon: (value) => value === 'tonight' || value === 'full' || value === 'day' || value === 'none',
+  moonDay: day,
   music: (value) => value === 'none' || value === 'off' || value === 'on',
   playMusic: bool,
   melody: melodyName,
@@ -127,12 +138,13 @@ export const SETTING_HINTS: Partial<Record<keyof AdminSettings, string>> = {
   timezone: 'Choose a timezone from the list.',
   latitude: 'Enter the latitude as a whole number between -90 and 90, or leave it empty.',
   longitude: 'Enter the longitude as a whole number between -180 and 180, or leave it empty.',
+  moonDay: 'Choose a day from the calendar.',
 };
 
 export const ADMIN_SETTING_KEYS = Object.keys(SETTING_RULES) as (keyof AdminSettings)[];
 
 /* What every browser is told, signed in or not. */
-const PUBLIC_KEYS = ['familyName', 'description', 'language', 'visibility', 'visitorsCanSuggest', 'allowJoinRequests', 'allowAi', 'allowAiDirect', 'stewardsCanInvite', 'music', 'playMusic', 'melody', 'playMelody', 'latitude', 'longitude'] as const satisfies readonly (keyof PublicSettings)[];
+const PUBLIC_KEYS = ['familyName', 'description', 'language', 'visibility', 'visitorsCanSuggest', 'allowJoinRequests', 'allowAi', 'allowAiDirect', 'stewardsCanInvite', 'music', 'playMusic', 'melody', 'playMelody', 'latitude', 'longitude', 'appearance', 'moon', 'moonDay'] as const satisfies readonly (keyof PublicSettings)[];
 
 /* What every browser is told, with the family's name and line in the reader's language. */
 export function publicSettings(settings: Settings, relative: boolean, lang: Lang = settings.language): PublicSettings {
@@ -140,8 +152,8 @@ export function publicSettings(settings: Settings, relative: boolean, lang: Lang
     ...Object.fromEntries(PUBLIC_KEYS.map((key) => [key, settings[key]])),
     familyName: familyText(settings, 'familyName', lang), description: familyText(settings, 'description', lang),
   } as unknown as PublicSettings;
-  // Where the family is, is not for a stranger at the door of a private tree
-  return relative || settings.visibility !== 'private' ? told : { ...told, latitude: null, longitude: null };
+  // Where the family is, and the day it chose for its moon, are not for a stranger at the door of a private tree
+  return relative || settings.visibility !== 'private' ? told : { ...told, latitude: null, longitude: null, moonDay: '' };
 }
 
 /* The settings for an admin reading the tree in `lang`. */

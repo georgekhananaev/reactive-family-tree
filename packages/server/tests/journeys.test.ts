@@ -355,8 +355,8 @@ test('the family chooses whether the tree opens light or dark', async () => {
   }
   expect(await opens(), 'a wrong value changes nothing').toBe('dark');
 
-  // Each page is told as it is made, before anything is drawn. It is not among what a browser asks for afterwards.
-  expect(Object.keys((await visitor.get('/api/session')).data.settings)).not.toContain('appearance');
+  // Each page is told as it is made, before anything is drawn, and again with the session, so a page left open can follow the sun
+  expect((await visitor.get('/api/session')).data.settings.appearance).toBe('dark');
   expect((await helen.patch('/api/settings', { appearance: 'device' })).status).toBe(200);
   expect(await opens()).toBe('device');
 });

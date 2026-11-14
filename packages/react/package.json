@@ -10,6 +10,7 @@
   ],
   "exports": {
     ".": "./src/index.ts",
+    "./sky": "./src/sky.ts",
     "./tree.css": "./src/tree.css"
   },
   "files": [

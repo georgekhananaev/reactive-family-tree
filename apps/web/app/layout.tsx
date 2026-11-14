@@ -5,7 +5,7 @@ import { cookies, headers } from 'next/headers';
 import { connection } from 'next/server';
 import type { ReactNode } from 'react';
 
-import { appearanceScript } from '@/lib/appearance';
+import { appearanceScript, placeOf } from '@/lib/appearance';
 import { bookFor } from '@/lib/i18n/books';
 import { getT } from '@/lib/i18n/server';
 import { getApp } from '@/lib/server';
@@ -56,7 +56,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang={lang} dir={directionOf(lang)} className={FONTS} suppressHydrationWarning>
       <head>
         {/* Light or dark is chosen before anything is drawn */}
-        <script dangerouslySetInnerHTML={{ __html: appearanceScript(store.settings.appearance) }} />
+        <script dangerouslySetInnerHTML={{ __html: appearanceScript(store.settings.appearance, placeOf(store.settings)) }} />
       </head>
       <body>
         <Providers lang={lang} book={book}>{children}</Providers>

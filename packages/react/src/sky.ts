@@ -96,6 +96,36 @@ export function skyOver(when: Date, place: Place | null = null): Sky {
   return { lit: (1 - cos(moonAside) * cos(ahead)) / 2, waxing: sin(ahead) > 0, face: round(face), limb: round(face - toSun - 90), sunHeight, moonHeight };
 }
 
+/* Which moon the tree shows after dark: tonight's real one, always a full one, none, or the moon of a day, written as 1922-04-12. */
+export type MoonChoice = 'tonight' | 'full' | 'none' | { day: string };
+
+/* Ten in the evening of a day, by the sun where the family is: the hour "that night's moon" is the moon of. Null for what is not a day. */
+export function eveningOf(day: string, place: Place | null = null): Date | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!parts) return null;
+  const [year, month, date] = parts.slice(1).map(Number) as [number, number, number];
+  const at = new Date(Date.UTC(2000, month - 1, date, 22));
+  // Set apart, so that a year before 100 is not taken for one in the 1900s
+  at.setUTCFullYear(year);
+  if (at.getUTCMonth() !== month - 1 || at.getUTCDate() !== date) return null;
+  // Ten o'clock by the sun is earlier in Greenwich time the further east the place is
+  return new Date(at.getTime() - ((place?.longitude ?? 0) / 15) * 3_600_000);
+}
+
+/*
+ * The moon a tree shows for a choice, with the sun as it stands now. A day's
+ * moon is the one of that night, in its phase and turned the way it was seen
+ * from the family's place. Null where there is no moon to show. A day that is
+ * not one shows tonight's moon.
+ */
+export function moonFor(choice: MoonChoice, place: Place | null, now: Date = new Date()): Sky | null {
+  if (choice === 'none') return null;
+  const tonight = skyOver(now, place);
+  if (choice === 'full') return { ...tonight, lit: 1 };
+  const evening = typeof choice === 'object' ? eveningOf(choice.day, place) : null;
+  return evening ? { ...skyOver(evening, place), sunHeight: tonight.sunHeight } : tonight;
+}
+
 /*
  * The outline of the moon's lit part, on a disc about 0,0, with the light on
  * the right. Down the lit edge, which is half a circle, and back up the line

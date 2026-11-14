@@ -126,6 +126,8 @@ export const ru: Record<keyof typeof he, string> = {
   'Enter the latitude as a whole number between -90 and 90, or leave it empty.': 'Введите широту целым числом от −90 до 90 или оставьте пустой.',
   'Enter the longitude as a whole number between -180 and 180, or leave it empty.': 'Введите долготу целым числом от −180 до 180 или оставьте пустой.',
   'Choose English, Hebrew or Russian.': 'Выберите английский, иврит или русский.',
+  'Choose the day whose moon the tree shows.': 'Выберите день, луну которого покажет дерево.',
+  'Choose a day from the calendar.': 'Выберите день в календаре.',
   'That is not a backup made by this version of the app.': 'Эта резервная копия сделана не этой версией приложения.',
 
   '{n#One more change, to something private.|# more changes, to something private.}': 'И ещё {n## изменение|# изменения|# изменений} — в том, что от вас скрыто.',
