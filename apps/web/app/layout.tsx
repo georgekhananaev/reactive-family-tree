@@ -46,17 +46,20 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // How the family wants the tree to open is known only while the tree runs, so no page is made ahead of the request for it
   await connection();
-  const { store } = await getApp();
+  const app = await getApp(), { store, config } = app;
   await store.fresh();
   // The language is chosen as the server chooses it for every answer, so the page and what it fetches agree from the first moment
   const [asked, said] = await Promise.all([cookies(), headers()]);
+  // By the sun, the page opens light or dark by where the sun is over the family. A stranger at a private tree is not told
+  // where the family is, and day and night there, watched for a day, would tell it: they open as their own device is set.
+  const told = store.settings.visibility !== 'private' || Boolean(await app.userOf(new Request(config.baseUrl, { headers: new Headers(said) })));
   const lang = chooseLang({ remembered: asked.get(LANG_COOKIE)?.value, device: said.get('accept-language') }, store.settings.language);
   const book = await bookFor(lang);
   return (
     <html lang={lang} dir={directionOf(lang)} className={FONTS} suppressHydrationWarning>
       <head>
         {/* Light or dark is chosen before anything is drawn */}
-        <script dangerouslySetInnerHTML={{ __html: appearanceScript(store.settings.appearance, placeOf(store.settings)) }} />
+        <script dangerouslySetInnerHTML={{ __html: appearanceScript(store.settings.appearance, told ? placeOf(store.settings) : null) }} />
       </head>
       <body>
         <Providers lang={lang} book={book}>{children}</Providers>
