@@ -107,6 +107,7 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
   const [audition, setAudition] = useState<MelodyTrial | null>(null);
   const { music: mode, playMusic, melody, playMelody, latitude, longitude } = session.settings;
   const music = useTreeMusic(playing, { mode, playMusic, melody, playMelody, audition });
+  const { wake: wakeSound } = music;
   // Leaves, or the faces of those who have a photo. Each person's own choice, kept on their device.
   const [faces, setFaces] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -328,8 +329,8 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
     toast, fail,
     refresh: actions.refresh, signedIn: actions.signedIn, select: actions.select, openCard: actions.openCard, submit: actions.submit,
     focusOn: actions.focusOn, showRelationship: actions.showRelationship, openPanel: actions.openPanel, closePanel: actions.closePanel,
-    showBranches: setTintMembers, startPainting: actions.startPainting, audition: setAudition, followFamily,
-  }), [session, tree, people, isAdmin, painting, toast, fail, actions, followFamily]);
+    showBranches: setTintMembers, startPainting: actions.startPainting, audition: setAudition, wakeSound, followFamily,
+  }), [session, tree, people, isAdmin, painting, toast, fail, actions, followFamily, wakeSound]);
 
   /* ---------- Live updates, and what arrives with them ---------- */
 
@@ -414,9 +415,11 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
   }, [playing, chooseYear]);
   const togglePlay = useCallback(() => {
     if (now.current.playing) return setPlaying(false);
+    // Inside the press of Play itself, or an iPhone keeps the quick tune silent
+    if (playMusic) wakeSound();
     if (now.current.year === null) setYear(range.min);
     setPlaying(true);
-  }, [range]);
+  }, [range, playMusic, wakeSound]);
 
   /* ---------- Edit mode, appearance ---------- */
 

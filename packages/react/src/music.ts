@@ -538,12 +538,17 @@ export class TreeMusic {
   private mood: Mood = 'calm';
   private timer: ReturnType<typeof setInterval> | null = null;
   private rest: ReturnType<typeof setTimeout> | null = null;
+  /* Whether the player made its context itself. One it was handed belongs to whoever handed it, who stops it and closes it. */
+  private readonly owns: boolean;
 
   /*
    * `melody` is the calm one. `quickTune` is the one that plays with the years: the melody's own, unless another is named.
-   * Made on a click, a tap or a key, or the browser keeps it silent. A test hands in a context that renders to memory.
+   * Made on a click, a tap or a key, or the browser keeps it silent. An iPhone wants the context woken inside that very
+   * event, so a page hands in one it woke there (see useTreeMusic). A test hands in one that renders to memory.
    */
-  constructor(melody?: string, quickTune: string | undefined = melody, ctx: BaseAudioContext = new AudioContext()) {
+  constructor(melody?: string, quickTune: string | undefined = melody, ctx?: BaseAudioContext) {
+    this.owns = !ctx;
+    ctx ??= new AudioContext();
     this.ctx = ctx;
     this.score = readScore(melody);
     this.quick = readQuick(quickTune);
@@ -605,7 +610,7 @@ export class TreeMusic {
     this.timer = null;
     this.master.gain.setTargetAtTime(0, ctx.currentTime, 0.25);
     // Once it has faded, the clock stops too, and the page does no work for music nobody hears
-    if (ctx instanceof AudioContext) this.rest = setTimeout(() => void ctx.suspend(), 1600);
+    if (this.owns && ctx instanceof AudioContext) this.rest = setTimeout(() => void ctx.suspend(), 1600);
   }
 
   /* Change from one tune to the other. The one playing fades, and the other starts from its beginning. */
@@ -645,12 +650,13 @@ export class TreeMusic {
     }
   }
 
-  /* Stop for good and give the sound card back. */
+  /* Stop for good and give the sound card back. A context it was handed stays open for the next player, and is only let go of. */
   close(): void {
     if (this.timer !== null) clearInterval(this.timer);
     if (this.rest !== null) clearTimeout(this.rest);
     this.timer = this.rest = null;
-    if (this.ctx instanceof AudioContext) void this.ctx.close();
+    if (this.owns && this.ctx instanceof AudioContext) void this.ctx.close();
+    else this.master.disconnect();
   }
 
   /* Nobody plays exactly on the beat, or every note as loud as the last. A little of each keeps it from sounding like a machine. */

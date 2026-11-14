@@ -83,6 +83,8 @@ export interface AppController {
 
   /* Play a melody for someone choosing one, as the calm one or as the quick tune, whatever their own music is set to. Null stops it. */
   audition(trial: MelodyTrial | null): void;
+  /* Call inside the click that asks for music: an iPhone lets a page start its sound only then. */
+  wakeSound(): void;
   /* The family's look was just set from this browser: it lets go of its own choice of light or dark, and shows the family's. */
   followFamily(family: Appearance): void;
 

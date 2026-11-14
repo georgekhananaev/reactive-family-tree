@@ -147,7 +147,7 @@ export function SettingsTab() {
         </Field>
         <p className="hint-line">{about && melodyWords(t, about)}</p>
         <div className="form-actions">
-          <button type="button" aria-pressed={listening} onClick={() => setHeard(listening ? null : { melody: shown[key], quick })}>{listening ? t('Stop') : quick ? t('Listen to the quick tune') : t('Listen')}</button>
+          <button type="button" aria-pressed={listening} onClick={() => { if (!listening) app.wakeSound(); setHeard(listening ? null : { melody: shown[key], quick }); }}>{listening ? t('Stop') : quick ? t('Listen to the quick tune') : t('Listen')}</button>
         </div>
       </>
     );
