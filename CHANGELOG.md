@@ -8,6 +8,11 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-14
+
+### Added
+- **tree**: The family can choose whether the tree opens light or dark, in the setup wizard or under Manage family, or leave it to each person's device. Each relative can still switch for themselves
+
 ## [0.1.0] - 2026-11-14
 
 ### Added
