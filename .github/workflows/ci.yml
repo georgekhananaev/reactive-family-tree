@@ -22,6 +22,82 @@ jobs:
       # The same build the Docker image runs, so a release is never the first time the app is built
       - run: pnpm --filter @reactive-family-tree/web build
 
+  # A push to main that passes the checks goes live on its own. The image is built here, on the
+  # kind of processor the server has, so the server only fetches it and swaps the container.
+  image:
+    if: github.event_name == 'push' && github.repository == 'georgekhananaev/reactive-family-tree'
+    needs: check
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          # One plain image with no attestation beside it, so that each push is one version to keep or tidy away
+          provenance: false
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # The server keeps the build that is live and the one before it. Here the last five are enough,
+      # and tidying is not worth failing a deploy over.
+      - uses: actions/delete-package-versions@v5
+        continue-on-error: true
+        with:
+          package-name: ${{ github.event.repository.name }}
+          package-type: container
+          min-versions-to-keep: 5
+
+  deploy:
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    # One deploy at a time. A newer push waits its turn instead of racing this one.
+    concurrency: deploy
+    steps:
+      - name: Put this build live
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOOK: ${{ secrets.DEPLOY_HOOK_URL }}
+        run: |
+          # A run that was overtaken leaves the server to the newer one
+          head=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "main has moved on to $head, and its own run puts that live."
+            exit 0
+          fi
+          # The hook is an n8n workflow that has the server fetch the image and swap the container.
+          # The token is what the server fetches with. It can read this repository's packages and
+          # nothing more, and it stops working when this job ends.
+          for attempt in 1 2 3; do
+            status=$(curl --silent --show-error --max-time 120 --output answer.json --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' \
+              --data "{\"revision\":\"$GITHUB_SHA\",\"pass\":\"$GH_TOKEN\"}" "$HOOK") || status=000
+            if [ "$status" = 200 ]; then break; fi
+            echo "Attempt $attempt: the server answered $status."
+            if [ "$attempt" != 3 ]; then sleep 15; fi
+          done
+          [ "$status" = 200 ]
+          jq --raw-output .message answer.json
+          jq --exit-status .ok answer.json > /dev/null
+
   # A version and the changelog change in one place only, the release commit on main, so two
   # branches can never collide over them. A release that has to come through a pull request
   # is made on a branch named release-something.
