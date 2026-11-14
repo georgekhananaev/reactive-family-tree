@@ -23,6 +23,8 @@ import { signOut } from '@/lib/auth-client';
 import { branchOf, displayName, portraitUrl } from '@/lib/format';
 import { useLiveUpdates } from '@/lib/use-live-updates';
 
+import { About } from './About';
+import type { BuildInfo } from './About';
 import { AccountMenu, Avatar } from './AccountMenu';
 import { Drawer } from './Drawer';
 import type { OpenPanel } from './Drawer';
@@ -57,10 +59,10 @@ interface CardState {
   relation?: Relation;
 }
 
-export function Explorer() {
+export function Explorer({ build }: { build: BuildInfo }) {
   const session = useQuery({ queryKey: ['session'], queryFn: () => api.get<SessionInfo>('/api/session') });
   const tree = useQuery({ queryKey: ['tree'], queryFn: () => api.get<TreeSnapshot>('/api/tree') });
-  if (session.data && tree.data) return <Family session={session.data} tree={tree.data} />;
+  if (session.data && tree.data) return <Family session={session.data} tree={tree.data} build={build} />;
   // Until both have answered there is an empty stage. If one could not, say so and offer another try, where there would be nothing at all.
   if (!session.error && !tree.error) return <div id="stage" />;
   return (
@@ -73,7 +75,7 @@ export function Explorer() {
   );
 }
 
-function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot }) {
+function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnapshot; build: BuildInfo }) {
   const queryClient = useQueryClient();
   const view = useRef<FamilyTreeHandle>(null);
   const card = useRef<CardHandle>(null);
@@ -510,7 +512,7 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
       if (!(event.target as Element).closest('#menu, #search, #menuOpen, #searchOpen')) actions.closePopovers();
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      // A photo opened large is on top and has the keyboard to itself: Escape puts it away, and nothing behind it moves
+      // A photo opened large, or the window about the software, is on top and has the keyboard to itself: Escape puts it away, and nothing behind it moves
       if ((event.target as Element).closest('dialog')) return;
       const at = now.current;
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName ?? '');
@@ -681,6 +683,7 @@ function Family({ session, tree }: { session: SessionInfo; tree: TreeSnapshot })
         onMyLeaf={goToMyLeaf}
         onFaces={toggleFaces}
       />
+      <About build={build} family={tree.family.name} />
 
       <PetalMenu ref={petals} request={petalRequest} onClose={useCallback(() => setPetalRequest(null), [])} />
     </AppProvider>

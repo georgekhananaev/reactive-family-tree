@@ -23,6 +23,9 @@ const config: NextConfig = {
     // telling every page to restart, over and over. A cold start compiles this app in about a second.
     turbopackFileSystemCacheForDev: false,
   },
+  // While developing, Next puts a badge in a corner of the page, and here every corner is taken: it sat on
+  // the version and took its clicks. Errors are still shown without it.
+  devIndicators: false,
   poweredByHeader: false,
   async headers() {
     return [

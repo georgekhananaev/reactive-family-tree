@@ -31,6 +31,7 @@ const ICONS = {
   search: `${ring(10.5, 10.5, 6)} M15 15l5 5`,
   passkey: `${ring(8, 16, 3.5)} M10.5 13.5L19.5 4.5 M16 8l2.5 2.5 M13 11l2 2`,
   face: `${ring(12, 9, 3.8)} M4.8 20.5c.8-4 3.6-6 7.2-6s6.4 2 7.2 6`,
+  chevron: 'M6.5 9.5l5.5 5.5 5.5-5.5',
 } as const;
 
 export type IconName = keyof typeof ICONS;

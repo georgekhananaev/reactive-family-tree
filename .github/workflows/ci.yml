@@ -52,6 +52,10 @@ jobs:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+          # The tree says which build it is, in the small window behind its version
+          build-args: |
+            REVISION=${{ github.sha }}
+            BUILT=${{ github.event.head_commit.timestamp }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       # The server keeps the build that is live and the one before it. Here the last five are enough,

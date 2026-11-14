@@ -23,6 +23,11 @@ WORKDIR /app
 RUN mkdir -p /data && chown node:node /data
 COPY --from=build --chown=node:node /repo/apps/web/.next/standalone ./
 COPY --from=build --chown=node:node /repo/apps/web/.next/static ./apps/web/.next/static
+# Which commit this image was built from and when, for the small window about the software. Both are
+# optional: --build-arg REVISION=$(git rev-parse HEAD) --build-arg BUILT=$(date -u +%FT%TZ)
+ARG REVISION=""
+ARG BUILT=""
+ENV BUILD_REVISION=$REVISION BUILD_DATE=$BUILT
 USER node
 VOLUME /data
 EXPOSE 3000

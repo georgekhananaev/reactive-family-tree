@@ -412,6 +412,113 @@ button.round { flex: none; display: inline-grid; place-items: center; width: 44p
 /* Where there is no room beside the year slider, the view buttons sit above it */
 .tight .zoom { bottom: calc(88px + env(safe-area-inset-bottom)); }
 
+/* ---------- About: the version in a corner, and the card that rises from it ---------- */
+
+/* How far the version stands above the bottom of the page. Where the year slider reaches the corner it stands above that, as the view buttons do. */
+body { --about-rise: 14px; }
+body.tight { --about-rise: 88px; }
+
+.about-open {
+  position: absolute;
+  left: calc(8px + env(safe-area-inset-left));
+  bottom: calc(var(--about-rise) + env(safe-area-inset-bottom));
+  z-index: 3;
+  min-height: 0;
+  padding: 6px 8px;
+  border: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  animation: arrive 0.9s 0.35s both;
+  transition: bottom var(--slide), color 0.25s;
+}
+@media (hover: hover) {
+  .about-open:hover { background-color: transparent; color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+}
+
+/* The card rises from the version's corner and grows upward as its parts unfold. It stands clear of the year slider, wherever the version is. */
+.about {
+  --about-foot: calc(max(var(--about-rise) + 38px, 84px) + env(safe-area-inset-bottom));
+  inset: auto auto var(--about-foot) calc(12px + env(safe-area-inset-left));
+  width: min(440px, calc(100% - 24px));
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  overflow: visible;
+  opacity: 0;
+  transform: translateY(12px) scale(0.97);
+  transform-origin: 24px 100%;
+  /* Shown and put away at an easy pace, where the browser can hold a closing dialog on the page long enough */
+  transition: opacity 0.2s ease-out, transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), overlay 0.28s allow-discrete, display 0.28s allow-discrete;
+}
+.about[open] { opacity: 1; transform: none; }
+@starting-style {
+  .about[open] { opacity: 0; transform: translateY(12px) scale(0.97); }
+}
+/* The tree stays in sight behind the card, a little dimmed */
+.about::backdrop { background-color: rgba(8, 14, 24, 0); transition: background-color 0.28s, overlay 0.28s allow-discrete, display 0.28s allow-discrete; }
+.about[open]::backdrop { background-color: rgba(8, 14, 24, 0.3); }
+@starting-style {
+  .about[open]::backdrop { background-color: rgba(8, 14, 24, 0); }
+}
+.about-card {
+  max-height: calc(100dvh - var(--about-foot) - 12px - env(safe-area-inset-top));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 20px 6px;
+  background: var(--card);
+  box-shadow: var(--card-shadow);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.about header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.about h2 { margin: 0; font: 700 1.375rem/1.15 var(--display); }
+.about .close { flex: none; width: 44px; margin-right: -12px; padding: 0; border: 0; font-size: 1.5rem; color: var(--muted); }
+.about p { margin: 10px 0 0; }
+.about .about-build { margin-top: 0; color: var(--muted); font-size: 0.9375rem; font-variant-numeric: tabular-nums; }
+.about .about-links { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.about .about-report { margin-bottom: 14px; font-size: 0.9375rem; color: var(--muted); }
+.about a { color: var(--action); text-underline-offset: 3px; }
+.about a:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; border-radius: 2px; }
+
+/* Two parts that unfold. A line above each says where one ends and the next begins. */
+.about-part { border-top: 1px solid var(--line); }
+.about-part h3 { margin: 0; font: inherit; }
+.about-part h3 button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  font: 700 1.0625rem var(--display);
+  text-align: left;
+}
+.about-part h3 button:active { transform: none; }
+.about-part .icon { flex: none; color: var(--muted); transition: transform 0.32s cubic-bezier(0.3, 1.3, 0.4, 1), color 0.25s; }
+.about-part.open .icon { transform: rotate(180deg); color: var(--action); }
+@media (hover: hover) {
+  .about-part h3 button:hover { background-color: transparent; color: var(--action); }
+  .about-part h3 button:hover .icon { color: var(--action); }
+}
+/* The row that holds a part opens from nothing to the height of what is in it, and what is in it comes up as the room is made */
+.about-fold { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows 0.34s cubic-bezier(0.3, 0.9, 0.3, 1), visibility 0s 0.34s; }
+.about-part.open .about-fold { grid-template-rows: 1fr; visibility: visible; transition-delay: 0s; }
+.about-fold > div { min-height: 0; overflow: hidden; opacity: 0; transform: translateY(-6px); transition: opacity 0.22s, transform 0.34s cubic-bezier(0.3, 0.9, 0.3, 1); }
+.about-part.open .about-fold > div { opacity: 1; transform: none; transition-delay: 0.06s, 0s; }
+.about-fold ul { display: grid; gap: 6px; margin: 0; padding: 0 0 0 1.1em; font-size: 0.9375rem; }
+.about-fold p { font-size: 0.9375rem; color: var(--muted); }
+.about-fold > div > :last-child { margin-bottom: 14px; }
+@media (prefers-reduced-motion: reduce) {
+  .about, .about::backdrop, .about-fold, .about-fold > div, .about-part .icon { transition: none; }
+}
+
 /* ---------- The ring of actions around a leaf ---------- */
 
 .petal-menu {
@@ -789,6 +896,8 @@ dl.keys dd { margin: 0; color: var(--muted); }
   /* Pinching zooms, so only "whole tree" and "my leaf" keep a button */
   #zoomIn, #zoomOut { display: none; }
   .zoom, .tight .zoom { right: 10px; bottom: calc(74px + env(safe-area-inset-bottom)); }
+  body, body.tight { --about-rise: 74px; }
+  .about-open { left: 4px; }
 
   /* The card is a sheet: pull the handle up to read more, down to put it away */
   #card { max-height: 58%; padding: 0; overflow: hidden; }
@@ -809,4 +918,5 @@ dl.keys dd { margin: 0; color: var(--muted); }
 
 /* ---------- Reduced motion, and the #still address option ---------- */
 
-.still .toast, .still .zoom, .still .banner, .still .petal-item, .still .card-body, .still .card-ask, .still .drawer-page, .still .photo-large, .still .photo-large::backdrop { animation: none !important; }
+.still .toast, .still .zoom, .still .banner, .still .petal-item, .still .card-body, .still .card-ask, .still .drawer-page, .still .photo-large, .still .photo-large::backdrop, .still .about-open { animation: none !important; }
+.still .about, .still .about::backdrop, .still .about-fold, .still .about-fold > div, .still .about-part .icon { transition: none !important; }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import { Explorer } from '@/components/Explorer';
+import { buildInfo } from '@/lib/build';
 import { getApp } from '@/lib/server';
 
 export const dynamic = 'force-dynamic';
@@ -23,5 +24,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function Home() {
-  return <Explorer />;
+  return <Explorer build={buildInfo()} />;
 }
