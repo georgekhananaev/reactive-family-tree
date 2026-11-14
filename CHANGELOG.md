@@ -8,6 +8,11 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-14
+
+### Added
+- **app**: Read the tree in Hebrew, Russian or English
+
 ## [0.3.0] - 2026-11-14
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "@reactive-family-tree/core",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "The rules of a family tree: types, operations, permissions, privacy, dates, kinship. No DOM, no I/O.",
   "author": "George Khananaev",
