@@ -5,7 +5,7 @@ import { formatDate, fromGedcom, parseDate, sortKey, toGedcom, yearOf } from '..
 import { emptyState, fullName, indexOf, namesOf, scopeOf } from '../src/graph';
 import { isStale, languagesOf, readIn, textOf, writtenIn } from '../src/text';
 import { describeKinship, stepWord } from '../src/kinship';
-import { listed, pickLang, sayFrom } from '../src/lang';
+import { cookieOf, listed, pickLang, sayFrom } from '../src/lang';
 import { OpError, applyOps, describeOp } from '../src/ops';
 import { decideEdit } from '../src/permissions';
 import { issueText, validate } from '../src/validate';
@@ -244,6 +244,11 @@ test('a sentence fills its gaps and counts the way each language counts', () => 
   assert.deepEqual([listed('en', ['A', 'B', 'C']), listed('ru', ['A', 'B']), listed('he', ['דוד', 'מרינה']), listed('he', ['דוד', 'Marina']), listed('en', ['A'])], ['A, B and C', 'A и B', 'דוד ומרינה', 'דוד ו-Marina', 'A']);
 });
 
+test('a cookie that is badly encoded counts as not there', () => {
+  assert.equal(cookieOf('a=1; rft-language=%E0%A4%A; b=2', 'rft-language'), null);
+  assert.equal(cookieOf('a=1; rft-language=he', 'rft-language'), 'he');
+});
+
 test('a date is read in any of the three languages and said in the reader\u2019s own', () => {
   const cases: [typed: string, stored: FuzzyDate, hebrew: string, russian: string][] = [
     ['4 марта 1921', { kind: 'exact', from: '1921-03-04' }, '4 במרץ 1921', '4 марта 1921'],
@@ -413,6 +418,10 @@ test('a person\u2019s words are kept in the language they were written in, and i
   run([{ type: 'memory.translate', memory, lang: 'en', body: 'He sang at the table.' }]);
   assert.deepEqual([textOf(state.memories.get(memory)!, 'body', 'en'), state.memories.get(memory)!.body], ['He sang at the table.', 'Он пел за столом.']);
   assert.throws(() => run([{ type: 'memory.translate', memory, lang: 'ru', body: 'Другое' }]), (error: unknown) => error instanceof OpError && error.code === 'bad_value', 'a memory is not rewritten in its own language');
+  // Sent without a language, it is a telling in the author's language, and never a way to rewrite the memory itself
+  applyOps(state, [{ type: 'memory.translate', memory, body: 'Rewritten' } as unknown as Op], { ...env, lang: 'he' });
+  assert.deepEqual([state.memories.get(memory)!.body, textOf(state.memories.get(memory)!, 'body', 'he')], ['Он пел за столом.', 'Rewritten']);
+  assert.throws(() => applyOps(state, [{ type: 'memory.translate', memory, body: 'Другое' } as unknown as Op], { ...env, lang: 'ru' }), (error: unknown) => error instanceof OpError && error.code === 'bad_value');
   assert.throws(() => run([{ type: 'person.create', set: { given: 'X' }, lang: 'fr' as 'en' }]), (error: unknown) => error instanceof OpError && error.code === 'bad_value');
 
   // The same person typed again in another language is noticed

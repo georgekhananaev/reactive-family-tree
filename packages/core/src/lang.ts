@@ -66,7 +66,13 @@ export const LANG_COOKIE = 'rft-language';
 export function cookieOf(header: string | null | undefined, name: string): string | null {
   for (const part of (header ?? '').split(';')) {
     const [key, ...value] = part.trim().split('=');
-    if (key === name) return decodeURIComponent(value.join('='));
+    if (key !== name) continue;
+    // A cookie anyone can set by hand may be badly encoded. It then counts as not there.
+    try {
+      return decodeURIComponent(value.join('='));
+    } catch {
+      return null;
+    }
   }
   return null;
 }

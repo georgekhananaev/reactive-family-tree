@@ -211,3 +211,10 @@ test('history says in words what a field holds, and a refusal names the field as
   expect((await helen.edit([{ type: 'person.update', person: iris, set: { sex: 'robot' as 'male' } }])).data.error).toBe('"sex" has a value that is not allowed.');
 });
 
+test('a language cookie that is badly encoded is ignored, and the tree still answers', async () => {
+  const visitor = browser(demo.app, undefined, 'ru');
+  visitor.remember('rft-language', '%E0%A4%A');
+  const answer = await visitor.get('/api/session');
+  expect([answer.status, answer.data.lang], 'the device\u2019s language, as if there were no cookie').toEqual([200, 'ru']);
+});
+

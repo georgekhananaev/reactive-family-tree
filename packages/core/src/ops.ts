@@ -264,9 +264,11 @@ export function applyOps(state: State, ops: readonly Op[], env: OpEnv): Applied 
     'memory.translate'(op) {
       const memory = open('memories', resolve(op.memory));
       if (!text(4000)(op.body)) fail('bad_value', 'A memory has at most 4,000 characters.');
-      // In its own language a memory stays as it was told
-      if (written(op.lang) === memory.lang) fail('bad_value', 'A memory is told again in another language, not rewritten in its own.');
-      writeIn(memory, TEXT_FIELDS.memories, { body: op.body.trim() }, op.lang);
+      // In its own language a memory stays as it was told. The language checked is the one written into, so an
+      // operation that leaves it out is a telling in its author's language, and can never reach the memory itself.
+      const target = written(op.lang);
+      if (target === memory.lang) fail('bad_value', 'A memory is told again in another language, not rewritten in its own.');
+      writeIn(memory, TEXT_FIELDS.memories, { body: op.body.trim() }, target);
     },
     'memory.remove'(op) {
       open('memories', resolve(op.memory)).deletedAt = env.now;

@@ -380,10 +380,12 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
 
   return async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    // Until the account is known, the language is what the browser says. Errors before that are said in it.
-    const asked = { asked: request.headers.get('x-language'), remembered: cookieOf(request.headers.get('cookie'), LANG_COOKIE), device: request.headers.get('accept-language') };
-    let lang = chooseLang(asked, store.settings.language);
+    // Errors are said in the family's language until the reader's own is known
+    let lang = store.settings.language;
     try {
+      // Until the account is known, the language is what the browser says
+      const asked = { asked: request.headers.get('x-language'), remembered: cookieOf(request.headers.get('cookie'), LANG_COOKIE), device: request.headers.get('accept-language') };
+      lang = chooseLang(asked, lang);
       // A page on another site must not be able to act with this visitor's session
       const origin = request.headers.get('origin');
       // The page is this site if it comes from the address the request was sent to, or from the address the tree is known by.
