@@ -58,6 +58,33 @@
   --bud-text: #14261F;
   --ground: #3A3028;
   --grass: #2F6B4F;
+  /* The pond: clear water, deeper at its edges, weathered stones and moss, a lantern, irises, and koi in red, white and gold */
+  --water-rim: #6E97A4;
+  --water: #9FC2CA;
+  --water-light: #D3E6E8;
+  --water-shine: #FFFFFF;
+  --water-glint: #FFFFFF;
+  --stone-light: #DCD6CA;
+  --stone-dark: #9C9486;
+  --stone-line: #3A3028;
+  --moss: #7E9C5A;
+  --lantern-window: #3E3931;
+  --lantern-glow: #FFC870;
+  --iris: #6B58B0;
+  --koi: #E8743A;
+  --koi-white: #FBF6EE;
+  --koi-gold: #E6AE48;
+  /* The garden pond adds koi in black and grey-blue, a red bridge, a pine, and a spout of bamboo */
+  --koi-black: #2B2A2E;
+  --koi-blue: #7F9DB8;
+  --bridge: #C4472E;
+  --bridge-shade: #8E2E1E;
+  --bridge-light: #E58A6E;
+  --pine: #2F6B4F;
+  --pine-light: #6FA560;
+  --moss-light: #A9C17E;
+  --bamboo: #C2BC74;
+  --bamboo-shade: #7F7B3C;
   --shade: rgba(52, 62, 44, 0.26);
 }
 
@@ -106,6 +133,32 @@
   --bud-text: #7CCDE0;
   --ground: #8491B4;
   --grass: #5E9C7C;
+  /* At night the water is deep blue with the moon's light on it, the stones are grey-blue in the moonlight, and the lantern is lit */
+  --water-rim: #0F1931;
+  --water: #1B2B4E;
+  --water-light: #2C4270;
+  --water-shine: #BFD0EE;
+  --water-glint: #CFDCF2;
+  --stone-light: #69739A;
+  --stone-dark: #323954;
+  --stone-line: #A9B4D6;
+  --moss: #4A6B58;
+  --lantern-window: #FFD98C;
+  --lantern-glow: #FFC870;
+  --iris: #8E83C8;
+  --koi: #C9784C;
+  --koi-white: #C9CEDA;
+  --koi-gold: #C9A050;
+  --koi-black: #1A1E2B;
+  --koi-blue: #6F86A8;
+  --bridge: #9A4E55;
+  --bridge-shade: #5E2F3A;
+  --bridge-light: #C98A8F;
+  --pine: #3E7E68;
+  --pine-light: #8FD0A8;
+  --moss-light: #6E9478;
+  --bamboo: #8C9A84;
+  --bamboo-shade: #4E5F58;
   --shade: rgba(4, 8, 20, 0.5);
 }
 
@@ -297,6 +350,137 @@
 .ground { fill: none; stroke: var(--ground); stroke-opacity: 0.55; stroke-width: 1.4; stroke-linecap: round; transition: stroke 0.4s; }
 .grass { fill: none; stroke: var(--grass); stroke-opacity: 0.6; stroke-width: 1.3; stroke-linecap: round; transition: stroke 0.4s; }
 
+/*
+ * The pond beside the tree, when the family wants it: a drawing of its own,
+ * laid over the ground in front of the tree's, so the koi swimming in it never
+ * make the tree draw itself again. The streaks of light on the water drift
+ * and shimmer, and after dark the lantern's light trembles. The swimming and
+ * the leaps are the drawing's own animation, a leap started now and then by
+ * the drawing code.
+ */
+/* Its rules all start from .pond, so a page holding the tree can use the same plain names for its own things */
+.pond { overflow: visible; }
+/* Out of sight, everything in it waits where it is */
+.pond.unseen * { animation-play-state: paused !important; }
+.pond .water-rim { stop-color: var(--water-rim); }
+.pond .water { stop-color: var(--water); }
+.pond .water-light { stop-color: var(--water-light); }
+.pond .water-shine { stop-color: var(--water-shine); }
+.pond .water-glint { stop-color: var(--water-glint); }
+.pond .stone-light { stop-color: var(--stone-light); }
+.pond .stone-dark { stop-color: var(--stone-dark); }
+.pond .lantern-glow { stop-color: var(--lantern-glow); }
+.pond .moss-ground { stop-color: var(--moss); }
+.pond .pond-water { stroke: var(--stone-line); stroke-opacity: 0.35; stroke-width: 0.8; }
+.pond .stones path, .pond .lantern path { fill: url(#pondStone); stroke: var(--stone-line); stroke-opacity: 0.5; stroke-width: 0.8; stroke-linejoin: round; }
+.pond .moss, .pond .stones .moss, .pond .lantern .moss { fill: var(--moss); stroke: none; opacity: 0.8; }
+.pond .crack, .pond .stones .crack { fill: none; stroke: var(--stone-line); stroke-width: 0.8; stroke-opacity: 0.3; stroke-linecap: round; }
+.pond .lantern circle, .pond .lantern .window { fill: var(--lantern-window); stroke: none; transition: fill 2s ease-in-out; }
+/* What stands on the far bank, seen upside down in the water */
+.pond .mirror { fill: var(--water-rim); opacity: 0.24; }
+.pond .koi { opacity: 0.8; }
+.pond .koi-red { fill: var(--koi); }
+.pond .koi-white { fill: var(--koi-white); }
+.pond .koi-gold { fill: var(--koi-gold); }
+.pond .koi-black { fill: var(--koi-black); }
+.pond .koi-blue { fill: var(--koi-blue); }
+.pond .koi-back { fill: none; stroke: var(--koi-white); stroke-width: 0.5; stroke-linecap: round; opacity: 0.4; }
+.pond .koi-fin { fill: var(--koi-white); opacity: 0.75; }
+.pond .koi-eye { fill: var(--stone-line); }
+.pond .pad { fill: var(--leaf-2); stroke: var(--leaf-0); stroke-opacity: 0.6; stroke-width: 0.8; }
+.pond .lily path { fill: var(--petal); stroke: var(--petal-edge); stroke-width: 0.35; }
+.pond .lily-heart, .pond .iris-heart { fill: var(--blossom-heart); }
+.pond .iris-leaf { fill: var(--leaf-1); }
+.pond .iris-stem { fill: none; stroke: var(--leaf-1); stroke-width: 0.8; }
+.pond .iris { fill: var(--iris); }
+.pond .shine path { fill: none; stroke: var(--water-shine); stroke-width: 1; stroke-linecap: round; opacity: 0.4; animation: pond-shimmer 5.5s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+.pond .gleam path { stroke: var(--lantern-glow); stroke-width: 1.3; }
+@keyframes pond-shimmer { from { opacity: 0.12; transform: translateX(-3px); } to { opacity: 0.65; transform: translateX(3px); } }
+.pond .flame { animation: pond-flame 2.6s ease-in-out infinite alternate; }
+@keyframes pond-flame { 0% { opacity: 0.78; } 35% { opacity: 1; } 60% { opacity: 0.86; } 100% { opacity: 0.97; } }
+.pond .ring { fill: none; stroke: var(--water-shine); stroke-width: 0.9; opacity: 0; }
+.pond .drop { fill: var(--water-shine); opacity: 0; }
+
+/* What only the garden pond has. Its stones are drawn with a lit side and a dark one, standing in their own shadow or with a line of light at their foot in the water. */
+.pond .rock { fill: url(#pondStone); stroke: var(--stone-line); stroke-opacity: 0.5; stroke-width: 0.8; stroke-linejoin: round; }
+.pond .rock-lit { fill: var(--stone-light); opacity: 0.55; }
+.pond .rock-dark { fill: var(--stone-line); opacity: 0.12; }
+.pond .rock-shadow { fill: var(--stone-line); opacity: 0.14; }
+.pond .lichen { fill: var(--stone-light); opacity: 0.7; }
+.pond .wet { fill: none; stroke: var(--water-shine); stroke-width: 0.9; stroke-opacity: 0.55; stroke-linecap: round; }
+.pond .pebbles ellipse { stroke: var(--stone-line); stroke-opacity: 0.3; stroke-width: 0.4; }
+.pond .pebble-0 { fill: var(--stone-light); }
+.pond .pebble-1 { fill: var(--stone-dark); }
+.pond .pebble-2 { fill: color-mix(in srgb, var(--stone-light) 55%, var(--stone-dark)); }
+.pond .sunk { fill: var(--stone-dark); opacity: 0.3; }
+.pond .rim { fill: none; stroke: var(--water-rim); stroke-width: 9; opacity: 0.4; }
+.pond .bank { fill: none; stroke: var(--stone-dark); stroke-width: 5; opacity: 0.35; }
+.pond .ripple { fill: none; stroke: var(--water-shine); stroke-width: 0.6; opacity: 0.55; }
+.pond .sky-light ellipse { opacity: 0.45; }
+.pond .moon-glow { opacity: 0.55; }
+.pond .moon-path path { stroke: var(--water-glint); stroke-width: 1.4; }
+/* The lantern's faces away from the light and towards it, and the lines cut in its roof */
+.pond .lantern .face-dark { fill: var(--stone-line); stroke: none; opacity: 0.16; }
+.pond .lantern .face-lit { fill: var(--stone-light); stroke: none; opacity: 0.5; }
+.pond .lantern .line { fill: none; stroke-opacity: 0.35; }
+/* Its plants: the pine and the azaleas in one dark green, lotus, cattails and ferns */
+.pond .pine-light { stop-color: var(--pine-light); }
+.pond .pine-dark { stop-color: var(--pine); }
+.pond .moss-light { stop-color: var(--moss-light); }
+.pond .isle { fill: url(#gardenMound); stroke: var(--leaf-edge); stroke-opacity: 0.25; stroke-width: 0.7; }
+.pond .pine-wood { fill: var(--bark); }
+.pond .pine-bark { fill: none; stroke: var(--page); stroke-opacity: 0.35; stroke-width: 0.6; stroke-linecap: round; }
+.pond .pine-pad, .pond .shrub { fill: url(#gardenPine); stroke: var(--leaf-edge); stroke-opacity: 0.4; stroke-width: 0.7; }
+.pond .pine-under { fill: var(--leaf-edge); opacity: 0.16; }
+.pond .pine-needles { fill: none; stroke: var(--pine-light); stroke-width: 0.6; stroke-linecap: round; opacity: 0.8; }
+.pond .azalea { fill: var(--petal); }
+.pond .afloat ellipse { fill: var(--petal); stroke: var(--petal-edge); stroke-opacity: 0.5; stroke-width: 0.25; animation: pond-drift 28s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+@keyframes pond-drift { from { translate: -4px -0.6px; } to { translate: 5px 0.8px; } }
+.pond .reed { fill: none; stroke: var(--leaf-1); stroke-width: 1; stroke-linecap: round; }
+.pond .cattail { fill: var(--bark); }
+.pond .fern { fill: none; stroke: var(--grass); stroke-width: 1.05; stroke-linecap: round; opacity: 0.9; }
+.pond .lotus-leaf { fill: var(--leaf-3); stroke: var(--leaf-0); stroke-opacity: 0.55; stroke-width: 0.6; }
+.pond .lotus-lip { fill: var(--leaf-0); opacity: 0.3; }
+.pond .lotus-vein { fill: none; stroke: var(--leaf-0); stroke-opacity: 0.35; stroke-width: 0.4; }
+.pond .lotus path { fill: var(--petal); stroke: var(--petal-edge); stroke-width: 0.4; }
+.pond .pod { fill: var(--moss); stroke: var(--leaf-0); stroke-opacity: 0.5; stroke-width: 0.4; }
+.pond .pod-top { fill: var(--leaf-0); opacity: 0.6; }
+/* Its creatures: the frog on its pad, the turtle on the island, a red dragonfly by day and fireflies after dark */
+.pond .frog ellipse, .pond .frog circle { fill: var(--leaf-3); stroke: var(--leaf-0); stroke-opacity: 0.6; stroke-width: 0.3; }
+.pond .frog .eye, .pond .turtle .eye { fill: var(--stone-line); stroke: none; }
+.pond .turtle path { fill: none; stroke: var(--stone-line); stroke-opacity: 0.7; stroke-width: 0.9; stroke-linecap: round; }
+.pond .turtle .shell { fill: var(--moss); stroke: var(--stone-line); stroke-opacity: 0.6; stroke-width: 0.5; }
+.pond .turtle .plates { fill: none; stroke-opacity: 0.45; stroke-width: 0.4; }
+.pond .dragonfly path { fill: none; stroke: var(--bridge); stroke-width: 1; stroke-linecap: round; }
+.pond .dragonfly circle { fill: var(--bridge); }
+.pond .wings ellipse { fill: var(--water-shine); stroke: var(--stone-line); stroke-opacity: 0.35; stroke-width: 0.2; }
+.pond .firefly-glow { stop-color: #F3D36B; }
+.pond .firefly-heart { fill: #FFF1B8; }
+/* The bridge, in red, and its arch in the water */
+.pond .bridge-wood { fill: var(--bridge); stroke: var(--bridge-shade); stroke-width: 0.5; stroke-linejoin: round; }
+.pond .bridge-top { fill: var(--bridge-light); stroke: var(--bridge-shade); stroke-width: 0.4; stroke-linejoin: round; }
+.pond .bridge-far .bridge-post, .pond .bridge-far .bridge-rail { stroke: var(--bridge-shade); }
+.pond .bridge-far .bridge-wood { fill: var(--bridge-shade); }
+.pond .bridge-planks { fill: none; stroke: var(--bridge-shade); stroke-width: 0.4; opacity: 0.5; }
+.pond .bridge-shade { fill: none; stroke: var(--bridge-shade); stroke-width: 0.9; }
+.pond .bridge-light { fill: none; stroke: var(--bridge-light); stroke-width: 0.8; opacity: 0.8; }
+.pond .bridge-post, .pond .bridge-rail { fill: none; stroke: var(--bridge); stroke-width: 2; stroke-linecap: round; }
+.pond .bridge-rail { stroke-width: 1.7; }
+.pond .bridge-post.thin { stroke-width: 1.3; }
+.pond .bridge-rail.thin { stroke-width: 1; }
+.pond .bridge-leg { fill: none; stroke: var(--bridge-shade); stroke-width: 1.8; }
+.pond .bridge-mirrored { fill: none; stroke: var(--bridge); stroke-width: 3.2; stroke-linecap: round; opacity: 0.22; }
+.pond .bridge-mirrored.thin { stroke-width: 1.2; opacity: 0.16; }
+/* The bamboo spout, the water running into it, and the water it empties into the pond */
+.pond .bamboo { fill: var(--bamboo); stroke: var(--bamboo-shade); stroke-width: 0.5; stroke-linejoin: round; }
+.pond .bamboo-joint { fill: none; stroke: var(--bamboo-shade); stroke-width: 0.6; }
+.pond .bamboo-mouth { fill: none; stroke: var(--bamboo-shade); stroke-width: 1.1; stroke-linecap: round; }
+.pond .bamboo-pin { fill: var(--bamboo-shade); }
+.pond .trickle, .pond .pour { fill: none; stroke: color-mix(in srgb, var(--water-shine) 45%, var(--water-rim)); stroke-width: 0.8; stroke-linecap: round; }
+.pond .trickle { stroke-dasharray: 2 1.6; animation: pond-trickle 0.5s linear infinite; }
+@keyframes pond-trickle { to { stroke-dashoffset: -3.6; } }
+.pond .pour { stroke-width: 1.5; }
+
 /* The sky's furniture: ordinary elements, so fading and moving them is free */
 .sun { left: calc(var(--disc) * -2.8); top: calc(var(--disc) * -2.8); width: calc(var(--disc) * 5.6); height: calc(var(--disc) * 5.6); background: radial-gradient(closest-side, rgba(255, 243, 209, 0.95), rgba(255, 243, 209, 0.38) 40%, rgba(255, 243, 209, 0)); }
 /* Near sunrise and sunset where the family is, the sun is the warmer colour it has low in the sky */
@@ -482,7 +666,7 @@
 
 /* ---------- Reduced motion, and the #still address option ---------- */
 
-.still .sway, .still .fly, .still .fly b, .still .twinkle { animation: none !important; }
+.still .sway, .still .fly, .still .fly b, .still .twinkle, .still .pond .shine path, .still .pond .flame, .still .pond .trickle, .still .pond .afloat ellipse { animation: none !important; }
 .still .fly b { opacity: 0.8; }
 .still .unfurl { transform: none; transition: none; }
 .still .blade, .still .branch { transition: none; }

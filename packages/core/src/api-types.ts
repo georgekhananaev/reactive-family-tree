@@ -285,6 +285,9 @@ export type Appearance = 'device' | 'light' | 'dark' | 'sun';
 /* The moon over the tree after dark: tonight's real one, always full, the moon of a day the family chose, or none at all. */
 export type MoonMode = 'tonight' | 'full' | 'day' | 'none';
 
+/* The pond on the ground beside the tree: the garden pond with its bridge, its pine and its bamboo spout, the smaller koi pond, or none. */
+export type PondMode = 'garden' | 'koi' | 'none';
+
 /* What every browser is told, signed in or not. */
 export interface PublicSettings {
   /* In the reader's language where the family has written it in theirs. */
@@ -313,6 +316,7 @@ export interface PublicSettings {
   moon: MoonMode;
   /* The day whose moon the tree shows, as 2026-11-15, when `moon` is "day". Empty for a stranger at a private tree. */
   moonDay: string;
+  pond: PondMode;
 }
 
 export interface SessionInfo {
@@ -351,6 +355,7 @@ export interface AdminSettings {
   appearance: Appearance;
   moon: MoonMode;
   moonDay: string;
+  pond: PondMode;
   music: MusicMode;
   playMusic: boolean;
   melody: string;

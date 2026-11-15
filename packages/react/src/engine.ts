@@ -22,6 +22,8 @@ import type { LeafShape, LeafState, ShapeName } from './leaf';
 import { litOutline, moonFor, skyOver } from './sky';
 import type { MoonChoice } from './sky';
 import type { Place } from './sky';
+import { PONDS, startLeap } from './pond';
+import type { Pond, PondChoice } from './pond';
 
 const NS = 'http://www.w3.org/2000/svg';
 const SPREAD = (92 * Math.PI) / 180;
@@ -476,6 +478,17 @@ export class TreeEngine {
   private place: Place | null = null;
   /* Which moon the family chose to show after dark. */
   private moon: MoonChoice = 'tonight';
+  /* The pond beside the tree while one is shown, with its drawing, and which run of leaps is the live one: a change of pond starts a new run and ends the old. */
+  private pond: { kind: Pond; drawing: SVGSVGElement } | null = null;
+  private leaps = 0;
+  /* A pond out of sight rests: whatever moves in it stops where it is until it is looked at again. */
+  private readonly pondWatch = new IntersectionObserver((sightings) => {
+    const drawing = this.pond?.drawing, seen = sightings.at(-1)?.isIntersecting ?? true;
+    if (!drawing) return;
+    drawing.classList.toggle('unseen', !seen);
+    if (seen) drawing.unpauseAnimations();
+    else drawing.pauseAnimations();
+  });
   private skyClock: ReturnType<typeof setInterval> | undefined;
   private cameraQueued = false;
   private goal: CameraGoal | null = null;
@@ -1216,6 +1229,38 @@ export class TreeEngine {
     this.paintSky();
   }
 
+  /* Which pond lies beside the tree, if any. While one is shown its koi swim, and now and then one leaps. */
+  setPond(choice: PondChoice): void {
+    const kind = choice === 'none' ? null : PONDS[choice];
+    if (kind === (this.pond?.kind ?? null)) return;
+    this.pondWatch.disconnect();
+    this.pond?.drawing.remove();
+    this.pond = null;
+    if (kind) {
+      // In front of the tree, over the ground, and under the fireflies
+      const drawing = el('svg', { class: 'pond', viewBox: `${kind.box.x} ${kind.box.y} ${kind.box.w} ${kind.box.h}` });
+      drawing.innerHTML = kind.markup(this.still);
+      this.world.querySelector('.ahead')!.prepend(drawing);
+      this.pond = { kind, drawing };
+      this.pondWatch.observe(drawing);
+      this.leapSoon(++this.leaps, 6000 + Math.random() * 6000);
+    }
+    // Before the tree is first drawn there is no frame yet. That drawing makes room for the pond.
+    if (!this.decorated) return;
+    // A wide pond needs more room than a small tree's frame has, and gives it back when it goes
+    this.measure();
+    this.placePond();
+    if (this.userMoved) this.paintCamera();
+    else this.fit(false, true);
+  }
+
+  /* The pond's drawing lies over the ground at its spot, counted from wherever the tree's frame now begins. */
+  private placePond(): void {
+    if (!this.pond) return;
+    const { kind: { at, box }, drawing } = this.pond, b = this.bounds;
+    drawing.style.cssText = `left:${at.x + box.x - b.x0}px;top:${TRUNK + at.y + box.y - b.y0}px;width:${box.w}px;height:${box.h}px`;
+  }
+
   /* Which moon to show after dark: tonight's, a full one, the moon of a day, or none. */
   setMoon(moon: MoonChoice): void {
     this.moon = moon;
@@ -1350,6 +1395,8 @@ export class TreeEngine {
       b.x0 = Math.min(b.x0, n.tx); b.x1 = Math.max(b.x1, n.tx); b.y0 = Math.min(b.y0, n.ty);
     }
     b.x0 -= 150; b.x1 += 150; b.y0 -= 125;
+    // A pond that reaches further right than a small tree's frame is part of the picture too
+    if (this.pond) b.x1 = Math.max(b.x1, this.pond.kind.at.x + this.pond.kind.box.x + this.pond.kind.box.w);
     const changed = (['x0', 'x1', 'y0', 'y1'] as const).some((key) => Math.abs(b[key] - this.bounds[key]) > 0.5) || !this.decorated;
     this.bounds = b;
     const width = b.x1 - b.x0, height = b.y1 - b.y0;
@@ -1903,6 +1950,16 @@ export class TreeEngine {
     }, delay);
   }
 
+  /* Now and then, every twenty to forty seconds, a koi leaps. Not while someone is dragging the tree, nor on a page or in a pond out of sight. */
+  private leapSoon(run: number, delay: number): void {
+    if (this.still) return;
+    this.later(() => {
+      if (run !== this.leaps || !this.pond) return;
+      if (!document.hidden && !this.pointers.size && !this.pond.drawing.classList.contains('unseen')) startLeap(this.pond.drawing, this.pond.kind.lanes);
+      this.leapSoon(run, 20000 + Math.random() * 20000);
+    }, delay);
+  }
+
   /* ---------- The sky's furniture and the ground ---------- */
 
   private decorate(): void {
@@ -1957,7 +2014,11 @@ export class TreeEngine {
       const fx = b.x0 + rnd(id, 'x') * (b.x1 - b.x0), fy = b.y0 + 80 + rnd(id, 'y') * (g - b.y0 - 60);
       flies += `<i class="only-dark fly" style="${spot(fx, fy, 11, 11)};--t:${(7 + rnd(id, 't') * 9).toFixed(1)}s;--d:-${(rnd(id, 'd') * 9).toFixed(1)}s;--dx:${((rnd(id, 'dx') - 0.5) * 220).toFixed(0)}px;--dy:${((rnd(id, 'dy') - 0.5) * 160).toFixed(0)}px"><b></b></i>`;
     }
-    this.world.querySelector('.ahead')!.innerHTML = flies;
+    // The pond, if it is shown, stays as it is, its koi swimming on, and only moves with the frame
+    const ahead = this.world.querySelector('.ahead')!;
+    for (const fly of ahead.querySelectorAll(':scope > .fly')) fly.remove();
+    ahead.insertAdjacentHTML('beforeend', flies);
+    this.placePond();
   }
 
   /* ---------- Letting go ---------- */
@@ -1980,6 +2041,7 @@ export class TreeEngine {
   destroy(): void {
     this.abort.abort();
     this.resizer.disconnect();
+    this.pondWatch.disconnect();
     clearInterval(this.skyClock);
     cancelAnimationFrame(this.frameId);
     cancelAnimationFrame(this.cameraFrame);

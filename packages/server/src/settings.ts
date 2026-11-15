@@ -64,6 +64,7 @@ export const DEFAULT_SETTINGS: Settings = {
   appearance: 'device',
   moon: 'tonight',
   moonDay: '',
+  pond: 'garden',
   music: 'off',
   playMusic: true,
   melody: 'morning-mist',
@@ -118,6 +119,7 @@ export const SETTING_RULES: Record<keyof AdminSettings, (value: unknown) => bool
   appearance: (value) => value === 'device' || value === 'light' || value === 'dark' || value === 'sun',
   moon: (value) => value === 'tonight' || value === 'full' || value === 'day' || value === 'none',
   moonDay: day,
+  pond: (value) => value === 'garden' || value === 'koi' || value === 'none',
   music: (value) => value === 'none' || value === 'off' || value === 'on',
   playMusic: bool,
   melody: melodyName,
@@ -144,7 +146,7 @@ export const SETTING_HINTS: Partial<Record<keyof AdminSettings, string>> = {
 export const ADMIN_SETTING_KEYS = Object.keys(SETTING_RULES) as (keyof AdminSettings)[];
 
 /* What every browser is told, signed in or not. */
-const PUBLIC_KEYS = ['familyName', 'description', 'language', 'visibility', 'visitorsCanSuggest', 'allowJoinRequests', 'allowAi', 'allowAiDirect', 'stewardsCanInvite', 'music', 'playMusic', 'melody', 'playMelody', 'latitude', 'longitude', 'appearance', 'moon', 'moonDay'] as const satisfies readonly (keyof PublicSettings)[];
+const PUBLIC_KEYS = ['familyName', 'description', 'language', 'visibility', 'visitorsCanSuggest', 'allowJoinRequests', 'allowAi', 'allowAiDirect', 'stewardsCanInvite', 'music', 'playMusic', 'melody', 'playMelody', 'latitude', 'longitude', 'appearance', 'moon', 'moonDay', 'pond'] as const satisfies readonly (keyof PublicSettings)[];
 
 /* What every browser is told, with the family's name and line in the reader's language. */
 export function publicSettings(settings: Settings, relative: boolean, lang: Lang = settings.language): PublicSettings {

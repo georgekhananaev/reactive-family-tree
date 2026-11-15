@@ -105,7 +105,7 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
   const [playing, setPlaying] = useState(false);
   // A calm melody, and a quicker one while the years play. The family chooses which, and whether there is any.
   const [audition, setAudition] = useState<MelodyTrial | null>(null);
-  const { music: mode, playMusic, melody, playMelody, latitude, longitude, appearance, moon, moonDay } = session.settings;
+  const { music: mode, playMusic, melody, playMelody, latitude, longitude, appearance, moon, moonDay, pond } = session.settings;
   const music = useTreeMusic(playing, { mode, playMusic, melody, playMelody, audition });
   const { wake: wakeSound } = music;
   // Leaves, or the faces of those who have a photo. Each person's own choice, kept on their device.
@@ -631,6 +631,7 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
         playing={playing}
         place={placeOf({ latitude, longitude })}
         moon={moon === 'day' ? (moonDay ? { day: moonDay } : 'tonight') : moon}
+        pond={pond}
         editing={editing}
         selectedId={selectedId}
         matches={matches}

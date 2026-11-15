@@ -18,9 +18,26 @@ test('an admin chooses the moon and the light, and every browser is told', async
   expect((await helen.patch('/api/settings', { appearance: 'sun', moon: 'day', moonDay: '1922-04-12' })).status).toBe(200);
   const told = (await browser(demo.app).get('/api/session')).data.settings;
   expect([told.appearance, told.moon, told.moonDay]).toEqual(['sun', 'day', '1922-04-12']);
+  // The garden pond is there until the family chooses the other pond, or none
+  expect(told.pond).toBe('garden');
+  for (const pond of ['koi', 'none']) {
+    expect((await helen.patch('/api/settings', { pond })).status, pond).toBe(200);
+    expect((await browser(demo.app).get('/api/session')).data.settings.pond).toBe(pond);
+  }
+  for (const pond of [true, 'lake']) expect((await helen.patch('/api/settings', { pond })).status, String(pond)).toBe(400);
+  await helen.patch('/api/settings', { pond: 'garden' });
   for (const moon of ['tonight', 'full', 'none']) {
     expect((await helen.patch('/api/settings', { moon })).status, moon).toBe(200);
   }
+});
+
+test('a kept setting that no longer fits its rule gives way to the default', async () => {
+  const { store } = demo.app;
+  // As a database keeps the pond from when it was only there or not
+  await store.saveSettings({ pond: true as never });
+  await store.load();
+  expect(store.settings.pond).toBe('garden');
+  await store.saveSettings({ pond: 'garden' });
 });
 
 test('the moon of a day needs a real day', async () => {

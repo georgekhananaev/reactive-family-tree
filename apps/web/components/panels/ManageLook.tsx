@@ -2,11 +2,11 @@
 
 /*
  * Manage family, the look: how the tree looks and sounds for everyone. Light
- * or dark, the moon over it after dark, where the family is (which the sun
- * and the moon are drawn from), and the music.
+ * or dark, the moon over it after dark, the pond beside it, where the family
+ * is (which the sun and the moon are drawn from), and the music.
  */
 
-import type { AdminSettings, AdminSettingsView, Appearance, Lang, MoonMode, MusicMode } from '@reactive-family-tree/core';
+import type { AdminSettings, AdminSettingsView, Appearance, Lang, MoonMode, MusicMode, PondMode } from '@reactive-family-tree/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { MELODIES, QUICK_TUNES, moonFor, skyOver } from 'reactive-family-tree';
@@ -35,6 +35,12 @@ const MOON: readonly (readonly [MoonMode, WebPhrase])[] = [
   ['full', 'Always full'],
   ['day', 'The moon of a day that matters'],
   ['none', 'No moon, only the stars'],
+];
+
+const POND: readonly (readonly [PondMode, WebPhrase])[] = [
+  ['garden', 'A garden pond with a bridge and a pine'],
+  ['koi', 'A small koi pond with a stone lantern'],
+  ['none', 'No pond'],
 ];
 
 const MUSIC: readonly (readonly [MusicMode, WebPhrase])[] = [
@@ -199,6 +205,12 @@ export function LookTab() {
       <p className="hint-line">{shown.moon === 'day'
         ? t('The moon exactly as it was that night, at ten in the evening where the family is: a wedding, a birth, the day they arrived.')
         : t('The moon shows in the dark, and steps aside while the years play.')}</p>
+
+      <h3>{t('The garden')}</h3>
+      <div className="fields">
+        <Field label={t('Beside the tree')} wide><Select options={inWords(t, POND)} value={shown.pond} onChange={(value) => set('pond', value)} /></Field>
+      </div>
+      {shown.pond !== 'none' && <p className="hint-line">{t('Koi swim in the pond, and now and then one leaps.')}</p>}
 
       <h3>{t('Where the family is')}</h3>
       <p className="hint-line">{t('The sun and the moon on the tree stand where they really stand over this place: the moon turned the way it is seen from there, the sun warmer near sunrise and sunset. By the sun, it also decides when the tree turns dark.')}</p>

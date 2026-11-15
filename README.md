@@ -29,6 +29,11 @@ own relatives, with nothing sent anywhere else.
   roughly where the family is, and the moon is turned the way it is seen from
   there, the sun is warmer near sunrise and sunset, and the tree can turn dark
   at sunset there by itself.
+- **A pond beside it.** A Japanese garden pond lies on the ground by the tree,
+  and the family chooses which: the larger one, with an island, a cloud-pruned
+  pine, a red arched bridge and a bamboo spout that fills and tips, or a small
+  koi pond with stones and a lantern. Koi swim in both, now and then one
+  leaps, and after dark the lantern is lit.
 - **In English, Hebrew and Russian.** Everyone reads the tree in their own
   language, with Hebrew read from the right. A person's names, story and
   memories can be written in all three, so relatives who read different

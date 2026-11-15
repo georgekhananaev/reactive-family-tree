@@ -20,6 +20,7 @@ import type { PersonLeaf, Relation, TreePerson } from '@reactive-family-tree/cor
 import { FACE_RADIUS, TreeEngine } from './engine';
 import type { BranchState, TreeData, TreeInsets, TreeLabels, YearRange } from './engine';
 import { THIS_YEAR } from './leaf';
+import type { PondChoice } from './pond';
 import type { MoonChoice, Place } from './sky';
 
 export interface FamilyTreeProps {
@@ -36,6 +37,8 @@ export interface FamilyTreeProps {
   place?: Place | null;
   /* Which moon to show after dark: tonight's real one (the default), 'full', 'none', or the moon of a day, as { day: '1922-04-12' }. */
   moon?: MoonChoice;
+  /* A Japanese pond on the ground beside the tree, with koi swimming in it and now and then one leaping: the garden pond with a bridge, a pine and a bamboo spout, or the smaller koi pond. None unless asked for. */
+  pond?: PondChoice;
   editing?: boolean;
   selectedId?: string | null;
   /* Search: these keep their colour, everyone else steps back. */
@@ -125,7 +128,7 @@ function clearDrawing(stage: HTMLElement, world: HTMLElement, svg: SVGSVGElement
 }
 
 export function FamilyTree({
-  data, viewerId = null, focusId = null, year = THIS_YEAR, playing = false, place = null, moon = 'tonight', editing = false, selectedId = null, matches = null, route = null, tints = null,
+  data, viewerId = null, focusId = null, year = THIS_YEAR, playing = false, place = null, moon = 'tonight', pond = 'none', editing = false, selectedId = null, matches = null, route = null, tints = null,
   faces = false, portraitOf, insets, label = 'The family tree', labels, className, onSelect, onAdd, onHold, onHoldMove, onHoldEnd, onMoved, ref,
 }: FamilyTreeProps): ReactElement {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -193,6 +196,9 @@ export function FamilyTree({
   useEffect(() => {
     engineRef.current?.setMoon(moonDay !== null ? { day: moonDay } : moonKind ?? 'tonight');
   }, [moonDay, moonKind]);
+  useEffect(() => {
+    engineRef.current?.setPond(pond);
+  }, [pond]);
 
   const right = insets?.right ?? 0, top = insets?.top ?? 0;
   useEffect(() => {

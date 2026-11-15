@@ -11,6 +11,7 @@ export type { LeafPortraitProps } from './LeafPortrait';
 export { TreeEngine } from './engine';
 export type { BranchState, Camera, TreeData, TreeEngineEvents, TreeEngineOptions, TreeInsets, TreeLabels, YearRange } from './engine';
 export type { LeafSubject } from './leaf';
+export type { PondChoice } from './pond';
 export { moonFor, skyOver } from './sky';
 export type { MoonChoice, Place, Sky } from './sky';
 export { MELODIES, QUICK_TUNES, TreeMusic } from './music';

@@ -17,7 +17,7 @@ import { fact, memory, meta, person, setting, union, unionChild, unionPartner, u
 import type { Database, Queryable } from '@reactive-family-tree/db';
 import { asc, eq, sql } from 'drizzle-orm';
 
-import { DEFAULT_SETTINGS } from './settings';
+import { DEFAULT_SETTINGS, SETTING_RULES } from './settings';
 import type { Settings } from './settings';
 
 const SEQ = 'seq';
@@ -68,7 +68,9 @@ export class FamilyStore {
     for (const row of memories) state.memories.set(row.id, row);
 
     this.state = state;
-    this.settings = { ...DEFAULT_SETTINGS, ...Object.fromEntries(settings.map((row) => [row.key, row.value])) };
+    // A kept setting that its rule no longer allows, as when a choice has been given other answers, gives way to the default
+    const allowed = settings.filter((row) => (SETTING_RULES as Record<string, ((value: unknown) => boolean) | undefined>)[row.key]?.(row.value) ?? true);
+    this.settings = { ...DEFAULT_SETTINGS, ...Object.fromEntries(allowed.map((row) => [row.key, row.value])) };
     this.seq = at.seq;
     this.settingsRev = at.settingsRev;
     this.loaded = true;
