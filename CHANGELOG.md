@@ -8,6 +8,15 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-15
+
+### Added
+- **self-hosting**: Optional Cloudflare Turnstile check that a person is asking before a stranger is sent a sign-in link, asks to join or suggests a correction, switched on by setting `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`
+- **setup**: The privacy card says whether the tree loads anything from Cloudflare
+
+### Security
+- **sign-in**: Strangers, and any one email address, are limited in how many sign-in links and suggestions they can ask for, so a family can't be pestered or have its daily mail used up
+
 ## [0.6.0] - 2026-11-15
 
 ### Added

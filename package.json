@@ -1,6 +1,6 @@
 {
   "name": "reactive-family-tree-monorepo",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "A family tree that looks and behaves like a living plant. Self-hosted app, React package and MCP server.",
   "author": "George Khananaev",
