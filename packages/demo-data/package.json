@@ -1,6 +1,6 @@
 {
   "name": "@reactive-family-tree/demo-data",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "The fictional Marlow family, used by tests, the demo and the docs.",
   "author": "George Khananaev",

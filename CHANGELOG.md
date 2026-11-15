@@ -8,6 +8,8 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-15
+
 ### Security
 - **sign-in**: Sign-in links are now counted for each sender, so asking for links to someone else's address no longer uses up that person's own tries, and whoever asks too often is told so
 - **self-hosting**: With the Cloudflare check on, a request is refused unless Cloudflare plainly accepts its proof, and only twenty requests an hour are let through while Cloudflare cannot be reached
