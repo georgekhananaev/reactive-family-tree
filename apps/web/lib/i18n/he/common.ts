@@ -110,6 +110,7 @@ export const common = {
   'References': 'מקורות',
   'What a family puts on its tree is kept where that family chose to keep it. The software sends nothing to its maker.': 'מה שמשפחה מעלה לעץ שלה נשמר במקום שהיא בחרה. התוכנה לא שולחת שום דבר למי שפיתח אותה.',
   'There is no advertising and no tracking, and the pages load nothing from other companies.': 'אין פרסומות ואין מעקב, והדפים לא טוענים שום דבר מחברות אחרות.',
+  'There is no advertising and no tracking. The pages load nothing from other companies, with one exception: when someone asks for a sign-in link, asks to join or suggests a correction, Cloudflare checks that a person is asking.': 'אין פרסומות ואין מעקב. הדפים לא טוענים שום דבר מחברות אחרות, חוץ מדבר אחד: כשמבקשים קישור כניסה, מבקשים להצטרף או מציעים תיקון, Cloudflare בודקת שמי שפונה הוא אדם ולא רובוט.',
   'Living people are never shown to visitors unless they choose it themselves.': 'אנשים חיים לא מוצגים לאורחים אף פעם, אלא אם הם בחרו בזה בעצמם.',
   'Cookies are used only for signing in and for remembering the language. Choices such as light or dark stay in your browser.': 'עוגיות משמשות רק להתחברות ולזכירת השפה. בחירות כמו בהיר או כהה נשארות בדפדפן שלך.',
   'Email addresses are used to sign in and to invite relatives. The mail goes out through the service this family set up.': 'כתובות מייל משמשות להתחברות ולהזמנת קרובי משפחה. המיילים נשלחים דרך השירות שהמשפחה הגדירה.',

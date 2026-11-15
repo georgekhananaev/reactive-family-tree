@@ -90,7 +90,7 @@ async function readBody(request: Request): Promise<Body> {
 }
 
 export function createApi(app: App): (request: Request) => Promise<Response> {
-  const { config, store, members, edits, views, media, hub } = app;
+  const { config, store, members, edits, views, media, hub, door } = app;
   const routes: Route[] = [];
   const on = (method: string, pattern: string, guard: Guard, handler: Handler) => {
     const keys: string[] = [];
@@ -133,6 +133,7 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
         return found ? [{ email: account.email, name: found.name, blurb: account.blurb }] : [];
       }),
       signIn: { google: Boolean(config.google), passkeys: true, emailWorks: app.mailer.delivers },
+      humanCheck: door.siteKey,
       needsSetup: await app.needsSetup(),
       demo: config.demoMode,
       lang: ctx.lang,
@@ -162,7 +163,8 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
   // Who is asking is known only by where the request came from. The nearest proxy writes that last, and the server itself fills it in
   // for someone who connects with no proxy between.
   on('POST', '/api/join', anyone, async (ctx) => {
-    await members.askToJoin(ctx.body, ctx.request.headers.get('x-forwarded-for')?.split(',').pop()?.trim() || null);
+    await door.admit('join', ctx.request.headers);
+    await members.askToJoin(ctx.body);
     return { ok: true };
   });
 
@@ -195,6 +197,7 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
     if (mode !== 'auto' && mode !== 'suggest' && mode !== 'dry') throw badRequest('That is not a way to submit an edit.');
     let actor = ctx.actor;
     if (actor.visitor && mode !== 'dry') {
+      await door.admit('suggest', ctx.request.headers);
       const contact = (ctx.body.contact ?? {}) as { name?: unknown; email?: unknown };
       const name = text(contact.name).trim();
       const email = text(contact.email).trim();

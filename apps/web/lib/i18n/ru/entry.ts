@@ -20,6 +20,7 @@ export const entry: Record<keyof typeof he, string> = {
   'This demo comes with a relative for every role. Open a second browser window as someone else to see changes arrive live.': 'В этой демоверсии есть родственник на каждую роль. Откройте второе окно браузера от лица другого человека — и увидите, как изменения появляются сразу.',
   'Sign in with a link': 'Вход по ссылке',
   'Send me a link': 'Получить ссылку',
+  'The check that you are a person could not run. If something on this page blocks it, turn that off and try again.': 'Проверка, что вы человек, а не робот, не смогла запуститься. Если что-то на этой странице её блокирует, отключите это и попробуйте ещё раз.',
   'Use a passkey': 'Войти с ключом доступа',
   'Continue with Google': 'Войти через Google',
   'If that address belongs to a relative, a sign-in link is on its way. It works once, for 15 minutes.': 'Если это адрес кого-то из родственников, ссылка для входа уже в пути. Она сработает один раз и действует 15 минут.',

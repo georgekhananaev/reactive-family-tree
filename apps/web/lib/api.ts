@@ -1,5 +1,7 @@
 /* Talking to the server from the browser. A failed request throws an error whose message is written for the person to read. */
 
+import { PROOF_HEADER } from '@reactive-family-tree/core';
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -21,13 +23,14 @@ let speaking: string | null = null;
 let words = (english: 'The server cannot be reached. Check that it is still running.' | 'Something went wrong.') => english as string;
 export const speakTo = (lang: string, say: typeof words) => { speaking = lang; words = say; };
 
-async function call<T>(method: string, path: string, body?: unknown, lang: string | null = speaking): Promise<T> {
+/* `proof` is what Cloudflare's check gave, sent with the few things a stranger may ask where an install has that check. */
+async function call<T>(method: string, path: string, body?: unknown, lang: string | null = speaking, proof: string | null = null): Promise<T> {
   if (method !== 'GET') activity.lastWrite = Date.now();
   let response: Response;
   try {
     response = await fetch(path, {
       method,
-      headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(lang ? { 'X-Language': lang } : {}) },
+      headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(lang ? { 'X-Language': lang } : {}), ...(proof ? { [PROOF_HEADER]: proof } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
@@ -40,7 +43,7 @@ async function call<T>(method: string, path: string, body?: unknown, lang: strin
 
 export const api = {
   get: <T>(path: string) => call<T>('GET', path),
-  post: <T>(path: string, body: unknown = {}) => call<T>('POST', path, body),
+  post: <T>(path: string, body: unknown = {}, proof: string | null = null) => call<T>('POST', path, body, speaking, proof),
   patch: <T>(path: string, body: unknown) => call<T>('PATCH', path, body),
   del: <T>(path: string) => call<T>('DELETE', path),
   /* The same, for one request made as if the page were read in another language: to write the family's own words in that language. */

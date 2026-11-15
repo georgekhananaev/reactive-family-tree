@@ -203,8 +203,8 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
       });
     };
 
-    const submit: AppController['submit'] = async (ops, message, { note = '', contact = null, quiet = null } = {}) => {
-      const result = await api.post<EditResult>('/api/edits', { ops, message, note, contact });
+    const submit: AppController['submit'] = async (ops, message, { note = '', contact = null, proof = null, quiet = null } = {}) => {
+      const result = await api.post<EditResult>('/api/edits', { ops, message, note, contact }, proof);
       if (result.status === 'applied') {
         const undo = async () => {
           undoLast.current = null;
@@ -735,7 +735,7 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
         onMyLeaf={goToMyLeaf}
         onFaces={toggleFaces}
       />
-      <About build={build} family={tree.family.name} />
+      <About build={build} family={tree.family.name} humanCheck={Boolean(session.humanCheck)} />
 
       <PetalMenu ref={petals} request={petalRequest} onClose={useCallback(() => setPetalRequest(null), [])} />
     </AppProvider>

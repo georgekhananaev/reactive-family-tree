@@ -22,6 +22,10 @@ services:
       # Sending email is optional. Without it, sign-in links are written to the log and invitations are handed over as links.
       # SMTP_URL: smtp://user:password@smtp.example.com:587
       # EMAIL_FROM: Family tree <tree@example.com>
+      # Also optional: a check by Cloudflare Turnstile that a person is asking, before a stranger is sent a sign-in link,
+      # asks to join or suggests a correction. The two keys come with a widget made in the Cloudflare dashboard.
+      # TURNSTILE_SITE_KEY: 0x...
+      # TURNSTILE_SECRET_KEY: 0x...
     volumes:
       # The database, the photos and the nightly snapshots. Back this volume up somewhere else.
       - tree-data:/data

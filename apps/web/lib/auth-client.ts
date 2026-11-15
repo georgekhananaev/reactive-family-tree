@@ -5,7 +5,6 @@
 import { oauthProviderClient } from '@better-auth/oauth-provider/client';
 import { passkeyClient } from '@better-auth/passkey/client';
 import { createAuthClient } from 'better-auth/client';
-import { magicLinkClient } from 'better-auth/client/plugins';
 
 import { api } from './api';
 import type { WebPhrase } from './i18n';
@@ -14,7 +13,7 @@ import type { WebPhrase } from './i18n';
 type Say = (phrase: WebPhrase) => string;
 const english: Say = (phrase) => phrase;
 
-const client = createAuthClient({ plugins: [magicLinkClient(), passkeyClient(), oauthProviderClient()] });
+const client = createAuthClient({ plugins: [passkeyClient(), oauthProviderClient()] });
 
 /*
  * The library answers with { data, error }, and words its errors in English, for a programmer. Here a failure is
@@ -28,11 +27,11 @@ function settle<T>(result: { data: T | null; error: unknown }, otherwise: string
 /*
  * Ask for a sign-in link by email. The answer is the same whether or not the
  * address belongs to a relative. `backTo` is where the link lands once it has
- * signed the person in.
+ * signed the person in, and `proof` is what Cloudflare's check gave, where an
+ * install has that check. A refusal comes worded for the person to read.
  */
-export async function sendLink(email: string, backTo = '/'): Promise<void> {
-  await client.signIn.magicLink({ email, callbackURL: backTo, errorCallbackURL: '/?error=link' });
-}
+export const sendLink = (email: string, backTo = '/', proof: string | null = null) =>
+  api.post('/api/auth/sign-in/magic-link', { email, callbackURL: backTo, errorCallbackURL: '/?error=link' }, proof);
 
 /*
  * A passkey prompt that is closed, or that the device turns down, fails in

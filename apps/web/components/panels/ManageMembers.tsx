@@ -66,6 +66,18 @@ function MemberRow({ member, roles, locked }: { member: MemberView; roles: reado
     await tryIt(app, () => api.patch(`/api/members/${member.id}`, { role }), t('Role changed'));
     setPicked(null);
   };
+  // Saying which leaf on the tree this member is: whether that is being chosen now, and the leaf picked so far
+  const [linking, setLinking] = useState(false);
+  const [leaf, setLeaf] = useState<string | null>(null);
+  const stopLinking = () => {
+    setLinking(false);
+    setLeaf(null);
+  };
+  /* Link the account to a leaf, or with null to none. */
+  const link = async (personId: string | null) => {
+    const done = await tryIt(app, () => api.patch(`/api/members/${member.id}`, { personId }), t(personId ? 'Linked to a leaf' : 'No longer linked to a leaf'));
+    if (done) stopLinking();
+  };
   return (
     <div className="row">
       <div className="main">
@@ -76,6 +88,18 @@ function MemberRow({ member, roles, locked }: { member: MemberView; roles: reado
             <BranchChip key={member.anchors[at]} member={member} at={at} label={t('Take {branch}’s branch away from {name}', { branch: name, name: member.name })} />
           ))}
         </div>
+        {linking ? (
+          <div className="leaf-link">
+            <PersonPicker placeholder={t('Search for their name')} onPick={setLeaf} />
+            <div className="form-actions">
+              <button type="button" className="small primary" disabled={!leaf} onClick={() => link(leaf)}>{t('Link')}</button>
+              {member.personId && <button type="button" className="small" onClick={() => link(null)}>{t('Unlink from the leaf')}</button>}
+              <button type="button" className="small" onClick={stopLinking}>{t('Cancel')}</button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="link" onClick={() => setLinking(true)}>{t(member.personId ? 'Link to another leaf' : 'Link to a leaf')}</button>
+        )}
       </div>
       <div className="side">
         <Select options={inWords(t, roles)} value={picked ?? member.role} onChange={change} aria-label={t('Role of {name}', { name: member.name })} disabled={locked} />

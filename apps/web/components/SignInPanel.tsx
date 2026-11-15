@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { api, messageOf } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { family } from '@/lib/auth-client';
+import { useHumanCheck } from '@/lib/human-check';
 import { useT } from '@/lib/i18n';
 
 import type { PanelDef, PanelProps } from './Drawer';
@@ -19,6 +20,7 @@ function SignIn() {
   const app = useApp();
   const { t } = useT();
   const [join, setJoin] = useState({ name: '', email: '', message: '' });
+  const human = useHumanCheck(app.session.settings.allowJoinRequests ? app.session.humanCheck : null);
   return (
     <>
       <SignInWays session={app.session} onSignedIn={app.signedIn} onFail={app.fail} />
@@ -32,10 +34,11 @@ function SignIn() {
               <textarea rows={2} name="message" placeholder={t('For example: I am Rosalind’s grandson')} value={join.message} onChange={(event) => setJoin({ ...join, message: event.target.value })} />
             </Field>
           </div>
+          {human.box}
           <div className="form-actions">
             <button type="button" onClick={async () => {
               try {
-                await api.post('/api/join', join);
+                await api.post('/api/join', join, await human.prove());
                 app.toast(t('Your request was sent to the family’s admins.'));
                 app.closePanel();
               } catch (error) {

@@ -19,6 +19,7 @@ export const entry = {
   'This demo comes with a relative for every role. Open a second browser window as someone else to see changes arrive live.': 'בהדגמה הזו יש קרוב משפחה לכל תפקיד. אפשר לפתוח חלון דפדפן נוסף בתור מישהו אחר ולראות את השינויים מגיעים בזמן אמת.',
   'Sign in with a link': 'התחברות עם קישור',
   'Send me a link': 'לשלוח לי קישור',
+  'The check that you are a person could not run. If something on this page blocks it, turn that off and try again.': 'הבדיקה שמדובר באדם ולא ברובוט לא הצליחה לפעול. אם משהו חוסם אותה בדף הזה, כדאי לכבות אותו ולנסות שוב.',
   'Use a passkey': 'התחברות עם מפתח גישה',
   'Continue with Google': 'המשך עם Google',
   'If that address belongs to a relative, a sign-in link is on its way. It works once, for 15 minutes.': 'אם הכתובת הזו שייכת לקרוב משפחה, קישור התחברות כבר בדרך. הוא תקף ל-15 דקות, לשימוש אחד.',

@@ -7,6 +7,7 @@ import { useState } from 'react';
 
 import { api } from '@/lib/api';
 import { family, sendLink, signInWithGoogle, signInWithPasskey } from '@/lib/auth-client';
+import { useHumanCheck } from '@/lib/human-check';
 import { useT } from '@/lib/i18n';
 
 import { Field } from './ui';
@@ -20,6 +21,7 @@ export function SignInWays({ session, backTo = '/', onSignedIn, onFail }: {
 }) {
   const { demoAccounts, signIn, demo } = session;
   const { t, tx } = useT();
+  const human = useHumanCheck(session.humanCheck);
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState<{ link: string | null } | null>(null);
 
@@ -33,7 +35,7 @@ export function SignInWays({ session, backTo = '/', onSignedIn, onFail }: {
   };
   const askForLink = async () => {
     try {
-      await sendLink(email, backTo);
+      await sendLink(email, backTo, await human.prove());
       // A demo install has no mailbox to send to, so it hands the link to the page that asked
       setSent(demo ? await api.get<{ link: string | null }>(`/api/demo/link?email=${encodeURIComponent(email)}`) : { link: null });
     } catch (error) {
@@ -60,6 +62,7 @@ export function SignInWays({ session, backTo = '/', onSignedIn, onFail }: {
       <Field label={t('Your email')}>
         <input type="email" name="email" autoComplete="email webauthn" placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void askForLink(); }} />
       </Field>
+      {human.box}
       <div className="form-actions">
         <button type="button" className="primary" onClick={() => void askForLink()}>{t('Send me a link')}</button>
         {signIn.passkeys && <button type="button" onClick={enter(() => signInWithPasskey(t))}>{t('Use a passkey')}</button>}

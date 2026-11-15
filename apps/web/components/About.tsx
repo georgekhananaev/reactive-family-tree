@@ -24,9 +24,12 @@ const REPORTS = 'report@khananaev.com';
 
 const dayOf = (made: string, lang: Lang) => new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : lang, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(made));
 
+/* What is said about other companies: nothing is loaded from any, except where an install has Cloudflare check that a person is asking. */
+const ALONE: WebPhrase = 'There is no advertising and no tracking, and the pages load nothing from other companies.';
+const CHECKED: WebPhrase = 'There is no advertising and no tracking. The pages load nothing from other companies, with one exception: when someone asks for a sign-in link, asks to join or suggests a correction, Cloudflare checks that a person is asking.';
 const PRIVACY: readonly WebPhrase[] = [
   'What a family puts on its tree is kept where that family chose to keep it. The software sends nothing to its maker.',
-  'There is no advertising and no tracking, and the pages load nothing from other companies.',
+  ALONE,
   'Living people are never shown to visitors unless they choose it themselves.',
   'Cookies are used only for signing in and for remembering the language. Choices such as light or dark stay in your browser.',
   'Email addresses are used to sign in and to invite relatives. The mail goes out through the service this family set up.',
@@ -68,7 +71,8 @@ function Part({ title, open, onToggle, children }: { title: PartName; open: bool
  * a time, on what it does with what a family keeps in it and on what it owes
  * to others. Escape, the cross, or a press anywhere beside the card closes it.
  */
-export function About({ build, family }: { build: BuildInfo; family: string }) {
+/* `humanCheck` says whether this install has Cloudflare check that a person is asking, which the part on privacy then says. */
+export function About({ build, family, humanCheck }: { build: BuildInfo; family: string; humanCheck: boolean }) {
   const { lang, t, tx } = useT();
   const card = useRef<HTMLDialogElement>(null);
   const close = useRef<HTMLButtonElement>(null);
@@ -113,7 +117,7 @@ export function About({ build, family }: { build: BuildInfo; family: string }) {
           </p>
           {part('Privacy', (
             <>
-              <ul>{PRIVACY.map((line) => <li key={line}>{t(line)}</li>)}</ul>
+              <ul>{PRIVACY.map((line) => <li key={line}>{t(line === ALONE && humanCheck ? CHECKED : line)}</li>)}</ul>
               <p>{t('Whoever runs this tree decides who may see it, and can correct or remove anything kept here. Questions about the tree itself go to them.')}</p>
             </>
           ))}

@@ -8,6 +8,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { PROOF_HEADER } from '@reactive-family-tree/core';
 import type { Op, TreeSnapshot } from '@reactive-family-tree/core';
 
 import { createApp } from './app';
@@ -29,7 +30,7 @@ export interface Demo extends Started {
   unionOf(hostId: string): string;
 }
 
-async function start(mode: Pick<AppConfig, 'demoMode' | 'setupToken'>): Promise<Started> {
+async function start(mode: Pick<AppConfig, 'demoMode' | 'setupToken' | 'humanCheck'>): Promise<Started> {
   const folder = mkdtempSync(join(tmpdir(), 'family-tree-'));
   const app = await createApp({
     baseUrl: BASE, databaseUrl: `file:${join(folder, 'family.db')}`, secret: 'a-secret-only-for-tests-0123456789',
@@ -48,8 +49,9 @@ async function start(mode: Pick<AppConfig, 'demoMode' | 'setupToken'>): Promise<
 /* An install that nobody has claimed yet. The setup token is the one its host would have been given. */
 export const startFresh = (setupToken: string): Promise<Started> => start({ demoMode: false, setupToken });
 
-export async function startDemo(): Promise<Demo> {
-  const { app, close } = await start({ demoMode: true });
+/* `humanCheck` sets up Cloudflare's check, with keys that a test's stand-in for Cloudflare answers to. */
+export async function startDemo(humanCheck?: AppConfig['humanCheck']): Promise<Demo> {
+  const { app, close } = await start({ demoMode: true, humanCheck });
   const tree: TreeSnapshot = await app.views.tree(app.members.system());
   const find = <T>(found: T | undefined, what: string): T => {
     if (found === undefined) throw new Error(`The demo family has no ${what}.`);
@@ -82,18 +84,21 @@ export interface Browser {
   reads(lang: string | null): void;
   /* Set a cookie by hand, as a page does. */
   remember(name: string, value: string | null): void;
+  /* Send this proof from Cloudflare's check with every request, as a page does with the one it makes. Null stops sending one. */
+  proves(proof: string | null): void;
 }
 
 /* One browser: remembers its session cookie between requests. */
 /* `from` is the address on the network the browser is at, as a proxy in front of the tree would report it. `speaks` is what its device says about languages. */
 export function browser(app: App, from?: string, speaks?: string): Browser {
   const cookies = new Map<string, string>();
-  let asking: string | null = null;
+  let asking: string | null = null, proof: string | null = null;
   async function call(method: string, path: string, body?: unknown): Promise<Answer> {
     const headers = new Headers({ host: new URL(BASE).host });
     if (from) headers.set('x-forwarded-for', from);
     if (speaks) headers.set('accept-language', speaks);
     if (asking) headers.set('x-language', asking);
+    if (proof) headers.set(PROOF_HEADER, proof);
     if (method !== 'GET') headers.set('origin', BASE);
     if (body !== undefined) headers.set('content-type', 'application/json');
     if (cookies.size) headers.set('cookie', [...cookies].map(([name, value]) => `${name}=${value}`).join('; '));
@@ -121,5 +126,6 @@ export function browser(app: App, from?: string, speaks?: string): Browser {
     edit: (ops, extra = {}) => call('POST', '/api/edits', { ops, message: 'test', ...extra }),
     reads: (lang) => { asking = lang; },
     remember: (name, value) => { if (value === null) cookies.delete(name); else cookies.set(name, value); },
+    proves: (sent) => { proof = sent; },
   };
 }

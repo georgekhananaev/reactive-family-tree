@@ -8,6 +8,7 @@ import { useState } from 'react';
 
 import { useApp } from '@/lib/app-context';
 import { portraitUrl } from '@/lib/format';
+import { useHumanCheck } from '@/lib/human-check';
 import { useT } from '@/lib/i18n';
 import type { WebPhrase } from '@/lib/i18n';
 
@@ -59,6 +60,8 @@ export function EditForm({ person, detail: d, onDirty, onDone, onCancel }: {
   // Their photo: left as it is until a new one is placed, or the old one is taken off
   const [photo, setPhoto] = useState<string | null | undefined>(undefined);
   const [contact, setContact] = useState<Contact>({ name: '', email: '' });
+  // Only a visitor's suggestion goes by the check that a person is asking
+  const human = useHumanCheck(app.session.user ? null : app.session.humanCheck);
   // When someone died is asked only once they are said to have died
   const [diedHidden, setDiedHidden] = useState(d.living === 'yes' && !death?.dateText);
   // Other facts: change them in place, mark one for removal, or add a new one
@@ -111,7 +114,7 @@ export function EditForm({ person, detail: d, onDirty, onDone, onCancel }: {
       ops.push({ type: 'fact.add', subject: { type: 'person', id: d.id }, set: { type: fresh.type, value: fresh.value.trim(), date: parseDate(fresh.date), place: fresh.place.trim(), certainty: fresh.certainty }, lang });
     }
     if (!ops.length) return onDone();
-    await app.submit(ops, t(direct ? 'Update {name}' : 'Correct {name}', { name: d.name }), { note: f.note, contact: app.session.user ? null : contact });
+    await app.submit(ops, t(direct ? 'Update {name}' : 'Correct {name}', { name: d.name }), { note: f.note, contact: app.session.user ? null : contact, proof: await human.prove() });
     onDone();
   };
   const remove = async () => {
@@ -201,7 +204,7 @@ export function EditForm({ person, detail: d, onDirty, onDone, onCancel }: {
             <Field label={t('A note for the reviewer')} wide>
               <input type="text" autoComplete="off" dir="auto" placeholder={t('How do you know? A document, a gravestone, a memory')} value={f.note} onChange={(event) => set({ note: event.target.value })} />
             </Field>
-            {!app.session.user && <ContactFields value={contact} onChange={setContact} />}
+            {!app.session.user && <ContactFields value={contact} onChange={setContact} check={human.box} />}
           </div>
         )}
       </CardForm>

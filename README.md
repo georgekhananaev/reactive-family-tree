@@ -130,6 +130,7 @@ secrets and infrastructure, and all of them are optional on your own computer.
 | `AUTH_SECRET` | Signs sessions. Made once and kept in the database when missing |
 | `SMTP_URL` or `RESEND_API_KEY`, `EMAIL_FROM` | Sending sign-in links and invitations. Without them, links go to the server log and invitations are handed over as links |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Optional Google sign-in for people who already have an account |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Optional check by Cloudflare Turnstile that a person is asking, before a stranger is sent a sign-in link, asks to join or suggests a correction. Without them only the built-in limits stand guard |
 | `SETUP_TOKEN` | Claims a fresh install on a host where you cannot read the log |
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` | Keep photos in an S3-compatible bucket such as Cloudflare R2. Without them, photos live in a `media` folder beside the database |
 | `MEDIA_DIR` | Another folder for the photos, when they are not in a bucket |

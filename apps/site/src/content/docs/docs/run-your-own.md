@@ -77,6 +77,7 @@ You can set them in the shell, or copy `apps/web/.env.example` to `apps/web/.env
 | `SMTP_URL` | Sends email through an SMTP server, for example `smtp://user:pass@host:587`. | Emails are written to the server log |
 | `RESEND_API_KEY` | Sends email through Resend. It is used first if `SMTP_URL` is set too. | Emails are written to the server log |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | With both set, people who already have an account can sign in with Google. | No Google sign-in |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | With both set, Cloudflare Turnstile checks that a person is asking before a stranger is sent a sign-in link, asks to join or suggests a correction. See [Strangers at the door](#strangers-at-the-door). | No check, only the built-in limits |
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | With all four set, photos are kept in an S3-compatible bucket such as Cloudflare R2. For R2 the endpoint is `https://<account id>.r2.cloudflarestorage.com`. `S3_REGION` is `auto` unless your store wants another. | Photos are kept in a `media` folder beside the database |
 | `MEDIA_DIR` | Another folder for photos, when they are not in a bucket. | The `media` folder beside the database |
 | `JOB_TIMERS` | `0` stops the app from running its daily jobs on a timer of its own. | The timer runs |
@@ -85,6 +86,18 @@ You can set them in the shell, or copy `apps/web/.env.example` to `apps/web/.env
 Photos are files, so a backup of the database does not hold them. Back up the `media` folder, or the bucket, beside it.
 
 The daily jobs remove photos nobody has used for 30 days, empty the compost of people removed more than 30 days ago and, when the database is a file, write a full snapshot into a `snapshots` folder beside it. The last 14 snapshots are kept.
+
+## Strangers at the door
+
+Three things can be asked of a tree by someone with no account: a sign-in link, to join the family, and, where you allow it, a correction. The first sends an email and the other two land in the admins' inbox, so each could be used to pester a family or to use up the mail it may send in a day.
+
+The app limits them by itself. One sender gets twenty requests for a link, five requests to join and thirty suggestions an hour, and one address is sent at most three sign-in links an hour and eight a day. The page gives the same answer either way, so nobody learns from it who has an account.
+
+For a tree on the open internet you can add Cloudflare Turnstile, which checks that a person is asking and not a program. Make a widget in the Cloudflare dashboard under Turnstile, with your tree's address among its hostnames, and set its two keys as `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`. Most people never see it: a box to tick appears only when Cloudflare is unsure. Signing in with a passkey and accepting an invitation are not checked, as a device key or a secret link already guards them.
+
+With Turnstile on, the three forms load a script from Cloudflare when they are opened, and only then. A plain visit to the tree still loads nothing from anyone else, and the privacy card in the app says which of the two is true of your install. If Cloudflare cannot be reached, requests are let through and the limits above still hold.
+
+The limits count senders by the address your reverse proxy reports in `X-Forwarded-For`, believing the last one in the list. Run the app behind a proxy that sets it.
 
 ## Check that it is up
 

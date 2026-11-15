@@ -1,6 +1,7 @@
 /* The rules of a family tree, in one place. */
 
 export * from './lang';
+export * from './door';
 export * from './words';
 export * from './text';
 export * from './dates';

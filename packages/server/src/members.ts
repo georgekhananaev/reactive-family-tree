@@ -34,8 +34,6 @@ const PROFILES: readonly ToolProfile[] = ['full', 'simple'];
  * disk. A flood that reaches that limit closes the form until an admin has
  * cleared the list, or turned off "People can ask to join".
  */
-const ASKS_PER_HOUR = 5;     // from one address on the network
-const MAX_ASKERS = 500;      // addresses remembered within the hour, so that the memory of them cannot be made to grow
 const MAX_WAITING = 200;     // requests waiting at once
 /* How long an invitation stays good. */
 export const INVITE_DAYS = 14;
@@ -85,9 +83,6 @@ export interface MemberRecord {
 }
 
 export class Members {
-  /* How many times each address on the network has asked to join since the hour began. */
-  private asks = { since: 0, from: new Map<string, number>() };
-
   constructor(
     private readonly db: Database,
     private readonly store: FamilyStore,
@@ -298,31 +293,17 @@ export class Members {
 
   /* ---------- Requests to join ---------- */
 
-  /* `from` is where on the network the request came from, when that is known. */
-  async askToJoin({ name, email, message }: { name?: unknown; email?: unknown; message?: unknown }, from: string | null): Promise<void> {
+  /* How often one sender may ask is seen to at the door, before this. */
+  async askToJoin({ name, email, message }: { name?: unknown; email?: unknown; message?: unknown }): Promise<void> {
     if (!this.store.settings.allowJoinRequests) throw forbidden('This family is not taking requests to join.');
     const address = cleanEmail(email);
     // No real address is longer than 254 letters
     if (!String(name ?? '').trim() || !address.includes('@') || address.length > 254) throw badRequest('Enter your name and email address.');
-    // Senders nothing is known about are not counted together, or one of them could use up the tries of all the rest
-    if (from && !this.mayAsk(from)) throw tooMany('That is a lot of requests in a short time. Try again in an hour.');
     const [waiting] = await this.db.select({ n: count() }).from(joinRequest).where(eq(joinRequest.status, 'waiting'));
     if ((waiting?.n ?? 0) >= MAX_WAITING) throw tooMany('Many requests are waiting to be read already. Ask a relative to invite you instead.');
     await this.db.insert(joinRequest).values({
       id: newId('jr'), name: String(name).trim().slice(0, 80), email: address, message: String(message ?? '').slice(0, 1000), status: 'waiting', decidedBy: null, createdAt: now(),
     });
-  }
-
-  /* Whether this sender may ask to join once more this hour. The count starts afresh every hour, for everyone. */
-  private mayAsk(from: string): boolean {
-    if (Date.now() - this.asks.since > 3_600_000) this.asks = { since: Date.now(), from: new Map() };
-    const counts = this.asks.from;
-    // With more senders in an hour than can be remembered, the one remembered longest is forgotten. Nobody new is turned away for that.
-    const [longest] = counts.keys();
-    if (!counts.has(from) && counts.size >= MAX_ASKERS && longest !== undefined) counts.delete(longest);
-    const times = (counts.get(from) ?? 0) + 1;
-    counts.set(from, times);
-    return times <= ASKS_PER_HOUR;
   }
 
   async joinRequests() {

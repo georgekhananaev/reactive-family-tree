@@ -22,6 +22,8 @@ export interface AppConfig {
     resendKey?: string;
   };
   google?: { clientId: string; clientSecret: string };
+  /* Cloudflare's Turnstile, which checks that a person is asking before a stranger is sent a sign-in link, asks to join or suggests a correction. Without it only the built-in limits stand guard. */
+  humanCheck?: { siteKey: string; secretKey: string };
   /* Where photos are kept: a bucket when one is set up, otherwise a folder (beside the database unless `dir` names another). */
   media: {
     dir?: string;
@@ -39,6 +41,7 @@ type Env = Record<string, string | undefined>;
 export function readConfig(env: Env = process.env): AppConfig {
   const port = env.PORT ?? '3000';
   const google = env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } : undefined;
+  const humanCheck = env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY ? { siteKey: env.TURNSTILE_SITE_KEY, secretKey: env.TURNSTILE_SECRET_KEY } : undefined;
   const demoMode = env.DEMO_MODE === '1' || env.DEMO_MODE === 'true';
   const s3 = env.S3_ENDPOINT && env.S3_BUCKET && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY
     ? { endpoint: env.S3_ENDPOINT.replace(/\/+$/, ''), bucket: env.S3_BUCKET, accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY, region: env.S3_REGION ?? 'auto' }
@@ -54,6 +57,7 @@ export function readConfig(env: Env = process.env): AppConfig {
     setupToken: env.SETUP_TOKEN,
     email: { from: env.EMAIL_FROM ?? 'Family tree <tree@localhost>', smtpUrl: env.SMTP_URL, resendKey: env.RESEND_API_KEY },
     google,
+    humanCheck,
     media: { dir: env.MEDIA_DIR, s3 },
     timers: env.JOB_TIMERS !== '0',
     jobsToken: env.JOBS_TOKEN,

@@ -327,6 +327,11 @@ export interface SessionInfo {
   demoAccounts: DemoAccount[];
   /* Which ways of signing in this install offers. */
   signIn: { google: boolean; passkeys: boolean; emailWorks: boolean };
+  /*
+   * The site key of Cloudflare's Turnstile, on an install that checks a person is asking before a stranger is sent a sign-in
+   * link, asks to join or suggests a correction. The page shows the check with it and sends the proof along. Null where there is no check.
+   */
+  humanCheck: string | null;
   /* A fresh install that nobody has claimed yet. */
   needsSetup: boolean;
   /* The install runs the fictional demo family and may be reset from the UI. */

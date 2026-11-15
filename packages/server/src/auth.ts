@@ -22,13 +22,14 @@ import type { Database } from '@reactive-family-tree/db';
 import { betterAuth } from 'better-auth';
 import type { BetterAuthPlugin } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { APIError, createAuthEndpoint } from 'better-auth/api';
+import { APIError, createAuthEndpoint, createAuthMiddleware } from 'better-auth/api';
 import { setSessionCookie } from 'better-auth/cookies';
 import { verifyJwsAccessToken } from 'better-auth/oauth2';
 import { jwt, magicLink } from 'better-auth/plugins';
 import * as z from 'zod';
 
 import type { AppConfig } from './config';
+import type { Door } from './door';
 import type { Mailer } from './email';
 import { inLanguage, tell } from './words';
 import { HttpError } from './errors';
@@ -52,8 +53,15 @@ export interface FamilySignIn {
 }
 
 const STATUS: Record<number, ConstructorParameters<typeof APIError>[0]> = {
-  400: 'BAD_REQUEST', 401: 'UNAUTHORIZED', 403: 'FORBIDDEN', 404: 'NOT_FOUND', 409: 'CONFLICT', 422: 'UNPROCESSABLE_ENTITY',
+  400: 'BAD_REQUEST', 401: 'UNAUTHORIZED', 403: 'FORBIDDEN', 404: 'NOT_FOUND', 409: 'CONFLICT', 422: 'UNPROCESSABLE_ENTITY', 429: 'TOO_MANY_REQUESTS',
 };
+
+/* The language to answer a sign-in request in: the one the page asked for, as every other error is said. */
+const langOf = (headers: Headers | undefined, family: Lang): Lang =>
+  chooseLang({ asked: headers?.get('x-language'), remembered: cookieOf(headers?.get('cookie'), LANG_COOKIE), device: headers?.get('accept-language') }, family);
+/* One of the family's own refusals, as the sign-in library says them. */
+const refusal = (error: HttpError, lang: Lang): APIError =>
+  new APIError(STATUS[error.status] ?? 'BAD_REQUEST', { message: inLanguage(lang, error.phrase ?? error.message, error.values ?? undefined) });
 
 /* Sign-in for a member's AI client needs HTTPS, or a loopback address while developing. */
 export function oauthPossible(baseUrl: string): boolean {
@@ -69,14 +77,12 @@ export function oauthPossible(baseUrl: string): boolean {
 function familyPlugin(family: FamilySignIn) {
   const signIn = <Body extends z.ZodType>(path: string, body: Body, resolve: (input: z.infer<Body>) => Promise<string>) =>
     createAuthEndpoint(path, { method: 'POST', body }, async (ctx) => {
-      // What goes wrong is said in the language the page asked for, as every other error is
-      const lang = chooseLang({ asked: ctx.headers?.get('x-language'), remembered: cookieOf(ctx.headers?.get('cookie'), LANG_COOKIE), device: ctx.headers?.get('accept-language') }, family.language());
+      const lang = langOf(ctx.headers, family.language());
       let userId: string;
       try {
         userId = await resolve(ctx.body as z.infer<Body>);
       } catch (error) {
-        if (error instanceof HttpError) throw new APIError(STATUS[error.status] ?? 'BAD_REQUEST', { message: inLanguage(lang, error.phrase ?? error.message, error.values ?? undefined) });
-        throw error;
+        throw error instanceof HttpError ? refusal(error, lang) : error;
       }
       const user = await ctx.context.internalAdapter.findUserById(userId);
       if (!user) throw new APIError('NOT_FOUND', { message: tell(lang, 'That account does not exist.') });
@@ -101,12 +107,14 @@ export interface AuthOptions {
   config: AppConfig;
   secret: string;
   mailer: Mailer;
+  /* What guards the asking for a sign-in link, which anyone may do. */
+  door: Door;
   family: FamilySignIn;
   /* Called with every sign-in link as it is sent, so demo mode can show it on screen. */
   onLink?(email: string, url: string): void;
 }
 
-export function createAuth({ db, config, secret, mailer, family, onLink }: AuthOptions) {
+export function createAuth({ db, config, secret, mailer, door, family, onLink }: AuthOptions) {
   const { baseUrl, google } = config;
   const plugins: BetterAuthPlugin[] = [
     magicLink({
@@ -117,6 +125,8 @@ export function createAuth({ db, config, secret, mailer, family, onLink }: AuthO
         // And only they are sent one. Asked for any other address, nothing goes out, or the family's mailbox could be made to write to strangers.
         // The page says the same either way, so it does not give away who has an account.
         if (!(await family.hasAccount(email))) return;
+        // Nor is one address written to over and over. The page is not told, as it is not told the rest.
+        if (!door.mayWrite(email.trim().toLowerCase())) return;
         onLink?.(email, url);
         // The letter is sent without being waited for, so that the page hears back just as fast whether or not there was an account
         // to write to. A slower answer for real accounts would say who has one. A letter that could not be sent is in the server log.
@@ -165,6 +175,15 @@ export function createAuth({ db, config, secret, mailer, family, onLink }: AuthO
     // Google only signs in people who already have an account, matched by their verified address
     socialProviders: google ? { google: { ...google, disableSignUp: true } } : {},
     account: { accountLinking: { enabled: true, trustedProviders: ['google'] } },
+    hooks: {
+      // Asking for a sign-in link is something a stranger may do, so it goes by the door first
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/sign-in/magic-link' || !ctx.headers) return;
+        await door.admit('link', ctx.headers).catch((error: unknown) => {
+          throw error instanceof HttpError ? refusal(error, langOf(ctx.headers, family.language())) : error;
+        });
+      }),
+    },
     plugins,
   });
 }

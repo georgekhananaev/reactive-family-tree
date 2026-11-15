@@ -35,6 +35,8 @@ export interface SubmitOptions {
   note?: string;
   /* A visitor leaves a name and an email with a suggestion. */
   contact?: Contact | null;
+  /* And, where the install checks that a person is asking, the proof of that check. */
+  proof?: string | null;
   /* What to say instead of "Saved". */
   quiet?: string | null;
 }

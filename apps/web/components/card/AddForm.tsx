@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useApp } from '@/lib/app-context';
 import { lookupFrom } from '@/lib/format';
+import { useHumanCheck } from '@/lib/human-check';
 import { useT } from '@/lib/i18n';
 import type { WebPhrase } from '@/lib/i18n';
 
@@ -41,6 +42,8 @@ export function AddForm({ person, detail: d, relation, onDirty, onDone, onCancel
   const [f, setFields] = useState({ given: '', family: keepsName ? d.family : '', born: '', died: '', sex: 'unknown' as Sex, union: d.unions[0]?.id ?? '' });
   const set = (patch: Partial<typeof f>) => setFields((was) => ({ ...was, ...patch }));
   const [contact, setContact] = useState<Contact>({ name: '', email: '' });
+  // Only a visitor's suggestion goes by the check that a person is asking
+  const human = useHumanCheck(app.session.user ? null : app.session.humanCheck);
   const given = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -67,7 +70,7 @@ export function AddForm({ person, detail: d, relation, onDirty, onDone, onCancel
     const { ops, ref } = composed(() => addRelative(lookupFrom(app.tree), { of: d.id, relation, details, unionId: (unionChoices ? f.union : null) ?? openUnion ?? null }));
     // The new person's words are first written in the language of whoever adds them
     const written = ops.map((op) => (op.type === 'person.create' || op.type === 'fact.add' ? { ...op, lang } : op));
-    const done = await app.submit(written, relativeMessage(relation, details, d.name, lang), { contact: app.session.user ? null : contact });
+    const done = await app.submit(written, relativeMessage(relation, details, d.name, lang), { contact: app.session.user ? null : contact, proof: await human.prove() });
     onDirty(false);
     // Published: go to the new leaf. Sent for review: stay with the person it was added to.
     const created = done.created[ref];
@@ -86,7 +89,7 @@ export function AddForm({ person, detail: d, relation, onDirty, onDone, onCancel
           <DateField label={t('Died')} value={f.died} placeholder={t('Leave empty if living')} onChange={(died) => set({ died })} />
           <Field label={t('Sex')}><Select<Sex> options={sexChoices(t)} value={f.sex} onChange={(sex) => set({ sex })} /></Field>
           {unionChoices && <Field label={t('Child')}><Select options={unionChoices} value={f.union} onChange={(union) => set({ union })} /></Field>}
-          {!direct && !app.session.user && <ContactFields value={contact} onChange={setContact} />}
+          {!direct && !app.session.user && <ContactFields value={contact} onChange={setContact} check={human.box} />}
         </div>
         <p className="hint-line">{direct ? t('Only what you know. The rest can be added later.') : t('This is outside your branch, so it will be sent for review.')}</p>
       </CardForm>

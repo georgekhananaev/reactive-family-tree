@@ -648,6 +648,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 .check { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--text); font-size: 1rem; }
 .check input { width: 20px; height: 20px; accent-color: var(--action); }
 .form-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+/* Where Cloudflare's check shows a box to tick, when it wants one. Until then it holds nothing that can be seen. Among a form's fields it takes a row of its own. */
+.human-check { grid-column: 1 / -1; }
+.human-check.asking { margin-top: 12px; }
 .hint-line { margin: 8px 0 0; font-size: 0.9375rem; color: var(--muted); }
 button.danger { color: #B4432E; }
 :root[data-theme="dark"] button.danger { color: #F0907C; }
@@ -781,6 +784,9 @@ button[disabled] { opacity: 0.5; cursor: default; }
 .row .main strong { display: block; font-weight: 500; }
 .row .main small { color: var(--muted); }
 .row .side { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+/* Choosing which leaf a member is, in their row of the members list */
+.row .leaf-link { margin-top: 6px; }
+.row .leaf-link .form-actions { margin-top: 8px; }
 .chip {
   display: inline-flex;
   align-items: center;

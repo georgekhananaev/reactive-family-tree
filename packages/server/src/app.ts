@@ -16,6 +16,8 @@ import { createAuth, oauthPossible, verifyAiSignIn } from './auth';
 import type { Auth, FamilySignIn } from './auth';
 import { writeSnapshot } from './backup';
 import type { AppConfig } from './config';
+import { createDoor } from './door';
+import type { Door } from './door';
 import { Edits } from './edits';
 import { createMailer } from './email';
 import type { Mailer } from './email';
@@ -46,6 +48,8 @@ export interface App {
   views: Views;
   media: Media;
   mailer: Mailer;
+  /* What guards the things a stranger may ask for. */
+  door: Door;
   auth: Auth;
   scheduler: Scheduler;
   /* Whether an AI client can connect by signing in. It needs HTTPS, or a loopback address. */
@@ -105,6 +109,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const edits = new Edits(db, store, members, hub, media);
   const views = new Views(store, edits, members);
   const mailer = createMailer(config.email);
+  const door = createDoor(config);
   const links = new Map<string, string>();
 
   let claimed = false;
@@ -145,7 +150,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   };
 
   const auth = createAuth({
-    db, config, secret: await secretFor(db, config), mailer, family,
+    db, config, secret: await secretFor(db, config), mailer, door, family,
     // Sign-in links are kept to show on the page only for the made-up family. A real family's are mailed and kept nowhere.
     onLink: config.demoMode ? (email, url) => links.set(email.toLowerCase(), url) : undefined,
   });
@@ -162,7 +167,7 @@ export async function createApp(config: AppConfig): Promise<App> {
   const scheduler = new Scheduler(db, jobs);
 
   const app: App = {
-    config, db, store, hub, members, edits, views, media, mailer, auth, scheduler,
+    config, db, store, hub, members, edits, views, media, mailer, door, auth, scheduler,
     oauth: oauthPossible(config.baseUrl),
     handle: (request) => handle(request),
     async userOf(request) {
