@@ -8,6 +8,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-15
+
+### Added
+- **tree**: A Japanese garden pond with koi beside the tree, switched on or off under Manage family
+
+### Changed
+- **tree**: The moon glow at night is cooler and softer
+
 ## [0.5.0] - 2026-11-15
 
 ### Added
