@@ -108,6 +108,8 @@ export const he = {
   'Enter your email address.': 'צריך למלא כתובת מייל.',
   'That is a lot of requests in a short time. Try again in an hour.': 'זה הרבה בקשות בזמן קצר. אפשר לנסות שוב בעוד שעה.',
   'The check that you are a person did not pass. Try again.': 'הבדיקה שמדובר באדם ולא ברובוט לא עברה. אפשר לנסות שוב.',
+  'The check that you are a person is not working just now. Try again in a little while.': 'הבדיקה שמדובר באדם ולא ברובוט לא זמינה כרגע. אפשר לנסות שוב בעוד כמה דקות.',
+  'Too many sign-in links were asked for this address. Try again later, or sign in with a passkey.': 'ביקשו יותר מדי קישורי התחברות לכתובת הזאת. אפשר לנסות שוב מאוחר יותר, או להתחבר עם מפתח גישה.',
   'Many requests are waiting to be read already. Ask a relative to invite you instead.': 'כבר מחכות הרבה בקשות. עדיף לבקש הזמנה מקרוב משפחה.',
   'That request is no longer waiting.': 'הבקשה הזו כבר טופלה.',
   'That setup link is not valid, or the tree has already been set up.': 'קישור ההקמה הזה לא תקף, או שהעץ כבר הוקם.',

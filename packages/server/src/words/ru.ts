@@ -99,6 +99,8 @@ export const ru: Record<keyof typeof he, string> = {
   'Enter your email address.': 'Введите адрес почты.',
   'That is a lot of requests in a short time. Try again in an hour.': 'Слишком много запросов за короткое время. Попробуйте через час.',
   'The check that you are a person did not pass. Try again.': 'Не удалось убедиться, что вы человек, а не робот. Попробуйте ещё раз.',
+  'The check that you are a person is not working just now. Try again in a little while.': 'Проверка, что вы человек, а не робот, сейчас недоступна. Попробуйте чуть позже.',
+  'Too many sign-in links were asked for this address. Try again later, or sign in with a passkey.': 'Для этого адреса запросили слишком много ссылок для входа. Попробуйте позже или войдите с ключом доступа.',
   'Many requests are waiting to be read already. Ask a relative to invite you instead.': 'Уже много заявок ждут ответа. Лучше попросите родственника вас пригласить.',
   'That request is no longer waiting.': 'На эту заявку уже ответили.',
   'That setup link is not valid, or the tree has already been set up.': 'Ссылка для настройки не подходит, или дерево уже настроено.',

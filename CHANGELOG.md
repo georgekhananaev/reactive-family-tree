@@ -8,11 +8,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+- **sign-in**: Sign-in links are now counted for each sender, so asking for links to someone else's address no longer uses up that person's own tries, and whoever asks too often is told so
+- **self-hosting**: With the Cloudflare check on, a request is refused unless Cloudflare plainly accepts its proof, and only twenty requests an hour are let through while Cloudflare cannot be reached
+
 ## [0.7.0] - 2026-11-15
 
 ### Added
 - **self-hosting**: Optional Cloudflare Turnstile check that a person is asking before a stranger is sent a sign-in link, asks to join or suggests a correction, switched on by setting `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`
 - **setup**: The privacy card says whether the tree loads anything from Cloudflare
+- **members**: A member can be linked to their leaf on the tree, moved to another or unlinked, under Manage family
 
 ### Security
 - **sign-in**: Strangers, and any one email address, are limited in how many sign-in links and suggestions they can ask for, so a family can't be pestered or have its daily mail used up

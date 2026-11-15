@@ -91,11 +91,11 @@ The daily jobs remove photos nobody has used for 30 days, empty the compost of p
 
 Three things can be asked of a tree by someone with no account: a sign-in link, to join the family, and, where you allow it, a correction. The first sends an email and the other two land in the admins' inbox, so each could be used to pester a family or to use up the mail it may send in a day.
 
-The app limits them by itself. One sender gets twenty requests for a link, five requests to join and thirty suggestions an hour, and one address is sent at most three sign-in links an hour and eight a day. The page gives the same answer either way, so nobody learns from it who has an account.
+The app limits them by itself. One sender gets twenty requests for a link, five requests to join and thirty suggestions an hour. Sign-in links to one address are counted for each sender that asks: three an hour and six a day, and never more than six an hour and twelve a day in all. So a stranger who keeps asking for someone's address uses up their own tries, not that person's. Whoever goes over is told so, and an address with no account is answered just the same, so nobody learns from it who has one.
 
 For a tree on the open internet you can add Cloudflare Turnstile, which checks that a person is asking and not a program. Make a widget in the Cloudflare dashboard under Turnstile, with your tree's address among its hostnames, and set its two keys as `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`. Most people never see it: a box to tick appears only when Cloudflare is unsure. Signing in with a passkey and accepting an invitation are not checked, as a device key or a secret link already guards them.
 
-With Turnstile on, the three forms load a script from Cloudflare when they are opened, and only then. A plain visit to the tree still loads nothing from anyone else, and the privacy card in the app says which of the two is true of your install. If Cloudflare cannot be reached, requests are let through and the limits above still hold.
+With Turnstile on, the three forms load a script from Cloudflare when they are opened, and only then. A plain visit to the tree still loads nothing from anyone else, and the privacy card in the app says which of the two is true of your install. A request is refused when it carries no proof, or when Cloudflare does not plainly accept the proof. If your server cannot reach Cloudflare at all, twenty requests an hour are still let through, under the limits above, and the rest are asked to try again a little later.
 
 The limits count senders by the address your reverse proxy reports in `X-Forwarded-For`, believing the last one in the list. Run the app behind a proxy that sets it.
 

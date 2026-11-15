@@ -22,28 +22,36 @@ export type Knock = 'link' | 'join' | 'suggest';
 export interface Door {
   /* The key a page shows Cloudflare's check with, or null where this install has no check. It is not a secret. */
   readonly siteKey: string | null;
-  /* Let through whoever sent these headers, or say why not. */
-  admit(knock: Knock, headers: Headers): Promise<void>;
-  /* Whether one more sign-in letter may go to this address now. Asking counts as one. */
-  mayWrite(address: string): boolean;
+  /* Let through whoever sent these headers, or say why not. For a sign-in link, `address` is where the letter would go. */
+  admit(knock: Knock, headers: Headers, address?: string): Promise<void>;
 }
 
 const HOUR = 3_600_000;
 /* How often one sender may knock in an hour, by what it asks for. A whole family at one table shares one address on the network, so links are given more room. */
 const KNOCKS_PER_HOUR: Record<Knock, number> = { link: 20, join: 5, suggest: 30 };
-/* How many sign-in letters one address is sent, so that nobody's mailbox is filled for them and the day's mail is not used up. */
-const LETTERS = { perHour: 3, perDay: 8 };
-/* Keys remembered at once in each count, so that the memory of them cannot be made to grow. */
+/*
+ * How many sign-in letters go to one address. A few for each sender that asks, so that a stranger asking over and over
+ * uses up only their own and never the tries of the person whose address it is. And a few more than that in all, so that
+ * no mailbox is filled from many places at once and the day's mail is not used up.
+ */
+const LETTERS = { fromOne: { anHour: 3, aDay: 6 }, inAll: { anHour: 6, aDay: 12 } };
+/* How many requests an hour are let through unchecked while Cloudflare cannot be reached. */
+const UNASKED_AN_HOUR = 20;
+/* Keys remembered at once in an hour's count, so that the memory of them cannot be made to grow. */
 const REMEMBERED = 500;
+/* No address on the network is written longer than this, and no email address longer than that, so nothing longer is kept as one. */
+const SENDER_AT_MOST = 45, ADDRESS_AT_MOST = 254;
 const VERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 const VERIFY_WAIT = 5000;
+/* A proof from Cloudflare is one run of plain characters, never longer than this. Anything else is turned away without Cloudflare being asked. */
+const PROOF = /^[\x21-\x7e]{1,2048}$/;
 
 /* How often each key was seen in the stretch of time now running. The count starts afresh, for everyone, when the stretch is over. */
 class Tally {
   private since = Date.now();
   private readonly seen = new Map<string, number>();
 
-  constructor(private readonly stretch: number, private readonly most: number) {}
+  constructor(private readonly stretch: number, private readonly most: number, private readonly remembered = REMEMBERED) {}
 
   /* Count this key once more, and say whether it is still within the limit. */
   allow(key: string): boolean {
@@ -53,47 +61,80 @@ class Tally {
     }
     // With more keys in a stretch than can be remembered, the one remembered longest is forgotten. Nobody new is turned away for that.
     const [longest] = this.seen.keys();
-    if (!this.seen.has(key) && this.seen.size >= REMEMBERED && longest !== undefined) this.seen.delete(longest);
+    if (!this.seen.has(key) && this.seen.size >= this.remembered && longest !== undefined) this.seen.delete(longest);
     const times = (this.seen.get(key) ?? 0) + 1;
     this.seen.set(key, times);
     return times <= this.most;
   }
 }
 
+/* A count by the hour and one by the day, for the same thing. */
+class Allowance {
+  private readonly hour: Tally;
+  private readonly day: Tally;
+
+  constructor({ anHour, aDay }: { anHour: number; aDay: number }) {
+    this.hour = new Tally(HOUR, anHour);
+    // A day's count remembers a day's worth of keys. With an hour's worth, a day of asking for other things would be enough to have one forgotten.
+    this.day = new Tally(24 * HOUR, aDay, 24 * REMEMBERED);
+  }
+
+  allow(key: string): boolean {
+    return this.hour.allow(key) && this.day.allow(key);
+  }
+}
+
 export function createDoor({ humanCheck }: Pick<AppConfig, 'humanCheck'>): Door {
   const knocks: Record<Knock, Tally> = { link: new Tally(HOUR, KNOCKS_PER_HOUR.link), join: new Tally(HOUR, KNOCKS_PER_HOUR.join), suggest: new Tally(HOUR, KNOCKS_PER_HOUR.suggest) };
-  const letters = [new Tally(HOUR, LETTERS.perHour), new Tally(24 * HOUR, LETTERS.perDay)];
+  const letters = { fromOne: new Allowance(LETTERS.fromOne), inAll: new Allowance(LETTERS.inAll) };
+  const unasked = new Tally(HOUR, UNASKED_AN_HOUR);
 
-  /* Ask Cloudflare whether the proof a page sent is good. It is good once only. */
-  async function proven(proof: string, sender: string | null): Promise<boolean> {
-    if (!humanCheck) return true;
+  /* Ask Cloudflare whether the proof a page sent is good. It is good once only. Null when Cloudflare could not be reached at all. */
+  async function proven(secret: string, proof: string, sender: string | null): Promise<boolean | null> {
+    let response: Response;
     try {
-      const response = await fetch(VERIFY, {
+      response = await fetch(VERIFY, {
         method: 'POST',
-        body: new URLSearchParams({ secret: humanCheck.secretKey, response: proof, ...(sender && { remoteip: sender }) }),
+        body: new URLSearchParams({ secret, response: proof, ...(sender && { remoteip: sender }) }),
         signal: AbortSignal.timeout(VERIFY_WAIT),
       });
-      if (!response.ok) throw new Error(`Cloudflare answered ${response.status}`);
-      return (await response.json() as { success?: boolean }).success === true;
     } catch (error) {
-      // When Cloudflare cannot be asked, the request is let through: the limits still hold, and a family is not kept out of its own tree by trouble somewhere else
-      console.error('Cloudflare could not be asked whether a person was at the door. The request was let through.', error);
-      return true;
+      console.error('Cloudflare could not be reached, to ask whether a person was at the door.', error);
+      return null;
     }
+    // An answer that is not a plain yes is a no, whatever else it is: what the sender wrote may be what brought it about
+    if (!response.ok) {
+      console.error(`Cloudflare answered ${response.status} when asked whether a person was at the door.`);
+      return false;
+    }
+    const answer = await response.json().catch(() => null) as { success?: unknown } | null;
+    // The answer also names the page the proof was made on and the form it was made for. Neither is held against the request:
+    // Cloudflare makes proofs for this widget on the tree's own addresses only, and a stranger may ask for any of the three things.
+    return answer?.success === true;
   }
 
   return {
     siteKey: humanCheck?.siteKey ?? null,
-    async admit(knock, headers) {
+    async admit(knock, headers, address) {
       // Behind more than one proxy it is the nearest that is believed, whatever the sender wrote in front of it
-      const sender = headers.get('x-forwarded-for')?.split(',').pop()?.trim() || null;
+      const sender = headers.get('x-forwarded-for')?.split(',').pop()?.trim().slice(0, SENDER_AT_MOST) || null;
       // Senders nothing is known about are not counted together, or one of them could use up the tries of all the rest
       if (sender && !knocks[knock].allow(sender)) throw tooMany('That is a lot of requests in a short time. Try again in an hour.');
-      if (!humanCheck) return;
-      const proof = headers.get(PROOF_HEADER);
-      if (!proof || !(await proven(proof, sender))) throw forbidden('The check that you are a person did not pass. Try again.');
+      if (humanCheck) {
+        const proof = headers.get(PROOF_HEADER);
+        const good = proof && PROOF.test(proof) ? await proven(humanCheck.secretKey, proof, sender) : false;
+        if (good === false) throw forbidden('The check that you are a person did not pass. Try again.');
+        // While Cloudflare cannot be reached, a few an hour are still let through, so that a family is not kept out of its own tree
+        // by trouble somewhere else. Only a few, and all of them under the limits here.
+        if (good === null && !unasked.allow('everyone')) throw tooMany('The check that you are a person is not working just now. Try again in a little while.');
+      }
+      if (address === undefined) return;
+      // Counted for any address, whether or not it has an account, so that the answer gives nothing away. What one sender is refused
+      // is not counted against the address for everyone else. A sender nothing is known about has only the count for everyone.
+      const to = address.trim().toLowerCase().slice(0, ADDRESS_AT_MOST);
+      if ((sender && !letters.fromOne.allow(`${to} ${sender}`)) || !letters.inAll.allow(to)) {
+        throw tooMany('Too many sign-in links were asked for this address. Try again later, or sign in with a passkey.');
+      }
     },
-    // Both counts are kept for every letter asked for, so the hour's and the day's each see all of them
-    mayWrite: (address) => letters.map((tally) => tally.allow(address)).every(Boolean),
   };
 }

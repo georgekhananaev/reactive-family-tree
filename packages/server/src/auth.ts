@@ -125,8 +125,6 @@ export function createAuth({ db, config, secret, mailer, door, family, onLink }:
         // And only they are sent one. Asked for any other address, nothing goes out, or the family's mailbox could be made to write to strangers.
         // The page says the same either way, so it does not give away who has an account.
         if (!(await family.hasAccount(email))) return;
-        // Nor is one address written to over and over. The page is not told, as it is not told the rest.
-        if (!door.mayWrite(email.trim().toLowerCase())) return;
         onLink?.(email, url);
         // The letter is sent without being waited for, so that the page hears back just as fast whether or not there was an account
         // to write to. A slower answer for real accounts would say who has one. A letter that could not be sent is in the server log.
@@ -176,10 +174,12 @@ export function createAuth({ db, config, secret, mailer, door, family, onLink }:
     socialProviders: google ? { google: { ...google, disableSignUp: true } } : {},
     account: { accountLinking: { enabled: true, trustedProviders: ['google'] } },
     hooks: {
-      // Asking for a sign-in link is something a stranger may do, so it goes by the door first
+      // Asking for a sign-in link is something a stranger may do, so it goes by the door first. The door also sees to it that
+      // one address is not written to over and over, whoever it belongs to.
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path !== '/sign-in/magic-link' || !ctx.headers) return;
-        await door.admit('link', ctx.headers).catch((error: unknown) => {
+        const { email } = (ctx.body ?? {}) as { email?: unknown };
+        await door.admit('link', ctx.headers, typeof email === 'string' ? email : undefined).catch((error: unknown) => {
           throw error instanceof HttpError ? refusal(error, langOf(ctx.headers, family.language())) : error;
         });
       }),

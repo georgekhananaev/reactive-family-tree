@@ -67,7 +67,7 @@ export const entry = {
   'First, you. This makes you the owner of the tree.': 'נתחיל ממך. ככה העץ יהיה בבעלותך.',
   'What should the tree be called?': 'איך לקרוא לעץ?',
   'The family’s name': 'שם העץ',
-  'Khananaev family': 'משפחת חננאייב',
+  'Khananaev family': 'משפחת חננייב',
   'A passkey, so you never need a password': 'מפתח גישה, כדי שלא יהיה צורך בסיסמה אף פעם',
   'Your device keeps it, and signing in becomes one touch. It also works before email is set up.': 'המכשיר שלך שומר אותו, ומתחברים בנגיעה אחת. זה עובד גם לפני ששליחת המיילים מוגדרת.',
   'Passkey created': 'מפתח הגישה נוצר',
