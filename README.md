@@ -6,6 +6,13 @@ own relatives, with nothing sent anywhere else.
 
 **[Try the app demo](https://demo-familytree.reactatomics.com)** · **[Project site and docs](https://familytree.reactatomics.com)** · [Changelog](CHANGELOG.md)
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/design/screenshots/tree-play-dark.gif">
+    <img src="docs/design/screenshots/tree-play-light.gif" width="960" alt="The made-up Marlow family on the tree. Play is pressed, and the family grows from 1898 to today, a leaf for each person in the year they were born.">
+  </picture>
+</p>
+
 - **It looks like a tree.** Ancestors are the roots, descendants are the canopy.
   Light and dark, phone and desktop, and it stands still for people who ask for
   less motion.
