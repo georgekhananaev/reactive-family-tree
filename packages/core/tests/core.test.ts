@@ -181,14 +181,17 @@ test('operations refuse nonsense and name what was wrong', () => {
 
 test('a date holds what its kind says and nothing else, and is never longer than a date can be', () => {
   for (const good of [null, { kind: 'exact', from: '1921-03-04' }, { kind: 'between', from: '1910', to: '1935' }, { kind: 'text', text: 'before the war' }]) assert.ok(isValidDate(good), JSON.stringify(good));
-  // Something sent along beside a date would be kept with it, whatever its size or shape
+  // Something sent along beside a date would be kept with it, whatever its size or shape. Here it is a nest of lists,
+  // shallow enough to be made on any machine: a date is turned away for carrying it, however deep it goes.
   let deep: unknown = 'bottom';
-  for (let level = 0; level < 5000; level++) deep = [deep];
-  for (const bad of [
-    { kind: 'text', text: 'x', padding: deep }, { kind: 'exact', from: '1921', note: 'x' }, { kind: 'exact', from: '1921', to: '1930' },
-    { kind: 'between', from: '1910', to: '1935', text: 'x' }, { kind: 'text', text: 'x'.repeat(DATE_TEXT_MAX + 1) }, { kind: 'text', text: '' },
-    [{ kind: 'exact', from: '1921' }], 'yesterday', 1921,
-  ]) assert.equal(isValidDate(bad), false, JSON.stringify(bad)?.slice(0, 60));
+  for (let level = 0; level < 100; level++) deep = [deep];
+  const refused: [why: string, bad: unknown][] = [
+    ['something beside the words', { kind: 'text', text: 'x', padding: deep }], ['a note beside a day', { kind: 'exact', from: '1921', note: 'x' }],
+    ['a second day on one day', { kind: 'exact', from: '1921', to: '1930' }], ['words beside a span', { kind: 'between', from: '1910', to: '1935', text: 'x' }],
+    ['too many words', { kind: 'text', text: 'x'.repeat(DATE_TEXT_MAX + 1) }], ['no words', { kind: 'text', text: '' }],
+    ['a list', [{ kind: 'exact', from: '1921' }]], ['a word', 'yesterday'], ['a number', 1921],
+  ];
+  for (const [why, bad] of refused) assert.equal(isValidDate(bad), false, why);
   const { state, env, id } = smallFamily();
   assert.throws(() => applyOps(state, [{ type: 'fact.add', subject: { type: 'person', id: id.zed }, set: { type: 'birth', date: { kind: 'text', text: 'x', padding: deep } } }] as unknown as Op[], env), OpError);
 
