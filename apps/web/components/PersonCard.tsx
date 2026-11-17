@@ -12,7 +12,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, Ref } from 'react';
 
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import type { CardMode } from '@/lib/app-context';
 import { displayName, lifespan, when } from '@/lib/format';
@@ -115,7 +115,10 @@ export function PersonCard({ target, onSwitch, ref }: {
   if (!target && shown) setShown(null);
   const loading = Boolean(target && shown && !ready);
 
-  const failed = full && detail.isError ? detail.error : null;
+  // The card goes when its person could not be fetched at all, or is no longer theirs to see. A refresh in the background that
+  // could not be made is no reason to close it and lose what is being typed in it: what it shows stays until the next one.
+  const refused = detail.error instanceof ApiError && detail.error.status >= 400 && detail.error.status < 500;
+  const failed = full && detail.isError && (detail.isLoadingError || refused) ? detail.error : null;
   useEffect(() => {
     if (!failed) return;
     app.fail(failed);
@@ -149,13 +152,14 @@ export function PersonCard({ target, onSwitch, ref }: {
       if (dx || dy) view.panBy(dx, dy);
       return;
     }
-    const free = view.freeWidth, width = card.offsetWidth, height = card.offsetHeight;
+    // The room no panel covers: where it begins, which is past a panel on the left, and how wide it is
+    const from = view.freeLeft, free = view.freeWidth, width = card.offsetWidth, height = card.offsetHeight;
     const cx = leaf.left + leaf.width / 2, cy = leaf.top + leaf.height / 2;
     const gap = view.editing ? 150 : 44;        // in edit mode the + buds around the leaf stay uncovered
     const sides = { left: cx - gap - width, right: cx + gap };
-    const fits = (x: number) => x >= 12 && x + width <= free - 12;
+    const fits = (x: number) => x >= from + 12 && x + width <= from + free - 12;
     const outward = cx < view.trunkX ? 'left' : 'right', inward = outward === 'left' ? 'right' : 'left';
-    const left = Math.max(12, Math.min(free - width - 12, fits(sides[outward]) || !fits(sides[inward]) ? sides[outward] : sides[inward]));
+    const left = Math.max(from + 12, Math.min(from + free - width - 12, fits(sides[outward]) || !fits(sides[inward]) ? sides[outward] : sides[inward]));
     const top = Math.max(76, Math.min(innerHeight - height - 92, cy - height / 2));
     Object.assign(card.style, { left: `${left}px`, top: `${top}px`, transformOrigin: `${cx - left}px ${cy - top}px` });
   };

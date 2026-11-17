@@ -46,6 +46,25 @@ const VERIFY_WAIT = 5000;
 /* A proof from Cloudflare is one run of plain characters, never longer than this. Anything else is turned away without Cloudflare being asked. */
 const PROOF = /^[\x21-\x7e]{1,2048}$/;
 
+/*
+ * Who a sender is counted as. On the newer kind of network one sender holds a whole block of addresses and can write from a
+ * new one each time, so there it is the block that is counted: the first four of an address's eight groups.
+ */
+function counted(address: string): string {
+  if (!address.includes(':')) return address;
+  // An address of the older kind, written the newer way
+  const older = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
+  if (older?.[1]) return older[1];
+  // "::" stands for as many empty groups as it takes to make eight
+  const [head = '', tail] = address.toLowerCase().split('::');
+  const groups = head ? head.split(':') : [];
+  if (tail !== undefined) {
+    const rest = tail ? tail.split(':') : [];
+    groups.push(...Array<string>(Math.max(0, 8 - groups.length - rest.length)).fill('0'), ...rest);
+  }
+  return `${groups.slice(0, 4).map((group) => group.replace(/^0+(?=.)/, '')).join(':')}::/64`;
+}
+
 /* How often each key was seen in the stretch of time now running. The count starts afresh, for everyone, when the stretch is over. */
 class Tally {
   private since = Date.now();
@@ -118,8 +137,9 @@ export function createDoor({ humanCheck }: Pick<AppConfig, 'humanCheck'>): Door 
     async admit(knock, headers, address) {
       // Behind more than one proxy it is the nearest that is believed, whatever the sender wrote in front of it
       const sender = headers.get('x-forwarded-for')?.split(',').pop()?.trim().slice(0, SENDER_AT_MOST) || null;
+      const from = sender && counted(sender);
       // Senders nothing is known about are not counted together, or one of them could use up the tries of all the rest
-      if (sender && !knocks[knock].allow(sender)) throw tooMany('That is a lot of requests in a short time. Try again in an hour.');
+      if (from && !knocks[knock].allow(from)) throw tooMany('That is a lot of requests in a short time. Try again in an hour.');
       if (humanCheck) {
         const proof = headers.get(PROOF_HEADER);
         const good = proof && PROOF.test(proof) ? await proven(humanCheck.secretKey, proof, sender) : false;
@@ -132,7 +152,7 @@ export function createDoor({ humanCheck }: Pick<AppConfig, 'humanCheck'>): Door 
       // Counted for any address, whether or not it has an account, so that the answer gives nothing away. What one sender is refused
       // is not counted against the address for everyone else. A sender nothing is known about has only the count for everyone.
       const to = address.trim().toLowerCase().slice(0, ADDRESS_AT_MOST);
-      if ((sender && !letters.fromOne.allow(`${to} ${sender}`)) || !letters.inAll.allow(to)) {
+      if ((from && !letters.fromOne.allow(`${to} ${from}`)) || !letters.inAll.allow(to)) {
         throw tooMany('Too many sign-in links were asked for this address. Try again later, or sign in with a passkey.');
       }
     },

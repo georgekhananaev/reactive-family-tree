@@ -12,6 +12,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import type { AppController, PanelArgs } from '@/lib/app-context';
 import { useApp } from '@/lib/app-context';
+import { useSingle } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
 
 import type { PanelDef, PanelProps } from '../Drawer';
@@ -47,10 +48,10 @@ function useScrollTo(editId: PanelArgs['editId'], edits: EditView[] | undefined)
 function CommentLine({ editId, placeholder, label }: { editId: string; placeholder: string; label: string }) {
   const app = useApp();
   const [body, setBody] = useState('');
-  const send = () => tryIt(app, async () => {
+  const send = useSingle(() => tryIt(app, async () => {
     await api.post(`/api/edits/${editId}/comments`, { body });
     setBody('');
-  });
+  }));
   return (
     <div className="copy">
       <input type="text" placeholder={placeholder} value={body} onChange={(event) => setBody(event.target.value)} />
@@ -69,8 +70,8 @@ function ReviewCard({ edit, retyped, onRetyped }: { edit: EditView; retyped: Ret
   const [declining, setDeclining] = useState(false);
   const [note, setNote] = useState('');
   const noteInput = useRef<HTMLInputElement>(null);
-  const review = (body: { action: 'approve'; ops?: Op[] } | { action: 'decline'; note: string }, done: string) =>
-    tryIt(app, () => api.post<EditResult>(`/api/edits/${edit.id}/review`, body), done);
+  const review = useSingle((body: { action: 'approve'; ops?: Op[] } | { action: 'decline'; note: string }, done: string) =>
+    tryIt(app, () => api.post<EditResult>(`/api/edits/${edit.id}/review`, body), done));
 
   // The first press of Decline asks why, the second sends it
   useEffect(() => {
@@ -118,7 +119,7 @@ function DraftCard({ edit }: { edit: EditView }) {
   const { t } = useT();
   const [unticked, setUnticked] = useState<Unticked>(new Set());
   const several = edit.lines.length > 1;
-  const apply = (indexes: number[] | null) => tryIt(app, async () => {
+  const apply = useSingle((indexes: number[] | null) => tryIt(app, async () => {
     const result = await api.post<EditResult>(`/api/edits/${edit.id}/apply`, indexes ? { indexes } : {});
     // What is left of the draft starts out ticked again
     setUnticked(new Set());
@@ -127,7 +128,7 @@ function DraftCard({ edit }: { edit: EditView }) {
     const applied = status === 'applied';
     if (!remaining) return applied ? t('Applied to the tree.') : t('Sent for review.');
     return applied ? t('Applied to the tree. {n} left in the draft.', { n: remaining }) : t('Sent for review. {n} left in the draft.', { n: remaining });
-  });
+  }));
 
   return (
     <EditCard

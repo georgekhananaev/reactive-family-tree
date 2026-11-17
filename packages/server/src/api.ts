@@ -13,6 +13,7 @@ import type { App } from './app';
 import { dump, restore } from './backup';
 import type { SubmitResult } from './edits';
 import { HttpError, badRequest, forbidden, notFound, signInFirst } from './errors';
+import { fromThisSite, readWithin } from './request';
 import { deliverInvite } from './invites';
 import type { ConnectionInput, InviteInput, UserRow } from './members';
 import { roleOf } from './members';
@@ -22,7 +23,8 @@ import type { Settings } from './settings';
 import { translationsOf } from './translations';
 import { inLanguage, tell } from './words';
 
-const MAX_BODY = 12 * 1024 * 1024;
+/* The most a request may send: room for a member's import. A stranger has nothing that large to say, and a backup may be larger. */
+const MAX_BODY = 12 * 1024 * 1024, MAX_BODY_STRANGER = 256 * 1024, MAX_BACKUP = 64 * 1024 * 1024;
 
 type Body = Record<string, unknown>;
 
@@ -51,6 +53,8 @@ interface Route {
   keys: string[];
   guard: Guard;
   handler: Handler;
+  /* How much this route may be sent, where that is not the usual. */
+  maxBody?: number;
 }
 
 /* ---------- Who may call ---------- */
@@ -63,23 +67,9 @@ const owner: Guard = (ctx) => { member(ctx); if (ctx.actor.role !== 'owner') thr
 const json = (status: number, payload: unknown): Response =>
   new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
 
-/*
- * What was sent, as JSON. It is counted as it arrives and dropped the moment
- * it passes the limit, so that nobody can fill the server's memory by sending
- * something enormous.
- */
-async function readBody(request: Request): Promise<Body> {
-  if (request.method === 'GET' || !request.body) return {};
-  const tooLarge = () => new HttpError(413, 'That is too large to send.');
-  if (Number(request.headers.get('content-length')) > MAX_BODY) throw tooLarge();
-  const parts: Uint8Array[] = [];
-  let size = 0;
-  for await (const part of request.body as unknown as AsyncIterable<Uint8Array>) {
-    size += part.byteLength;
-    if (size > MAX_BODY) throw tooLarge();
-    parts.push(part);
-  }
-  const raw = Buffer.concat(parts).toString('utf8');
+/* What was sent, as JSON, and no more of it than `limit`. */
+async function readBody(request: Request, limit: number): Promise<Body> {
+  const raw = (await readWithin(request, limit))?.toString('utf8');
   if (!raw) return {};
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -92,10 +82,10 @@ async function readBody(request: Request): Promise<Body> {
 export function createApi(app: App): (request: Request) => Promise<Response> {
   const { config, store, members, edits, views, media, hub, door } = app;
   const routes: Route[] = [];
-  const on = (method: string, pattern: string, guard: Guard, handler: Handler) => {
+  const on = (method: string, pattern: string, guard: Guard, handler: Handler, maxBody?: number) => {
     const keys: string[] = [];
     const regex = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, key: string) => { keys.push(key); return '([^/]+)'; })}$`);
-    routes.push({ method, regex, keys, guard, handler });
+    routes.push({ method, regex, keys, guard, handler, maxBody });
   };
   const personName = (id: string | null, lang: Lang = store.settings.language) => { const found = id ? person(store.state, id) : null; return found ? fullName(found, lang) : null; };
   /* The family as it reads in one language, for a file that holds one: each person's words in it, or as they were written. */
@@ -106,6 +96,14 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
     memories: new Map([...store.state.memories].map(([key, memory]) => [key, worded(memory, TEXT_FIELDS.memories, lang)])),
   });
   const text = (value: unknown) => (typeof value === 'string' ? value : '');
+  /* One part of an address, as it was meant. A part that is not written the way addresses are leads nowhere. */
+  const partOf = (written: string): string => {
+    try {
+      return decodeURIComponent(written);
+    } catch {
+      throw notFound('There is nothing at that address.');
+    }
+  };
   const id = (ctx: Context) => ctx.params.id as string;
   const self = (ctx: Context) => ctx.user as UserRow;
 
@@ -238,7 +236,12 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
   /* ----- Members, invitations, branches ----- */
 
   on('GET', '/api/members', member, async (ctx): Promise<MembersInfo> => {
-    const everyone = (await members.members()).map((m) => ({ ...m, personName: personName(m.personId, ctx.lang), anchorNames: m.anchors.map((anchor) => personName(anchor, ctx.lang)) }));
+    // An admin reads who is who in full. To any other relative, someone kept private from them is not named as a member's leaf or branch.
+    const sees = isAdmin(ctx.actor) ? () => true : views.sees(ctx.actor);
+    const everyone = (await members.members()).map((m) => {
+      const personId = m.personId && sees(m.personId) ? m.personId : null, anchors = m.anchors.filter(sees);
+      return { ...m, personId, anchors, personName: personName(personId, ctx.lang), anchorNames: anchors.map((anchor) => personName(anchor, ctx.lang)) };
+    });
     if (!isAdmin(ctx.actor)) {
       // Relatives see who looks after what, and nothing about accounts
       return { members: everyone.map(({ email: _email, ai: _ai, ...rest }) => rest), invites: [], requests: [] };
@@ -283,7 +286,7 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
   on('PATCH', '/api/settings', admin, async (ctx) => {
     const patch: Partial<Settings> = {}, words: Record<string, string> = {};
     for (const [key, value] of Object.entries(ctx.body)) {
-      if (!(key in SETTING_RULES)) throw HttpError.filled(badRequest, 'There is no setting called "{key}".', { key });
+      if (!Object.hasOwn(SETTING_RULES, key)) throw HttpError.filled(badRequest, 'There is no setting called "{key}".', { key });
       const setting = key as keyof typeof SETTING_RULES;
       const kept = typeof value === 'string' ? value.trim() : value;
       // The family's words in another language than their own may be left empty: that takes the version away
@@ -338,12 +341,14 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
   });
   on('POST', '/api/import/backup', owner, async (ctx) => {
     await store.exclusive(async () => {
+      // What is about to be replaced is kept first, so that a wrong file is not the end of the family's own
+      await app.keepCopy();
       await restore(app.db, ctx.body.backup);
       await store.load();
     });
     hub.changed(store.seq);
     return { ok: true };
-  });
+  }, MAX_BACKUP);
 
   /* ----- First run, and the demo ----- */
 
@@ -368,7 +373,9 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
     return { personId: leaf };
   });
   on('POST', '/api/demo/reset', owner, async () => {
-    if (!config.demoMode) throw notFound();
+    // Only a tree the demo planted, which is known by its ready-made accounts. A real family's file is never wiped,
+    // even where an install was told by mistake that it is a demo.
+    if (!config.demoMode || !store.settings.demoAccounts.length) throw notFound();
     await resetDemo(app);
     return { ok: true };
   });
@@ -393,14 +400,11 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
       const asked = { asked: request.headers.get('x-language'), remembered: cookieOf(request.headers.get('cookie'), LANG_COOKIE), device: request.headers.get('accept-language') };
       lang = chooseLang(asked, lang);
       // A page on another site must not be able to act with this visitor's session
-      const origin = request.headers.get('origin');
-      // The page is this site if it comes from the address the request was sent to, or from the address the tree is known by.
-      // The second is for a proxy that passes requests on under a name of its own.
-      const hosts = [request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? url.host, new URL(config.baseUrl).host];
-      if (request.method !== 'GET' && origin && !hosts.includes(new URL(origin).host)) throw forbidden('Requests from other sites are not accepted.');
+      if (request.method !== 'GET' && !fromThisSite(request, config.baseUrl)) throw forbidden('Requests from other sites are not accepted.');
 
       const user = await app.userOf(request);
-      if (url.pathname === '/api/stream') return hub.stream(user?.id ?? null, request.signal);
+      // Only to a browser that asks to listen. Anything else would be handed a stream that nobody reads and nothing ever closes.
+      if (url.pathname === '/api/stream' && request.method === 'GET') return hub.stream(user?.id ?? null, request.signal);
 
       const route = routes.find((candidate) => candidate.method === request.method && candidate.regex.test(url.pathname));
       const match = route ? url.pathname.match(route.regex) : null;
@@ -410,11 +414,11 @@ export function createApi(app: App): (request: Request) => Promise<Response> {
       const actor = user ? await members.actorFor(user) : members.visitor();
       const ctx: Context = {
         request, user, body: {}, query: url.searchParams, lang, actor: { ...actor, lang },
-        params: Object.fromEntries(route.keys.map((key, index) => [key, decodeURIComponent(match[index + 1] ?? '')])),
+        params: Object.fromEntries(route.keys.map((key, index) => [key, partOf(match[index + 1] ?? '')])),
       };
       // Who may ask comes before what they sent: something sent to an address its sender may not use is turned away unread
       route.guard(ctx);
-      ctx.body = await readBody(request);
+      ctx.body = await readBody(request, route.maxBody ?? (user ? MAX_BODY : MAX_BODY_STRANGER));
       const result = await route.handler(ctx);
       if (result instanceof Response) return result;
       if (result && typeof result === 'object' && 'download' in result) {

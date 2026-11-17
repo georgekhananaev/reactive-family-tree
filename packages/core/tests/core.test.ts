@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
-import { formatDate, fromGedcom, parseDate, sortKey, toGedcom, yearOf } from '../src/dates';
+import { DATE_TEXT_MAX, formatDate, fromGedcom, isValidDate, latestYearOf, parseDate, sortKey, toGedcom, yearOf } from '../src/dates';
 import { emptyState, fullName, indexOf, namesOf, scopeOf } from '../src/graph';
+import { isLiving, viewOf } from '../src/privacy';
 import { isStale, languagesOf, readIn, textOf, writtenIn } from '../src/text';
 import { describeKinship, stepWord } from '../src/kinship';
 import { cookieOf, listed, pickLang, sayFrom } from '../src/lang';
@@ -176,6 +177,49 @@ test('operations refuse nonsense and name what was wrong', () => {
   assert.equal(codeOf([{ type: 'child.link', union: '$nothing', child: id.zed }]), 'unknown_reference');
   assert.equal(codeOf([{ type: 'person.update', person: id.zed, set: { portrait: '../../etc/passwd' } }]), 'bad_value', 'a photo is named by its id and nothing else');
   assert.equal(codeOf([{ type: 'launch.rocket' }]), 'unknown_operation');
+});
+
+test('a date holds what its kind says and nothing else, and is never longer than a date can be', () => {
+  for (const good of [null, { kind: 'exact', from: '1921-03-04' }, { kind: 'between', from: '1910', to: '1935' }, { kind: 'text', text: 'before the war' }]) assert.ok(isValidDate(good), JSON.stringify(good));
+  // Something sent along beside a date would be kept with it, whatever its size or shape
+  let deep: unknown = 'bottom';
+  for (let level = 0; level < 5000; level++) deep = [deep];
+  for (const bad of [
+    { kind: 'text', text: 'x', padding: deep }, { kind: 'exact', from: '1921', note: 'x' }, { kind: 'exact', from: '1921', to: '1930' },
+    { kind: 'between', from: '1910', to: '1935', text: 'x' }, { kind: 'text', text: 'x'.repeat(DATE_TEXT_MAX + 1) }, { kind: 'text', text: '' },
+    [{ kind: 'exact', from: '1921' }], 'yesterday', 1921,
+  ]) assert.equal(isValidDate(bad), false, JSON.stringify(bad)?.slice(0, 60));
+  const { state, env, id } = smallFamily();
+  assert.throws(() => applyOps(state, [{ type: 'fact.add', subject: { type: 'person', id: id.zed }, set: { type: 'birth', date: { kind: 'text', text: 'x', padding: deep } } }] as unknown as Op[], env), OpError);
+
+  // A line far longer than any date is kept as words, cut to what a date may hold, and is not tried as a date: that would take minutes
+  const started = Date.now();
+  const long = parseDate(`x${' '.repeat(400_000)}y`);
+  assert.ok(Date.now() - started < 1000, 'read at once');
+  assert.ok(long?.kind === 'text' && long.text.length === DATE_TEXT_MAX && isValidDate(long));
+  assert.deepEqual(parseDate('between 1910 and 1935'), { kind: 'between', from: '1910', to: '1935' }, 'and a date of ordinary length is read as before');
+});
+
+test('someone whose birth is not known to the year is taken to be living for as long as they may be', () => {
+  assert.deepEqual(['1921', 'about 1921', 'before 1921', 'between 1910 and 1935', '1935 or 1910', 'after 1910', 'before the war'].map((typed) => latestYearOf(parseDate(typed))), [1921, 1921, 1921, 1935, 1935, 1940, null]);
+  assert.equal(latestYearOf(null), null);
+
+  const { state, env, id } = smallFamily();
+  const born = (who: string, typed: string): Op => ({ type: 'fact.add', subject: { type: 'person', id: who }, set: { type: 'birth', date: parseDate(typed) } });
+  // Zed may have been born as late as 1935, and Ben a generation after 1900. Gran is known only by a child who may be young yet.
+  applyOps(state, [born(id.zed, 'between 1900 and 1935'), born(id.ben, 'after 1900'), born(id.anna, 'between 1890 and 1960')], env);
+  const ix = indexOf(state);
+  const living = (who: string) => isLiving(state, ix, state.people.get(who)!, SETTINGS, 2026);
+  assert.deepEqual([living(id.zed), living(id.ben), living(id.anna), living(id.gran)], [true, true, true, true]);
+  const stranger: Actor = { userId: null, name: 'Visitor', role: null, personId: null, anchors: [], visitor: true };
+  const seen = (who: string) => viewOf(state, ix, stranger, scopeOf(state, ix, []), state.people.get(who)!, SETTINGS, 2026);
+  assert.deepEqual([seen(id.zed), seen(id.ben), seen(id.gran)], ['masked', 'masked', 'masked'], 'so a stranger is not told who they are');
+
+  // Once even the latest year is long enough ago, they are taken to have died, as before
+  const old = smallFamily();
+  applyOps(old.state, [born(old.id.zed, 'between 1850 and 1900'), born(old.id.ben, 'after 1850'), born(old.id.anna, 'between 1890 and 1900')], old.env);
+  const oldIx = indexOf(old.state);
+  assert.deepEqual([old.id.zed, old.id.ben, old.id.gran].map((who) => isLiving(old.state, oldIx, old.state.people.get(who)!, SETTINGS, 2026)), [false, false, false]);
 });
 
 test('relationships are named the way a family would say them', () => {

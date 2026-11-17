@@ -134,6 +134,30 @@ test('every edit can be undone, and undo refuses to trample later changes', asyn
   expect(history.filter((e) => e.message.startsWith('Undo')).length).toBe(2);
 });
 
+test('undo is checked as any edit is, and refuses to leave a family that cannot be', async () => {
+  const helen = browser(demo.app);
+  await helen.signInAs('helen');
+  interface Drawn { id: string; host: string | null; children: { id: string }[] }
+  const unions: Drawn[] = (await helen.get('/api/tree')).data.unions;
+  const hosts = (id: string) => unions.find((union) => union.host === id);
+  // A parent, and a child of theirs who has a family of their own
+  const older = unions.find((union) => union.host && union.children.some((child) => hosts(child.id))) as Drawn;
+  const child = (older.children.find((found) => hosts(found.id)) as { id: string }).id;
+  const younger = (hosts(child) as Drawn).id;
+
+  // The child is taken off the parent, and the parent then put down as the child's child. Each fits the family as it stood.
+  const unlinked = await helen.edit([{ type: 'child.unlink', union: older.id, child }]);
+  const turned = await helen.edit([{ type: 'child.link', union: younger, child: older.host as string }]);
+  expect([unlinked.data.status, turned.data.status]).toEqual(['applied', 'applied']);
+  // Undoing the first would now make each the other's ancestor
+  const undone = await helen.post(`/api/edits/${unlinked.data.editId}/revert`);
+  expect(undone.status).toBe(422);
+  expect(undone.data.error).toMatch(/own ancestor/);
+  // In the right order, both are undone
+  expect((await helen.post(`/api/edits/${turned.data.editId}/revert`)).data.status).toBe('applied');
+  expect((await helen.post(`/api/edits/${unlinked.data.editId}/revert`)).data.status).toBe('applied');
+});
+
 test('edits that break the family are refused with a reason', async () => {
   const peter = browser(demo.app);
   await peter.signInAs('peter');
@@ -162,8 +186,12 @@ test('only a living person can make themselves public', async () => {
   expect((await sophie.edit([{ type: 'person.update', person: sophieId, set: { privacy: 'public' } }])).data.status).toBe('applied');
   expect((await visitor.get(`/api/people/${sophieId}`)).data.name).toBe('Sophie Stein');
 
-  await sophie.edit([{ type: 'person.update', person: sophieId, set: { privacy: 'default' } }]);
+  const back = await sophie.edit([{ type: 'person.update', person: sophieId, set: { privacy: 'default' } }]);
   expect((await visitor.get(`/api/people/${sophieId}`)).status, 'consent ends when she changes her mind').toBe(404);
+  // Nobody else can make the choice for her again by undoing the edit that took it back
+  const undone = await helen.post(`/api/edits/${back.data.editId}/revert`);
+  expect([undone.status, undone.data.error]).toEqual([403, 'Only a living person can choose to be public, from their own account.']);
+  expect((await visitor.get(`/api/people/${sophieId}`)).status).toBe(404);
   await helen.patch('/api/settings', { visibility: 'public_masked' });
 });
 
@@ -515,6 +543,11 @@ test('history and search keep to what each relative may see', async () => {
   const listed = (await sophie.get(`/api/edits?which=activity&person=${leo}`)).data.edits;
   expect(listed.length).toBeGreaterThan(0);
   expect(JSON.stringify([theirs.data, listed])).not.toMatch(/Hiddenham|2008/);
+  // Nor does trying a change out give the year away. That it does not fit is said, without the birth that was worked out from.
+  const tooEarly: Op[] = [{ type: 'fact.add', subject: { type: 'person', id: leo }, set: { type: 'death', date: { kind: 'exact', from: '1900' } } }];
+  const tried = await sophie.edit(tooEarly, { mode: 'dry' });
+  expect([tried.status, tried.data.error]).toEqual([422, 'That change does not fit the family as it is recorded.']);
+  expect((await nora.edit(tooEarly, { mode: 'dry' })).data.error, 'whoever may see his birth is told what is wrong').toMatch(/2008/);
 
   // A whole person can be private. Then their history is not for other relatives to read at all.
   const tess = demo.idOf('Tess');
@@ -523,6 +556,15 @@ test('history and search keep to what each relative may see', async () => {
   expect((await sophie.get(`/api/edits?which=activity&person=${tess}`)).status).toBe(404);
   expect((await sophie.get(`/api/edits/${about.editId}`)).status).toBe(404);
   expect((await helen.get(`/api/edits/${about.editId}`)).data.lines[0].text).toContain('Tess');
+  // Writing a change to someone does not show them. A cousin who has her id reads back her own words, and nothing the tree knows beside them.
+  const blind = (await sophie.edit([{ type: 'person.update', person: tess, set: { bio: 'A guess.' } }])).data;
+  expect(blind.status).toBe('suggested');
+  const reread = (await sophie.get(`/api/edits/${blind.editId}`)).data;
+  expect(JSON.stringify([blind, reread])).not.toMatch(/Tess|walled garden/);
+  expect([blind.edit.touched, reread.lines[0].fields], 'not who it is, nor how her story read before').toEqual([[], [{ field: 'bio', to: 'A guess.' }]]);
+  const reviewed = JSON.stringify((await helen.get(`/api/edits/${blind.editId}`)).data);
+  expect([reviewed.includes('Tess'), reviewed.includes('walled garden')], 'whoever decides it reads it whole').toEqual([true, true]);
+  expect((await sophie.post(`/api/edits/${blind.editId}/withdraw`)).status).toBe(200);
   // Where she is one of several people in an edit, she is there without her name
   const everyone = (await sophie.get(`/api/edits?which=activity&person=${leo}`)).data.edits;
   expect(JSON.stringify(everyone)).not.toMatch(/Tess|walled garden/);
@@ -586,6 +628,15 @@ test('a photo follows its person: who may add it, who may see it, and when it go
   expect(await demo.app.media.sweep()).toBe(1);
   expect([await demo.app.media.has(spare), await demo.app.media.has(photo)]).toEqual([false, true]);
   expect(await demo.app.media.read(spare)).toBeNull();
+  // One only just taken off someone is kept however old the picture is: undoing that edit needs it again
+  const older: string = (await nora.post('/api/media', { image: Buffer.from(phonePhoto(320, 320, 4)).toString('base64') })).data.id;
+  await nora.edit([{ type: 'person.update', person: leo, set: { portrait: older } }]);
+  const takenOff = (await nora.edit([{ type: 'person.update', person: leo, set: { portrait: null } }])).data;
+  await demo.app.db.update(media).set({ createdAt: '2020-01-01T00:00:00.000Z' });
+  expect(await demo.app.media.sweep()).toBe(0);
+  expect((await nora.post(`/api/edits/${takenOff.editId}/revert`)).data.status).toBe('applied');
+  expect((await sophie.get(`/api/people/${leo}/portrait`)).status, 'and the photo is there to come back to').toBe(200);
+  await nora.edit([{ type: 'person.update', person: leo, set: { portrait: null } }]);
 
   // A person removed for good takes their photo with them
   const kid = (await helen.edit([{ type: 'person.create', ref: '$kid', set: { given: 'Briefly', living: 'no' } }])).data.created.$kid as string;

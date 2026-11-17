@@ -23,6 +23,11 @@ export class Hub {
     let detach = () => {};
     const body = new ReadableStream<Uint8Array>({
       start: (controller) => {
+        // A browser that left before its stream began will not be heard leaving, so it is never taken on
+        if (signal?.aborted) {
+          controller.close();
+          return;
+        }
         const write = (text: string) => {
           try {
             controller.enqueue(encoder.encode(text));

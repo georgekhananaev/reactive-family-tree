@@ -36,6 +36,8 @@ async function call<T>(method: string, path: string, body?: unknown, lang: strin
   } catch {
     throw new ApiError(0, words('The server cannot be reached. Check that it is still running.'));
   }
+  // Counted from the answer as well: on a slow connection the change comes back long after it was sent
+  if (method !== 'GET') activity.lastWrite = Date.now();
   const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string; details?: unknown };
   if (!response.ok) throw new ApiError(response.status, data.error ?? data.message ?? words('Something went wrong.'), data.details);
   return data as T;

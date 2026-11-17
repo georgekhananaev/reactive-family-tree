@@ -207,3 +207,17 @@ test('in a running tree the link, the request to join and the suggestion all go 
     demo.close();
   }
 });
+
+test('a sender on the newer kind of network is counted by its block of addresses, not by each one', async () => {
+  const door = createDoor({});
+  // One sender holds the whole block and writes from a new address every time
+  expect(await answers(7, (nth) => door.admit('join', from(`2001:db8:1:2::${(nth + 1).toString(16)}`)))).toEqual([...all(5, 200), 429, 429]);
+  // The same block however it is written out
+  expect(await status(door.admit('join', from('2001:0db8:0001:0002:aaaa:bbbb:cccc:dddd')))).toBe(429);
+  // Another block is another sender
+  expect(await status(door.admit('join', from('2001:db8:1:3::1')))).toBe(200);
+  // An older address written the newer way is the same sender as when it is written the old way
+  expect(await answers(6, (nth) => door.admit('join', from(nth % 2 ? '::ffff:203.0.113.9' : '203.0.113.9')))).toEqual([...all(5, 200), 429]);
+  // And its letters are counted for the block too
+  expect(await answers(4, (nth) => door.admit('link', from(`2001:db8:9:9::${nth + 1}`), 'nora@marlow.example'))).toEqual([...all(3, 200), 429]);
+});

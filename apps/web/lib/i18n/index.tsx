@@ -50,6 +50,8 @@ const LanguageContext = createContext<Language | null>(null);
 
 /* How long a browser remembers the language it chose: a year. */
 const REMEMBERED = 60 * 60 * 24 * 365;
+/* Keep the choice in this browser, where the server reads it when it next draws a page. */
+export const rememberLanguage = (lang: Lang): void => { document.cookie = `${LANG_COOKIE}=${lang}; path=/; max-age=${REMEMBERED}; samesite=lax`; };
 
 export function LanguageProvider({ lang: first, book: firstBook, children }: { lang: Lang; book: Book | null; children: ReactNode }) {
   const [{ lang, book }, setShown] = useState({ lang: first, book: firstBook });
@@ -59,7 +61,7 @@ export function LanguageProvider({ lang: first, book: firstBook, children }: { l
 
   const choose = useCallback(async (next: Lang, { signedIn = false } = {}) => {
     const nextBook = await bookFor(next);
-    document.cookie = `${LANG_COOKIE}=${next}; path=/; max-age=${REMEMBERED}; samesite=lax`;
+    rememberLanguage(next);
     document.documentElement.lang = next;
     document.documentElement.dir = directionOf(next);
     speakTo(next, (english) => sayFrom(nextBook, next, english));

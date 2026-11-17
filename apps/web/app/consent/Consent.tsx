@@ -4,6 +4,7 @@ import type { SessionInfo } from '@reactive-family-tree/core';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { SessionWait } from '@/components/SessionWait';
 import { api, messageOf } from '@/lib/api';
 import { answerConsent, clientName } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n';
@@ -41,7 +42,7 @@ export function Consent() {
   };
 
   const user = session.data?.user;
-  if (!session.data) return <p className="lead">{t('One moment…')}</p>;
+  if (!session.data) return <SessionWait failed={session.isError} onRetry={() => void session.refetch()} />;
   if (!user) return <p>{t('Sign in first.')} <a href={`/sign-in${typeof location === 'undefined' ? '' : location.search}`}>{t('Go to sign in')}</a></p>;
   return (
     <>

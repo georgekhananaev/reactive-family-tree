@@ -12,6 +12,7 @@ import { Fragment, useState } from 'react';
 
 import { api } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
+import { useSingle } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
 import type { WebPhrase } from '@/lib/i18n';
 
@@ -113,7 +114,7 @@ function NewConnection({ onCreated }: { onCreated(fresh: Fresh): void }) {
   const [name, setName] = useState('');
   const [mode, setMode] = useState<ConnectionMode>('review_first');
   const [access, setAccess] = useState<ConnectionAccess>('write');
-  const create = async () => {
+  const create = useSingle(async () => {
     try {
       const created = await api.post<{ token: string }>('/api/connections', { name, mode, access });
       onCreated({ name, token: created.token });
@@ -124,7 +125,7 @@ function NewConnection({ onCreated }: { onCreated(fresh: Fresh): void }) {
     } catch (error) {
       app.fail(error);
     }
-  };
+  });
 
   return (
     <>

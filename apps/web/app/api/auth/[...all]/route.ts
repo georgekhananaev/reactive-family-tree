@@ -4,7 +4,7 @@ import { getApp } from '@/lib/server';
 
 async function handle(request: Request): Promise<Response> {
   const app = await getApp();
-  return app.auth.handler(request);
+  return app.signIn(request);
 }
 
 export { handle as GET, handle as POST };

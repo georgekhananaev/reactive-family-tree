@@ -30,7 +30,9 @@ const WRITES: ToolKind = { writes: true };
 const REMOVES: ToolKind = { writes: true, destructive: true };
 const ADMIN_WRITES: ToolKind = { writes: true, admin: true };
 
-const text = (description: string) => z.string().describe(description);
+/* No text on the tree is longer than a life story, so nothing longer is taken in to be read. */
+const TEXT_AT_MOST = 20_000;
+const text = (description: string) => z.string().max(TEXT_AT_MOST).describe(description);
 const personId = text('The id of a person, from search_people or get_family.');
 const DETAILS = {
   given: text('Given name(s).'),
@@ -89,9 +91,11 @@ export function registerTools(server: McpServer, app: App, { actor, connection }
 
   /* ---------- Helpers the tools share ---------- */
 
+  // Someone the member may not see is, to their AI, not on the tree: an id alone must not be enough to be told who it is
+  let seen: ((id: string) => boolean) | null = null;
   const need = (id: string): Person => {
     const found = person(state, id);
-    if (!found) throw badRequest(`Nobody on the tree has the id "${id}". Use search_people to find people.`);
+    if (!found || !(seen ??= views.sees(actor))(id)) throw badRequest(`Nobody on the tree has the id "${id}". Use search_people to find people.`);
     return found;
   };
   const family = (): FamilyLookup => {

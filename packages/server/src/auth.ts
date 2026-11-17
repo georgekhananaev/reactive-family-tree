@@ -161,7 +161,18 @@ export function createAuth({ db, config, secret, mailer, door, family, onLink }:
     baseURL: baseUrl,
     secret,
     database: drizzleAdapter(db, { provider: 'sqlite', schema }),
-    session: { expiresIn: SESSION_DAYS * 86400, updateAge: 86400 },
+    session: {
+      expiresIn: SESSION_DAYS * 86400,
+      updateAge: 86400,
+      // A session ends when it was said to. Left to renew itself, one that is in use would never end on the server,
+      // though the browser forgets it on the day all the same.
+      disableSessionRefresh: true,
+      // A passkey can be added for as long as the session lasts. The library would otherwise refuse a day after
+      // signing in, and all the member would be told is that no passkey was made.
+      freshAge: SESSION_DAYS * 86400,
+    },
+    // Nothing here lets a member change the name on their account, and what they suggest, write and invite is signed with it
+    disabledPaths: ['/update-user'],
     user: {
       additionalFields: {
         role: { type: 'string', defaultValue: 'member', input: false },

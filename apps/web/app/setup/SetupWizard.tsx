@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { SessionWait } from '@/components/SessionWait';
 import { Field, pickFile } from '@/components/ui';
 import { api, messageOf } from '@/lib/api';
 import { OWN_CHOICE } from '@/lib/appearance';
@@ -69,7 +70,7 @@ export function SetupWizard() {
   };
   const finish = () => location.assign('/');
 
-  if (!session.data) return <p className="lead">{t('One moment…')}</p>;
+  if (!session.data) return <SessionWait failed={session.isError} onRetry={() => void session.refetch()} />;
   const { user, needsSetup } = session.data;
   const claimed = user?.role === 'owner';
   if (!needsSetup && !claimed) {

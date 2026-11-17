@@ -171,6 +171,8 @@
   --slide: 0.36s cubic-bezier(0.2, 0.9, 0.3, 1);
   position: absolute;
   inset: 0;
+  /* The drawing is laid out from the left whatever way the page around it is read */
+  direction: ltr;
   overflow: hidden;
   touch-action: none;
   user-select: none;
@@ -671,4 +673,7 @@
 .still .unfurl { transform: none; transition: none; }
 .still .blade, .still .branch { transition: none; }
 .still .label { transition: none; }
+/* The sun, the moon and the year in the sky change places by fading, without the slide */
+.still .only-light, .still .only-dark { transition: opacity 2s ease-in-out; }
+.still .year-ghost { transition: opacity 0.7s; }
 .still .handle, .still .pulse { animation: none !important; }

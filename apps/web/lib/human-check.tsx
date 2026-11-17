@@ -84,11 +84,13 @@ export function useHumanCheck(siteKey: string | null): HumanCheck {
       const finish = (answer: () => void) => {
         clearTimeout(patience);
         clearInterval(looking);
-        waiting.current = null;
+        // Only its own place: a later check may be waiting there by now
+        if (waiting.current === mine) waiting.current = null;
         answer();
       };
       const patience = setTimeout(() => finish(() => reject(refused)), PATIENCE);
-      waiting.current = { proven: (proof) => finish(() => resolve(proof)), failed: () => finish(() => reject(refused)) };
+      const mine = { proven: (proof: string) => finish(() => resolve(proof)), failed: () => finish(() => reject(refused)) };
+      waiting.current = mine;
       // A proof is good once only, so the check is run afresh each time
       const run = (): boolean => {
         draw();

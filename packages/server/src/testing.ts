@@ -104,7 +104,7 @@ export function browser(app: App, from?: string, speaks?: string): Browser {
     if (cookies.size) headers.set('cookie', [...cookies].map(([name, value]) => `${name}=${value}`).join('; '));
     const request = new Request(BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
     // Signing in belongs to the sign-in library, everything else to the web API
-    const response = await (path.startsWith('/api/auth/') ? app.auth.handler(request) : app.handle(request));
+    const response = await (path.startsWith('/api/auth/') ? app.signIn(request) : app.handle(request));
     for (const line of response.headers.getSetCookie()) {
       const [pair = ''] = line.split(';');
       const at = pair.indexOf('=');

@@ -598,7 +598,12 @@ export class TreeMusic {
     this.master.gain.setTargetAtTime(LEVEL, now, 0.5);
     // While it rested the clock may have run on: carry on from now, and do not hurry through what was missed
     if (part.next < now + 0.15) part.next = now + 0.15;
-    this.timer = setInterval(() => this.fill(ctx.currentTime + AHEAD), 100);
+    this.timer = setInterval(() => {
+      // A page held up for a moment falls behind the clock. As after a rest, it carries on from now and does not play all it missed at once.
+      const at = ctx.currentTime, playing = this.parts[this.mood];
+      if (playing.next < at) playing.next = at + 0.05;
+      this.fill(at + AHEAD);
+    }, 100);
     this.fill(now + AHEAD);
   }
 

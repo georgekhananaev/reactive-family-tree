@@ -56,6 +56,12 @@ test('a fresh install is claimed once, by whoever holds the setup link', async (
   // From here it is an ordinary tree: the owner adds a child
   const added = (await ana.edit([{ type: 'person.create', ref: '$kid', set: { given: 'Leo', family: 'Reyes', living: 'yes' } }])).data;
   expect(added.status).toBe('applied');
+
+  // A real family is never wiped as a demo, even on an install that was told by mistake that it is one
+  fresh.app.config.demoMode = true;
+  expect((await ana.post('/api/demo/reset')).status, 'there is no demo here to start again').toBe(404);
+  fresh.app.config.demoMode = false;
+  expect((await ana.get('/api/tree')).data.people.map((p: { given: string }) => p.given).sort(), 'the family is as it was').toEqual(['Ana', 'Leo']);
 });
 
 test('a tree that is new is private until its owner decides otherwise', async () => {

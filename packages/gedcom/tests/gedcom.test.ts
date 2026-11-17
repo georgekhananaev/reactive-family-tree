@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
-import { applyOps, bornYear, cloneState, diedYear, emptyState, fullName, indexOf, parseDate, validate } from '@reactive-family-tree/core';
+import { applyOps, bornYear, cloneState, diedYear, emptyState, fullName, indexOf, isValidDate, parseDate, validate } from '@reactive-family-tree/core';
 import type { Op, OpEnv, PersonFields, State } from '@reactive-family-tree/core';
 
 import { exportGedcom, importGedcom } from '../src/index';
@@ -108,4 +108,23 @@ test('a file from other software is read as far as it is understood', () => {
     { type: 'child.link', union: '$f_F1', child: '$i_I2', kind: 'adopted' },
   ]);
   assert.throws(() => importGedcom('This is not a family tree.'), /No people were found in that file/);
+});
+
+test('a large file is read at once, and a remark where a date belongs does not turn the whole file away', () => {
+  const people = 6000;
+  const lines = ['0 HEAD', '0 @I1@ INDI', '1 NAME Founder /Many/', '1 FAMS @F1@', '1 BIRT', `2 DATE (${'a long remark '.repeat(40)})`, '1 DEAT', '2 DATE ()'];
+  for (let n = 2; n <= people; n++) lines.push(`0 @I${n}@ INDI`, `1 NAME Child${n} /Many/`, '1 FAMC @F1@');
+  lines.push('0 @F1@ FAM', '1 HUSB @I1@', ...Array.from({ length: people - 1 }, (_, n) => `1 CHIL @I${n + 2}@`), '0 TRLR');
+
+  const started = Date.now();
+  const found = importGedcom(lines.join('\n'));
+  assert.ok(Date.now() - started < 2000, 'every child is looked up, not searched for among everyone');
+  assert.equal(found.people, people);
+  assert.equal(found.ops.filter((op) => op.type === 'child.link').length, people - 1);
+
+  // The remark is kept as words, as many as a date may hold, and empty brackets say nothing
+  const facts = found.ops.filter((op) => op.type === 'fact.add');
+  assert.equal(facts.length, 1);
+  const date = (facts[0] as Extract<Op, { type: 'fact.add' }>).set?.date;
+  assert.ok(date?.kind === 'text' && date.text.startsWith('a long remark') && isValidDate(date));
 });

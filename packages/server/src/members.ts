@@ -191,10 +191,20 @@ export class Members {
     if (!address.includes('@')) throw badRequest('Enter your email address.');
     if (!String(name ?? '').trim()) throw badRequest('Enter your name.');
     if (await this.userByEmail(address)) throw badRequest('There is already an account with that email. Sign in instead.');
-    const created = await this.createUser({ name: String(name).trim(), email: address, role: found.role, personId: found.personId });
-    if (found.personId && found.grantBranch) await this.addGrant(created.id, found.personId, found.createdBy);
-    await this.db.update(invite).set({ usedAt: now() }).where(eq(invite.id, found.id));
-    return created;
+    // Taken before the account is made, and only if nobody took it first: two who open one invitation at the same moment are not both let in
+    const [taken] = await this.db.update(invite).set({ usedAt: now() }).where(and(eq(invite.id, found.id), isNull(invite.usedAt))).returning({ id: invite.id });
+    if (!taken) throw badRequest('That invitation has expired or was already used.');
+    try {
+      // Someone invited as a person who has since left the tree still comes in, as a member with no leaf and no branch
+      const leaf = found.personId && person(this.store.state, found.personId) ? found.personId : null;
+      const created = await this.createUser({ name: String(name).trim(), email: address, role: found.role, personId: leaf });
+      if (leaf && found.grantBranch) await this.addGrant(created.id, leaf, found.createdBy);
+      return created;
+    } catch (error) {
+      // No account came of it, so the invitation is still good
+      await this.db.update(invite).set({ usedAt: null }).where(eq(invite.id, found.id));
+      throw error;
+    }
   }
 
   async openInvites(): Promise<InviteRow[]> {

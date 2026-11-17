@@ -4,7 +4,7 @@
  * an identical copy of the backup.
  */
 
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { Database, InStatement } from '@reactive-family-tree/db';
@@ -20,6 +20,8 @@ const KEPT = ['person', 'family_union', 'union_partner', 'union_child', 'fact', 
 const DROPPED = ['session', 'verification', 'oauthAccessToken', 'oauthRefreshToken', 'oauthConsent', 'oauthClientResource', 'oauthClient', 'oauthClientAssertion'];
 /* Kept by this install for itself. They never leave in a backup and are never overwritten by one. */
 const OWN_META = ['auth_secret', 'setup_token_hash'];
+/* What a table holds that is a key to somewhere else: here, what Google handed over when a member signed in with it. A backup carries none of it. */
+const KEYS: Readonly<Record<string, readonly string[]>> = { account: ['accessToken', 'refreshToken', 'idToken'] };
 
 type Row = Record<string, unknown>;
 
@@ -31,12 +33,16 @@ export interface Backup {
 }
 
 export async function dump(db: Database): Promise<Backup> {
+  // Read in one go, so every table is of the same moment: an edit that lands meanwhile is in all of them or in none
+  const results = await db.$client.batch(KEPT.map((table) => `SELECT * FROM "${table}"`), 'read');
   const tables: Record<string, Row[]> = {};
-  for (const table of KEPT) {
-    const result = await db.$client.execute(`SELECT * FROM "${table}"`);
-    const rows = result.rows.map((row) => Object.fromEntries(result.columns.map((column) => [column, row[column]])));
+  KEPT.forEach((table, index) => {
+    const result = results[index];
+    if (!result) return;
+    const keys = KEYS[table] ?? [];
+    const rows = result.rows.map((row) => Object.fromEntries(result.columns.map((column) => [column, keys.includes(column) ? null : row[column]])));
     tables[table] = table === 'meta' ? rows.filter((row) => !OWN_META.includes(String(row.key))) : rows;
-  }
+  });
   return { format: FORMAT, version: VERSION, madeAt: new Date().toISOString(), tables };
 }
 
@@ -67,14 +73,29 @@ export async function restore(db: Database, backup: unknown): Promise<void> {
   await client.batch(statements, 'write');
 }
 
-const SNAPSHOTS_KEPT = 14;
+/*
+ * The copies kept beside the database, and how many of each. The nightly one
+ * is named for its day. The one made before a restore is named to the second,
+ * so that the night's own never writes over it.
+ */
+const COPIES = {
+  snapshot: { kept: 14, named: /^snapshot-\d{4}-\d{2}-\d{2}\.json$/, stamp: (at: string) => at.slice(0, 10) },
+  'before-restore': { kept: 5, named: /^before-restore-[\dT-]+\.json$/, stamp: (at: string) => at.slice(0, 19).replaceAll(':', '-') },
+} as const;
+const UNFINISHED = '.part';
 
-/* The nightly snapshot: a full backup written beside the database, keeping the last fourteen. */
-export async function writeSnapshot(db: Database, folder: string): Promise<string> {
+/* A full backup written beside the database: the nightly snapshot, or the family as it stood before a restore replaced it. */
+export async function writeSnapshot(db: Database, folder: string, kind: keyof typeof COPIES = 'snapshot'): Promise<string> {
+  const { kept, named, stamp } = COPIES[kind];
   mkdirSync(folder, { recursive: true });
-  const name = `snapshot-${new Date().toISOString().slice(0, 10)}.json`;
-  writeFileSync(join(folder, name), JSON.stringify(await dump(db)));
-  const old = readdirSync(folder).filter((file) => /^snapshot-\d{4}-\d{2}-\d{2}\.json$/.test(file)).sort().slice(0, -SNAPSHOTS_KEPT);
+  const name = `${kind}-${stamp(new Date().toISOString())}.json`;
+  // Written under another name first, so that a file with a copy's name is always a whole one, even where the disk filled or
+  // the server stopped half way. One left over from such a time goes now.
+  for (const file of readdirSync(folder)) if (file.endsWith(UNFINISHED)) rmSync(join(folder, file));
+  const unfinished = join(folder, name + UNFINISHED);
+  writeFileSync(unfinished, JSON.stringify(await dump(db)));
+  renameSync(unfinished, join(folder, name));
+  const old = readdirSync(folder).filter((file) => named.test(file)).sort().slice(0, -kept);
   for (const file of old) rmSync(join(folder, file));
   return name;
 }

@@ -5,11 +5,11 @@
  */
 
 import {
-  ADDITIVE, LANGS, TEXT_FIELDS, applyOps, birthUnions, bornYear, childrenOf, cloneState, factVisible, factsOf, formatDate, fullName, hostOf, indexOf,
+  ADDITIVE, DATED_ISSUES, LANGS, TEXT_FIELDS, applyOps, birthUnions, bornYear, childrenOf, cloneState, factVisible, factsOf, formatDate, fullName, hostOf, indexOf,
   isAdmin, isLiving, issueText, livingChildren, livingPartners, parentsOf, partnersOf, pathBetween, person, present, say, scopeOf, textOf, unionsOf, validate, viewOf, wordsOf, writtenIn, yearOf,
 } from '@reactive-family-tree/core';
 import type {
-  Actor, Change, Fact, FactType, HealthEntry, HealthReport, Lang, PendingMark, Person, PersonDetail, Reach, Relationship, RelativeBrief, Scope, SearchHit, State, TreePerson, TreeSnapshot,
+  Actor, Change, Fact, FactType, HealthEntry, HealthReport, Issue, Lang, PendingMark, Person, PersonDetail, Reach, Relationship, RelativeBrief, Scope, SearchHit, State, TreePerson, TreeSnapshot,
   TreeUnion,
 } from '@reactive-family-tree/core';
 
@@ -77,6 +77,15 @@ export class Views {
     return actor.visitor && this.settings.visibility === 'private';
   }
 
+  /* Whether this viewer may see someone as who they are. Made once and asked for many, since it indexes the family. */
+  sees(actor: Actor): (id: string) => boolean {
+    const lens = this.lens(actor), state = this.state;
+    return (id) => {
+      const known = person(state, id);
+      return Boolean(known) && !this.closedTo(actor) && lens.view(known as Person) === 'full';
+    };
+  }
+
   /*
    * The family with the additions of pending edits drawn in, so a suggested
    * or drafted person can appear on the tree in pencil for those who may see it.
@@ -87,9 +96,9 @@ export class Views {
     for (const edit of await this.edits.pendingFor(actor)) {
       if (!edit.ops.some((op) => op.type === 'person.create')) continue;
       const additions = edit.ops.filter((op) => ADDITIVE.has(op.type) && (op.type !== 'fact.add' || String(op.subject?.id).startsWith('$')));
-      const attempt = cloneState(state);
       let counter = 0;
       try {
+        const attempt = cloneState(state);
         const env = { newId: (prefix: string) => `${prefix}_pending_${edit.id}_${counter++}`, now: edit.createdAt, userId: edit.authorUserId, userName: edit.authorName };
         const { changes } = applyOps(attempt, additions, env);
         for (const change of changes) {
@@ -298,6 +307,9 @@ export class Views {
     const entry = (p: Person): HealthEntry => ({ id: p.id, name: fullName(p, lang), detail: '' });
 
     const seen = (id: string): boolean => { const other = person(state, id); return !other || lens.view(other) === 'full'; };
+    // An issue that says a year or an age says it from a birth or a death, and either can be kept from someone who may see the person
+    const dated = (id: string): boolean => factsOf(ix, id).every((known) => (known.type !== 'birth' && known.type !== 'death') || factVisible(actor, lens.scope, known, id));
+    const told = (issue: Issue): boolean => (issue.people ?? []).every(seen) && (!DATED_ISSUES.has(issue.code) || (issue.people ?? []).every(dated));
     const everyone: Change[] = people.map((p) => ({ kind: 'people', id: p.id, before: p, after: p }));
     const check = validate(state, everyone);
     const report: HealthReport = {
@@ -305,7 +317,7 @@ export class Views {
       noBirthDate: people.filter((p) => p.given && bornYear(ix, p.id) === null).map(entry),
       noParents: people.filter((p) => !parentsOf(state, ix, p.id).length && !partnersOf(state, ix, p.id).length).map(entry),
       // An issue about someone in their care can still name a parent they may not see
-      suspicious: [...new Map([...check.errors, ...check.warnings].filter((issue) => issue.code !== 'possible_duplicate' && (issue.people ?? []).every(seen)).map((issue) => [issue.message, issue])).values()]
+      suspicious: [...new Map([...check.errors, ...check.warnings].filter((issue) => issue.code !== 'possible_duplicate' && told(issue)).map((issue) => [issue.message, issue])).values()]
         .map(({ said, ...issue }) => ({ ...issue, message: issueText({ ...issue, said }, lang, (id) => { const found = person(state, id); return found ? fullName(found, lang) : null; }) })),
     };
     if (isAdmin(actor)) {

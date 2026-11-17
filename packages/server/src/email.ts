@@ -21,6 +21,9 @@ export interface Mailer {
   send(message: Message): Promise<void>;
 }
 
+/* How long a mail service is waited for. Past that, whoever asked is told the letter did not go, and is not left waiting with it. */
+const SEND_WAIT_MS = 20_000;
+
 export function createMailer({ from, smtpUrl, resendKey }: AppConfig['email']): Mailer {
   if (resendKey) {
     return {
@@ -30,6 +33,7 @@ export function createMailer({ from, smtpUrl, resendKey }: AppConfig['email']): 
           method: 'POST',
           headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ from, to, subject, text }),
+          signal: AbortSignal.timeout(SEND_WAIT_MS),
         });
         // Resend says why in the body: an unverified domain, a wrong sender, a spent quota
         if (!response.ok) throw new Error(`Resend refused the message (${response.status}): ${(await response.text()).slice(0, 300)}`);

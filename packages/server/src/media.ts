@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path';
 
 import { isMediaId } from '@reactive-family-tree/core';
 import type { Actor } from '@reactive-family-tree/core';
-import { media } from '@reactive-family-tree/db';
+import { edit, media } from '@reactive-family-tree/db';
 import type { Database } from '@reactive-family-tree/db';
 import { and, eq, gt, lt, notInArray } from 'drizzle-orm';
 
@@ -189,7 +189,8 @@ export class Media {
 
     const { bytes } = cleanJpeg(new Uint8Array(Buffer.from(encoded, 'base64')));
     const id = sha256(bytes).slice(0, 32);
-    if (await this.has(id)) return id;
+    // Known, and its file is there. One whose file went missing, as on a move to another server, is written again.
+    if ((await this.has(id)) && (await this.read(id))) return id;
     await this.files.put(id, bytes);
     await this.db.insert(media).values({ id, size: bytes.length, uploadedBy: actor.userId, createdAt: now() }).onConflictDoNothing();
     return id;
@@ -222,10 +223,16 @@ export class Media {
     if (id && !this.inUse().includes(id)) await this.drop([id]);
   }
 
+  /* The photos that edits since `cutoff` put on someone or took off them. Undoing one of those edits needs its photo again. */
+  private async changedSince(cutoff: string): Promise<string[]> {
+    const rows = await this.db.select({ changes: edit.changes }).from(edit).where(gt(edit.appliedAt, cutoff));
+    return rows.flatMap((row) => row.changes.flatMap(({ before, after }) => [before, after].flatMap((entity) => (entity && 'portrait' in entity && entity.portrait ? [entity.portrait] : []))));
+  }
+
   /* Run daily: photos that nobody has used for a while are removed. Returns how many went. */
   async sweep(): Promise<number> {
     const cutoff = new Date(Date.now() - KEEP_UNUSED_DAYS * 86400000).toISOString();
-    const used = this.inUse();
+    const used = [...new Set([...this.inUse(), ...(await this.changedSince(cutoff))])];
     const old = await this.db.select({ id: media.id }).from(media).where(used.length ? and(lt(media.createdAt, cutoff), notInArray(media.id, used)) : lt(media.createdAt, cutoff));
     return this.drop(old.map((row) => row.id));
   }

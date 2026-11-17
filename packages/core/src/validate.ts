@@ -12,6 +12,12 @@ import type { Change, Issue, State, Validation } from './types';
 import { say } from './words';
 import type { Phrase } from './words';
 
+/*
+ * The issues that say a year or an age. They are worked out from a birth or a death, and either can be kept more
+ * private than the person it belongs to, so these are told only to someone who may see those too.
+ */
+export const DATED_ISSUES: ReadonlySet<string> = new Set(['died_before_born', 'long_life', 'parent_younger_than_child', 'unlikely_parent_age']);
+
 export function validate(state: State, changes: readonly Change[]): Validation {
   const ix = indexOf(state);
   const errors: Issue[] = [];

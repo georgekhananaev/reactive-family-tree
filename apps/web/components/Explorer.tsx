@@ -49,6 +49,8 @@ import { ZoomButtons } from './ZoomButtons';
 const OPEN_PANELS = new Set<PanelName>(['signin', 'invite', 'help']);
 const NO_INSETS: TreeInsets = { right: 0, top: 0 };
 const THIS_YEAR = new Date().getFullYear();
+/* The keys that are letters and signs, by where they sit on the keyboard, for a keyboard that types another alphabet with them. */
+const KEY_AT: Readonly<Record<string, string>> = { KeyE: 'e', KeyM: 'm', KeyV: 'v', KeyF: 'f', KeyP: 'p', KeyS: 's', Slash: '/', BracketLeft: '[', BracketRight: ']' };
 /* What a + bud and the ring of actions call adding each relative. */
 const ADD_RELATION: Record<Relation, WebPhrase> = { child: 'Add child', partner: 'Add partner', parent: 'Add parent', sibling: 'Add sibling' };
 
@@ -509,7 +511,8 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
   useEffect(() => {
     if (!user || spokenTo.current === user.id) return;
     spokenTo.current = user.id;
-    if (user.language && user.language !== lang) void choose(user.language);
+    // Where their words cannot be fetched just now, the page stays as it is
+    if (user.language && user.language !== lang) void choose(user.language).catch(() => {});
   }, [user, lang, choose]);
 
   // On a demo install, a first-time visitor on a wide screen is offered the ready-made accounts once the tree has grown
@@ -591,7 +594,9 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
         '[': () => stepYear(-1),
         ']': () => stepYear(1),
       };
-      const action = keys[event.key] ?? keys[event.key.toLowerCase()];
+      // A keyboard set to Hebrew or Russian types other letters with the same keys. Then the key is known by where it sits.
+      const elsewhere = (event.key.codePointAt(0) ?? 0) > 0x7f ? KEY_AT[event.code] : undefined;
+      const action = keys[event.key] ?? keys[event.key.toLowerCase()] ?? (elsewhere ? keys[elsewhere] : undefined);
       if (!action) return;
       event.preventDefault();
       action();

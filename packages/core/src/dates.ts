@@ -104,10 +104,17 @@ const RANGES: [kind: 'between' | 'or', pattern: RegExp][] = [
   ['between', /^(\d{3,4})\s*-\s*(\d{3,4})$/],
 ];
 
+/* The most letters a date may hold where it is kept as it was typed. */
+export const DATE_TEXT_MAX = 200;
+/* How long after the year it names an "after" date is taken to reach, where the latest it can mean is asked: a generation. */
+const A_GENERATION = 30;
+
 /* Turn what a person typed into a fuzzy date, whichever of the tree's languages they typed it in. Empty input is null. */
 export function parseDate(input: string | null | undefined): FuzzyDate | null {
   const raw = String(input ?? '').trim();
   if (!raw) return null;
+  // Nobody writes a date this long, and the patterns below take long over a long line. It is kept as words, as many as a date may hold.
+  if (raw.length > DATE_TEXT_MAX) return { kind: 'text', text: raw.slice(0, DATE_TEXT_MAX) };
   for (const [kind, pattern] of PREFIXES) {
     const m = raw.match(pattern);
     const from = m && parsePoint(m[1]);
@@ -164,6 +171,18 @@ export function yearOf(date: FuzzyDate | null | undefined): number | null {
   return date && 'from' in date && date.from ? Number(date.from.slice(0, 4)) : null;
 }
 
+/*
+ * The latest year a date can mean. `yearOf` gives the earliest, which is the one to show and to sort by. This is the one
+ * to ask where a later year is the careful answer, as when deciding whether someone may still be living: "between 1910
+ * and 1935" may be 1935. "After 1910" has no latest year, so it is taken to reach a generation on.
+ */
+export function latestYearOf(date: FuzzyDate | null | undefined): number | null {
+  const from = yearOf(date);
+  if (!date || from === null) return null;
+  if (date.kind === 'after') return from + A_GENERATION;
+  return 'to' in date && date.to ? Math.max(from, Number(date.to.slice(0, 4))) : from;
+}
+
 /* An integer that sorts dates: the earliest day the date could mean. */
 export function sortKey(date: FuzzyDate | null | undefined): number | null {
   if (!date || !('from' in date) || !date.from) return null;
@@ -174,12 +193,14 @@ export function sortKey(date: FuzzyDate | null | undefined): number | null {
 /* The date may have come from anywhere, so nothing about its shape is taken for granted. */
 export function isValidDate(date: unknown): boolean {
   if (date === null) return true;
-  if (typeof date !== 'object') return false;
+  if (typeof date !== 'object' || Array.isArray(date)) return false;
   const { kind, from, to, text }: { kind?: unknown; from?: unknown; to?: unknown; text?: unknown } = date;
-  if (kind === 'text') return typeof text === 'string' && text.length > 0;
+  // A date holds what its kind says and nothing more. Anything else sent beside it would be kept with it, whatever its size or shape.
+  const holds = (...parts: string[]) => Object.keys(date).every((part) => parts.includes(part));
+  if (kind === 'text') return holds('kind', 'text') && typeof text === 'string' && text.length > 0 && text.length <= DATE_TEXT_MAX;
   const pointOk = (p: unknown) => typeof p === 'string' && parsePoint(p) === p;
-  if (kind === 'exact' || kind === 'about' || kind === 'before' || kind === 'after') return pointOk(from);
-  if (kind === 'between' || kind === 'or') return pointOk(from) && pointOk(to);
+  if (kind === 'exact' || kind === 'about' || kind === 'before' || kind === 'after') return holds('kind', 'from') && pointOk(from);
+  if (kind === 'between' || kind === 'or') return holds('kind', 'from', 'to') && pointOk(from) && pointOk(to);
   return false;
 }
 
@@ -208,7 +229,8 @@ export function fromGedcom(text: string | null | undefined): FuzzyDate | null {
   const raw = String(text ?? '').trim();
   if (!raw) return null;
   const phrase = raw.match(/^\((.*)\)$/);
-  if (phrase) return { kind: 'text', text: phrase[1] };
+  // Empty brackets say nothing, and a file's long remark is cut to what a date may hold, so that neither turns a whole import away
+  if (phrase) return phrase[1].trim() ? { kind: 'text', text: phrase[1].trim().slice(0, DATE_TEXT_MAX) } : null;
   const words = raw
     .replace(/^(ABT|CAL|EST)\b/i, 'about')
     .replace(/^BEF\b/i, 'before')

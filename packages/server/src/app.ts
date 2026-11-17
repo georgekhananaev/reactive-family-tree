@@ -21,7 +21,7 @@ import type { Door } from './door';
 import { Edits } from './edits';
 import { createMailer } from './email';
 import type { Mailer } from './email';
-import { forbidden, notFound } from './errors';
+import { HttpError, forbidden, notFound } from './errors';
 import { hashToken, newToken } from './ids';
 import { Scheduler } from './jobs';
 import type { Job } from './jobs';
@@ -29,6 +29,7 @@ import { Media, createMediaStore } from './media';
 import { Members } from './members';
 import type { ActiveConnection, UserRow } from './members';
 import { Hub } from './realtime';
+import { measured } from './request';
 import { seedDemo } from './seed';
 import { familyText } from './settings';
 import { FamilyStore } from './store';
@@ -37,6 +38,8 @@ import { Views } from './views';
 const AUTH_SECRET = 'auth_secret';
 const SETUP_TOKEN = 'setup_token_hash';
 const SETUP_TOKEN_LENGTH = 20;   // the shortest setup token an install will take from its settings
+/* The most that may be sent to sign-in. An address, a passkey's answer or an AI client's description of itself is a few thousand letters. */
+const MAX_SIGN_IN_BODY = 64 * 1024;
 
 export interface App {
   config: AppConfig;
@@ -56,6 +59,10 @@ export interface App {
   oauth: boolean;
   /* The web API: everything under /api except sign-in itself. */
   handle(request: Request): Promise<Response>;
+  /* Sign-in itself: everything under /api/auth, answered by the sign-in library. */
+  signIn(request: Request): Promise<Response>;
+  /* Keep a copy of everything as it stands, beside the database, before something replaces it. Nothing where the database is not a file. */
+  keepCopy(): Promise<void>;
   /* The account a request is signed in as. */
   userOf(request: Request): Promise<UserRow | null>;
   /*
@@ -160,16 +167,26 @@ export async function createApp(config: AppConfig): Promise<App> {
     { name: 'photos', everyHours: 24, run: async () => `${await media.sweep()} unused photos removed` },
   ];
   // The nightly snapshot is written beside the database, so it is offered when the database is a file
-  if (config.databaseUrl.startsWith('file:')) {
-    const folder = join(dirname(config.databaseUrl.slice('file:'.length)), 'snapshots');
-    jobs.push({ name: 'snapshot', everyHours: 24, run: () => writeSnapshot(db, folder) });
-  }
+  const snapshots = config.databaseUrl.startsWith('file:') ? join(dirname(config.databaseUrl.slice('file:'.length)), 'snapshots') : null;
+  if (snapshots) jobs.push({ name: 'snapshot', everyHours: 24, run: () => writeSnapshot(db, snapshots) });
   const scheduler = new Scheduler(db, jobs);
 
   const app: App = {
     config, db, store, hub, members, edits, views, media, mailer, door, auth, scheduler,
     oauth: oauthPossible(config.baseUrl),
     handle: (request) => handle(request),
+    async signIn(request) {
+      // The library reads whatever it is sent, whole, before it asks who sent it. So what is sent is measured first.
+      try {
+        return await auth.handler(await measured(request, MAX_SIGN_IN_BODY));
+      } catch (error) {
+        if (!(error instanceof HttpError)) throw error;
+        return new Response(JSON.stringify({ message: error.message }), { status: error.status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
+      }
+    },
+    async keepCopy() {
+      if (snapshots) await writeSnapshot(db, snapshots, 'before-restore');
+    },
     async userOf(request) {
       const session = await auth.api.getSession({ headers: request.headers });
       return session ? members.user(session.user.id) : null;

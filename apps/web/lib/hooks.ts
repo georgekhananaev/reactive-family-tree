@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /*
  * Lets something animate in after it appears and animate out before it goes.
@@ -30,4 +30,23 @@ export function usePresence(open: boolean, leaveMs: number): { present: boolean;
     return () => clearTimeout(timer);
   }, [leaving, leaveMs]);
   return { present: open || leaving, shown };
+}
+
+/*
+ * Something a button starts, which is not started again while it still runs. A second press, or Enter and then a click,
+ * would otherwise send the same thing twice: two requests to join, two invitations, the same comment again.
+ */
+export function useSingle<Args extends unknown[]>(work: (...args: Args) => Promise<unknown>): (...args: Args) => Promise<void> {
+  const latest = useRef(work);
+  latest.current = work;
+  const running = useRef(false);
+  return useCallback(async (...args: Args) => {
+    if (running.current) return;
+    running.current = true;
+    try {
+      await latest.current(...args);
+    } finally {
+      running.current = false;
+    }
+  }, []);
 }

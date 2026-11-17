@@ -8,6 +8,7 @@ export { HttpError, badRequest, forbidden, notFound, tooMany } from './errors';
 export { deliverInvite } from './invites';
 export type { ActiveConnection, Members, UserRow } from './members';
 export { roleOf } from './members';
+export { fromThisSite } from './request';
 export { familyPatch, familyText } from './settings';
 export type { Settings } from './settings';
 export { translationsOf } from './translations';

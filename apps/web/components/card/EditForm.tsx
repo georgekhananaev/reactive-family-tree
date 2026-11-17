@@ -39,7 +39,7 @@ interface FactRow {
   place: string;
 }
 
-export function EditForm({ person, detail: d, onDirty, onDone, onCancel }: {
+export function EditForm({ person, detail, onDirty, onDone, onCancel }: {
   person: TreePerson;
   detail: PersonDetail;
   onDirty(dirty: boolean): void;
@@ -47,7 +47,11 @@ export function EditForm({ person, detail: d, onDirty, onDone, onCancel }: {
   onCancel(): void;
 }) {
   const app = useApp();
-  const { lang, t } = useT();
+  const { lang: reading, t } = useT();
+  // The person as they were when the form opened, and the language it opened in. What is saved is what was typed over that.
+  // The page fetches the person again whenever the tree changes: compared with that, everything a relative changed meanwhile
+  // would look typed here, and be written back as it was. The same goes for every text, after a change of language.
+  const [{ d, lang }] = useState({ d: detail, lang: reading });
   const direct = d.editing === 'apply';
   const birth = d.facts.find((fact) => fact.type === 'birth'), death = d.facts.find((fact) => fact.type === 'death');
   const others = d.facts.filter((fact) => fact !== birth && fact !== death);

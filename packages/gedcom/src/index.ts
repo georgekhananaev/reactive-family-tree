@@ -177,10 +177,11 @@ export function importGedcom(text: string): GedcomImport {
     }
   }
 
-  const personRefs = new Set(individuals.map((r) => refOf('i', r.xref)));
+  // Everyone by the name they go by in the operations: a large file names a child tens of thousands of times
+  const byRef = new Map(individuals.map((r) => [refOf('i', r.xref), r]));
   let familyCount = 0;
   for (const record of families) {
-    const partners = ['HUSB', 'WIFE'].flatMap((tag) => child(record, tag)?.value || []).map((xref) => refOf('i', xref)).filter((ref) => personRefs.has(ref));
+    const partners = ['HUSB', 'WIFE'].flatMap((tag) => child(record, tag)?.value || []).map((xref) => refOf('i', xref)).filter((ref) => byRef.has(ref));
     if (!partners.length) { skipped.add('FAM without parents'); continue; }
     const ref = refOf('f', record.xref);
     const married = child(record, 'MARR');
@@ -192,9 +193,9 @@ export function importGedcom(text: string): GedcomImport {
     familyCount += 1;
     for (const node of childrenWith(record, 'CHIL')) {
       const childRef = refOf('i', node.value);
-      if (!personRefs.has(childRef)) continue;
-      const person = individuals.find((r) => refOf('i', r.xref) === childRef);
-      const pedigree = person && childrenWith(person, 'FAMC').find((famc) => famc.value === record.xref);
+      const person = byRef.get(childRef);
+      if (!person) continue;
+      const pedigree = childrenWith(person, 'FAMC').find((famc) => famc.value === record.xref);
       const said = pedigree && child(pedigree, 'PEDI')?.value.toLowerCase();
       ops.push({ type: 'child.link', union: ref, child: childRef, kind: (['birth', 'adopted', 'step', 'foster'] as const).find((kind) => kind === said) ?? 'birth' });
     }

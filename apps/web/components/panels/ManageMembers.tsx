@@ -7,6 +7,7 @@ import { useState } from 'react';
 
 import { api } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
+import { useSingle } from '@/lib/hooks';
 import { useT } from '@/lib/i18n';
 import type { WebPhrase } from '@/lib/i18n';
 
@@ -119,10 +120,10 @@ function InviteForm({ roles, onCreated }: { roles: readonly RoleOption[]; onCrea
   const [role, setRole] = useState<Role>('member');
   const [personId, setPersonId] = useState<string | null>(null);
   const [own, setOwn] = useState(true);
-  const create = async () => {
+  const create = useSingle(async () => {
     const result = await tryIt(app, () => api.post<InviteMade>('/api/invites', { email, role, personId, grantBranch: own }));
     if (result) onCreated(result);
-  };
+  });
   return (
     <>
       <h3>{t('Invite a relative')}</h3>

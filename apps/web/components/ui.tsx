@@ -66,13 +66,24 @@ export function CopyRow({ value }: { value: string }) {
 /* A button that asks once more before doing something that is hard to take back. */
 export function ConfirmButton({ label, sure, onConfirm, className }: { label: string; sure: string; onConfirm(): void; className?: string }) {
   const [armed, setArmed] = useState(false);
+  // Confirmed once for each time it is armed: a press too many does not do the thing again
+  const done = useRef(false);
   useEffect(() => {
     if (!armed) return;
     const timer = setTimeout(() => setArmed(false), 4000);
     return () => clearTimeout(timer);
   }, [armed]);
+  const press = () => {
+    if (!armed) {
+      done.current = false;
+      setArmed(true);
+    } else if (!done.current) {
+      done.current = true;
+      onConfirm();
+    }
+  };
   return (
-    <button type="button" className={className} onClick={() => (armed ? onConfirm() : setArmed(true))}>
+    <button type="button" className={className} onClick={press}>
       {armed ? sure : label}
     </button>
   );

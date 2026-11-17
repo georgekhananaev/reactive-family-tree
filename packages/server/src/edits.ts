@@ -13,11 +13,11 @@
  * from history except by the compost purge.
  */
 
-import { FACT_TYPES, OpError, TEXT_FIELDS, applyOps, canApply, cloneState, decideEdit, describeOp, factVisible, fieldWord, formatDate, fullName, indexOf, isAdmin, isLang, issueText, listed, livingPartners, say, scopeOf, setsPhoto, validate, viewOf, writtenIn } from '@reactive-family-tree/core';
+import { DATED_ISSUES, FACT_TYPES, OpError, TEXT_FIELDS, applyOps, canApply, cloneState, decideEdit, describeOp, factVisible, factsOf, fieldWord, formatDate, fullName, indexOf, isAdmin, isLang, issueText, listed, livingPartners, say, scopeOf, setsPhoto, validate, viewOf, writtenIn } from '@reactive-family-tree/core';
 import type { Actor, Applied, Change, CompostItem, EditComment, EditOrigin, EditView, Fact, FactType, FuzzyDate, InboxCounts, Issue, Lang, NotificationView, Op, OpEnv, State, SubmitMode, SubmitStatus, Union } from '@reactive-family-tree/core';
 import { aiConnection, edit, editComment, notification } from '@reactive-family-tree/db';
 import type { Database } from '@reactive-family-tree/db';
-import { and, asc, count, desc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { HttpError, badRequest, conflict, forbidden, invalid, notFound } from './errors';
 import { newId, now } from './ids';
@@ -29,6 +29,7 @@ import { inLanguage, tell } from './words';
 import type { ServerPhrase } from './words';
 
 const MAX_OPS = 5000;   // room for a GEDCOM import; AI clients get a much lower limit of their own
+const MAX_OPS_VISITOR = 50;   // a stranger suggests a correction, not a family
 const COMPOST_DAYS = 30;
 
 export type EditRow = typeof edit.$inferSelect;
@@ -118,6 +119,8 @@ interface Notice { who: string; text: string | null }
 interface Sight {
   person(id: string): boolean;
   fact(fact: Pick<Fact, 'privacy' | 'subject'>): boolean;
+  /* Whether an issue may be told: everyone it names can be seen, and, where it says a year or an age, the births and deaths that came from. */
+  issue(issue: Issue): boolean;
 }
 
 export class Edits {
@@ -179,16 +182,17 @@ export class Edits {
     return { ...(await this.publish({ ...base, creditTo: actor })), warnings: own };
   }
 
-  /* Whether someone may be told of an issue: only if they may see everyone it names. Their sight is worked out when the first issue asks. */
+  /* Whether someone may be told of an issue. Their sight is worked out when the first issue asks. */
   private tellsTo(actor: Actor): (issue: Issue) => boolean {
     let seen: Sight | null = null;
-    return (issue) => (issue.people ?? []).every((id) => (seen ??= this.sight(actor)).person(id));
+    return (issue) => (seen ??= this.sight(actor)).issue(issue);
   }
 
   /* Check the shape of what was sent, and set the things only the server may set. */
   private prepare(actor: Actor, ops: unknown): Op[] {
     if (!Array.isArray(ops) || !ops.length) throw badRequest('An edit needs at least one change.');
-    if (ops.length > MAX_OPS) throw HttpError.filled(badRequest, 'An edit can hold at most {max} changes.', { max: MAX_OPS });
+    const most = actor.visitor ? MAX_OPS_VISITOR : MAX_OPS;
+    if (ops.length > most) throw HttpError.filled(badRequest, 'An edit can hold at most {max} changes.', { max: most });
     return ops.map((op: unknown) => {
       if (!op || typeof op !== 'object' || typeof (op as { type?: unknown }).type !== 'string') throw badRequest('Each change needs a type.');
       const clean = { ...(op as LooseOp) };
@@ -360,6 +364,8 @@ export class Edits {
       // Someone who is gone for good has no record left to protect
       return !known || viewOf(state, ix, actor, scope, known, this.settings, year) === 'full';
     };
+    // A birth or a death can be kept more private than the person it belongs to
+    const dates = (id: string): boolean => factsOf(ix, id).every((known) => (known.type !== 'birth' && known.type !== 'death') || factVisible(actor, scope, known, id));
     return {
       person,
       // A fact about a partnership belongs to both partners: whoever may see it for one of them may see it
@@ -367,6 +373,7 @@ export class Edits {
         const about = subject.type === 'person' ? [subject.id] : state.unions.get(subject.id)?.partners ?? [];
         return about.some((id) => person(id) && factVisible(actor, scope, { privacy }, id));
       },
+      issue: ({ code, people = [] }) => people.every(person) && (!DATED_ISSUES.has(code) || people.every(dates)),
     };
   }
 
@@ -420,8 +427,14 @@ export class Edits {
     if (personId && !this.sight(actor).person(personId)) return [];
     const scope = scopeOf(this.state, indexOf(this.state), actor.anchors);
     const mine = (row: EditRow) => isAdmin(actor) || row.authorUserId === actor.userId || row.touched.some((id) => scope.core.has(id) || scope.partners.has(id) || id === actor.personId);
-    const rows = await this.db.select().from(edit).where(inArray(edit.status, ['applied', 'reverted'])).orderBy(desc(edit.seq)).limit(400);
-    return rows.filter((row) => (personId ? row.touched.includes(personId) : mine(row))).slice(0, limit);
+    const published = inArray(edit.status, ['applied', 'reverted']);
+    // One person's history is looked for in all of it, however far back: the newest few hundred edits of a whole tree may hold none of theirs
+    if (personId) {
+      const about = sql`exists (select 1 from json_each(${edit.touched}) where value = ${personId})`;
+      return this.db.select().from(edit).where(and(published, about)).orderBy(desc(edit.seq)).limit(limit);
+    }
+    const rows = await this.db.select().from(edit).where(published).orderBy(desc(edit.seq)).limit(400);
+    return rows.filter(mine).slice(0, limit);
   }
 
   async counts(actor: Actor): Promise<InboxCounts> {
@@ -462,6 +475,9 @@ export class Edits {
     const lang = this.langOf(actor);
     const ops = row.ops as LooseOp[];
     const open = this.readsInFull(actor, row);
+    // An admin and a reviewer read an edit whole. Its author reads their own words whole as well, but what the tree puts beside
+    // them (who someone is, how a thing stood before) only as far as they may see it: writing a change to someone does not show them.
+    const whole = isAdmin(actor) || this.canReview(actor, row);
 
     // Which person or fact each addition became, read off the order in which the edit made them
     const made = (kind: Change['kind']) => row.changes.filter((change) => change.kind === kind && !change.before).map((change) => change.id);
@@ -477,11 +493,11 @@ export class Edits {
     }
     const real = (id: string) => realIds.get(id) ?? id;
     const changeTo = <K extends Change['kind']>(kind: K, id: string | undefined) => row.changes.find((change): change is Change<K> => change.kind === kind && change.id === id);
-    const seesPerson = (id: string) => open || sight().person(real(id));
+    const seesPerson = (id: string) => whole || sight().person(real(id));
 
-    /* Whether a line is about a person, or a fact, that this reader may not see. Then nothing of it is shown. */
-    const hides = (op: LooseOp): boolean => {
-      if (open) return false;
+    /* Whether a line is about a person, or a fact, that this reader may not see. */
+    const unseen = (op: LooseOp): boolean => {
+      if (whole) return false;
       const memory = op.memory ? state.memories.get(op.memory) ?? changeTo('memories', op.memory)?.before : null;
       const about = op.type === 'person.create' ? madeBy.get(op) : op.person ?? op.child ?? (op.subject?.type === 'person' ? op.subject.id : undefined) ?? memory?.personId;
       if (about && !seesPerson(about)) return true;
@@ -497,6 +513,8 @@ export class Edits {
       // A fact nothing is known about is not shown either: the safe answer is the default
       return !versions.length || versions.some((fact) => !sight().fact(fact));
     };
+    /* Then nothing of the line is shown, except to its author, who is shown no more of it than they wrote. */
+    const hides = (op: LooseOp): boolean => !open && unseen(op);
 
     const newNames = new Map<string, string>();
     for (const op of ops) {
@@ -540,11 +558,16 @@ export class Edits {
     const lines: EditView['lines'] = shown.map((op) => {
       const subjectName = nameOf(op.person ?? op.fact ?? op.union ?? op.subject?.id);
       const factType = op.type.startsWith('fact.') ? String(op.set?.type ?? (op.fact ? state.facts.get(op.fact)?.type : '') ?? '') || null : null;
-      const fields = Object.entries(op.set ?? {}).filter(([key]) => key !== 'type').map(([field, value]) => {
+      // How things stood before, and stand now, is the tree's to tell
+      const was = op.was && !unseen(op) ? op.was : null;
+      // How a new partnership stands, and since when, is told only to someone who may see both partners, as a change to one is
+      const partners = op.type === 'union.create' ? (op as { partners?: unknown }).partners : null;
+      const told = open || !Array.isArray(partners) || partners.every((id) => typeof id === 'string' && seesPerson(id));
+      const fields = Object.entries(told ? op.set ?? {} : {}).filter(([key]) => key !== 'type').map(([field, value]) => {
         const line: EditView['lines'][number]['fields'][number] = { field, to: showValue(value, field) };
-        if (op.was) line.was = showValue(op.was[field], field);
+        if (was) line.was = showValue(was[field], field);
         // Something else changed this since the suggestion was written
-        if (waiting && op.was && showValue(nowIn(op, field), field) !== line.was) line.now = showValue(nowIn(op, field), field);
+        if (waiting && was && showValue(nowIn(op, field), field) !== line.was) line.now = showValue(nowIn(op, field), field);
         return line;
       });
       // A fact is easier to recognise by what it is and whose it is
@@ -568,12 +591,13 @@ export class Edits {
       author: row.origin === 'system' && row.authorName === SWEEPER ? tell(lang, 'The compost') : row.authorName, byVisitor: !row.authorUserId && Boolean(row.authorContact),
       message: veiled ? tell(lang, 'A change to the family') : row.message, note: veiled ? '' : row.note, lines,
       // Warnings are written for reviewers, and may name anyone. An author who is not one reads those about people they may see.
-      warnings: this.warningsFor(actor, !open ? [] : isAdmin(actor) || canReview ? row.warnings : row.warnings.filter((issue) => (issue.people ?? []).every((id) => sight().person(id)))),
-      touched: open ? row.touched : row.touched.filter((id) => sight().person(id)),
+      warnings: this.warningsFor(actor, !open ? [] : whole ? row.warnings : row.warnings.filter((issue) => sight().issue(issue))),
+      touched: whole ? row.touched : row.touched.filter((id) => sight().person(id)),
       reviewedBy: row.reviewedBy, reviewNote: veiled ? null : row.reviewNote, createdAt: row.createdAt, appliedAt: row.appliedAt,
       mine, canReview, canRevert: this.canRevert(actor, row),
-      // The raw changes, for the two people who may alter them: the author of a draft and a reviewer
-      ops: canReview || (mine && row.status === 'draft') ? row.ops : null,
+      // The raw changes, for the two people who may alter them: the author of a draft and a reviewer. The author's are without
+      // how things stood before, where that is not theirs to see. It is worked out afresh when the draft is applied.
+      ops: canReview ? row.ops : mine && row.status === 'draft' ? ops.map(({ was, ...op }) => (was && !unseen({ ...op, was }) ? { ...op, was } : op) as Op) : null,
       comments: veiled ? [] : comments,
     };
   }
@@ -616,7 +640,8 @@ export class Edits {
     const row = await this.need(id);
     if (row.status !== 'suggested' || !actor.userId || row.authorUserId !== actor.userId) throw forbidden('Only the person who made a suggestion can withdraw it, while it is waiting.');
     const reviewers = await this.reviewersOf(row);
-    await this.db.update(edit).set({ status: 'withdrawn' }).where(eq(edit.id, id));
+    // Only while it still waits: one approved in the same moment stays in history as what it became
+    await this.db.update(edit).set({ status: 'withdrawn' }).where(and(eq(edit.id, id), eq(edit.status, 'suggested')));
     this.hub.inbox([actor.userId, ...reviewers]);
     return { status: 'withdrawn' };
   }
@@ -655,20 +680,29 @@ export class Edits {
       const draft = await this.ownDraft(actor, id);
       const chosen = new Set(indexes ?? draft.ops.keys());
       const creatorOf = new Map(draft.ops.flatMap((op, index) => ('ref' in op && op.ref ? [[op.ref, index] as const] : [])));
-      const pull = (test: (op: Op) => boolean) => {
-        for (let grew = true; grew;) {
-          grew = false;
-          draft.ops.forEach((op, index) => {
-            if (!chosen.has(index) && test(op)) { chosen.add(index); grew = true; }
-          });
+      // What each change names is read once. An import is thousands of changes, and each is asked about many times below.
+      const used = draft.ops.map(refsUsed);
+      // what the chosen changes need: whatever makes the things they name, and what that needs in turn
+      const waiting = [...chosen];
+      for (let index = waiting.pop(); index !== undefined; index = waiting.pop()) {
+        for (const ref of used[index] ?? []) {
+          const maker = creatorOf.get(ref);
+          if (maker === undefined || chosen.has(maker)) continue;
+          chosen.add(maker);
+          waiting.push(maker);
         }
-      };
-      // what the chosen changes need
-      pull((op) => 'ref' in op && Boolean(op.ref) && [...chosen].some((index) => refsUsed(draft.ops[index]!).has(op.ref as string)));
+      }
       const pick = () => draft.ops.filter((_, index) => chosen.has(index));
       // if the chosen part will wait for review, nothing that builds on it can stay behind
       if (decideEdit(this.state, actor, pick(), this.settings).outcome !== 'apply') {
-        pull((op) => [...refsUsed(op)].some((ref) => chosen.has(creatorOf.get(ref) ?? -1)));
+        for (let grew = true; grew;) {
+          grew = false;
+          used.forEach((refs, index) => {
+            if (chosen.has(index) || ![...refs].some((ref) => chosen.has(creatorOf.get(ref) ?? -1))) return;
+            chosen.add(index);
+            grew = true;
+          });
+        }
       }
 
       const result = await this.doSubmit(actor, { ops: pick(), message: draft.message, origin: draft.origin, connectionId: draft.connectionId });
@@ -692,7 +726,13 @@ export class Edits {
       if (stale.length) {
         throw conflict('Something this edit changed has been changed again since. Undo the later change first.', stale.map((change) => change.id));
       }
+      // One thing undo does not put back: someone's choice to be shown to strangers, once they have taken it back. Only they can make it again.
+      const consents = row.changes.some((change) => change.kind === 'people' && change.id !== actor.personId
+        && Boolean((change.before as Change<'people'>['before'])?.consentAt) && !(change.after as Change<'people'>['after']).consentAt);
+      if (consents) throw forbidden('Only a living person can choose to be public, from their own account.');
       const ops: Op[] = [...row.changes].reverse().map((change) => ({ type: 'entity.set', kind: change.kind, id: change.id, snapshot: change.before }));
+      // What it would leave is checked as any edit is: things done since can make the family as it was into one that cannot be
+      this.tryOut(actor, ops);
       const result = await this.publish({ creditTo: actor, ops, message: tell(this.langOf(actor), 'Undo: {text}', { text: row.message || tell(this.langOf(actor), 'an edit') }), origin: 'ui', revertsEditId: id });
       await this.db.update(edit).set({ status: 'reverted' }).where(eq(edit.id, id));
       return result;

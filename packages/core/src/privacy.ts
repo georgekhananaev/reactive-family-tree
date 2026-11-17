@@ -4,7 +4,7 @@
  * is the default.
  */
 
-import { bornYear, childrenOf, firstFact } from './graph';
+import { bornByYear, childrenOf, firstFact } from './graph';
 import type { FamilyIndex } from './graph';
 import type { Actor, Fact, Person, RuleSettings, Scope, State } from './types';
 
@@ -13,18 +13,21 @@ type Viewer = Pick<Actor, 'role' | 'personId' | 'visitor'>;
 
 export const isAdmin = (viewer: Pick<Actor, 'role'>): boolean => viewer.role === 'owner' || viewer.role === 'admin';
 
-/* No death recorded and plausibly alive. The age is the admin's setting. */
+/*
+ * No death recorded and plausibly alive. The age is the admin's setting. Where a birth is not known to the year, it is
+ * the latest year it can have been that counts: "between 1910 and 1935" is someone who may still be here.
+ */
 export function isLiving(state: State, ix: FamilyIndex, p: Person, settings: RuleSettings, thisYear: number): boolean {
   if (p.living === 'no' || firstFact(ix, p.id, 'death')) return false;
   if (p.living === 'yes') return true;
-  const born = bornYear(ix, p.id);
+  const born = bornByYear(ix, p.id);
   if (born !== null) return thisYear - born < settings.livingAge;
-  const childYears = childrenOf(state, ix, p.id).map((id) => bornYear(ix, id)).filter((year) => year !== null);
+  const childYears = childrenOf(state, ix, p.id).map((id) => bornByYear(ix, id)).filter((year) => year !== null);
   return !childYears.some((year) => thisYear - year > settings.livingAge - 20);
 }
 
 function isMinor(ix: FamilyIndex, p: Person, thisYear: number): boolean {
-  const born = bornYear(ix, p.id);
+  const born = bornByYear(ix, p.id);
   return born !== null && thisYear - born < 18;
 }
 

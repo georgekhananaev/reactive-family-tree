@@ -471,6 +471,7 @@ export class TreeEngine {
   private growing = false;
   private moving = false;
   private last = 0;
+  private readonly arrived = new Set<string>();   // the addresses of photos that have loaded once
   private decorated = false;
   /* The sun, the moon and the sheet of stars, each with the spot on the tree it is counted from. The stars also say how large their sheet is. */
   private far: { el: HTMLElement; x: number; y: number; sheet: { w: number; h: number } | null }[] = [];
@@ -552,7 +553,15 @@ export class TreeEngine {
     this.buildRoots();
     this.listen();
     this.gustSoon(5200);
-    this.resizer = new ResizeObserver(() => { if (!this.userMoved) this.fit(); });
+    this.resizer = new ResizeObserver(() => {
+      if (!this.userMoved) return this.fit();
+      // A tree that was moved by hand keeps its place. The room it stands in is still measured anew, so that what goes by that
+      // room goes by it as it is now: the sky, the way to a leaf, the middle a zoom holds, where a card may open. And a phone
+      // turned on its side does not leave the tree out of sight.
+      this.stageBox = this.stage.getBoundingClientRect();
+      this.paintCamera();
+      this.keepInReach();
+    });
     this.resizer.observe(stage);
   }
 
@@ -571,6 +580,8 @@ export class TreeEngine {
 
     const rootId = this.topOf(focusId && people.has(focusId) ? focusId : tree.rootId);
     this.nodes = rootId ? this.buildNodes(rootId) : [];
+    // With nobody on it, as when someone signs out of a private tree, there is no trunk standing either. It grows again with the family.
+    if (!this.nodes.length) this.trunk.p = 0;
     this.layout();
 
     this.wasOn = new Set(oldLeaves.filter((leaf) => leaf.on).map((leaf) => `${leaf.person.id}@${leaf.node.id}`));
@@ -753,6 +764,8 @@ export class TreeEngine {
 
   /* Throw away the leaves, branches and names and draw them again for the new family. */
   private rebuild(): void {
+    // Where the keyboard is on the tree, so that it is still there once everything is drawn again
+    const held = document.activeElement instanceof SVGElement && this.layer.leaves.contains(document.activeElement) ? document.activeElement.getAttribute('data-id') : null;
     for (const name of ['blossoms', 'leaves', 'labels'] as const) this.layer[name].replaceChildren();
     for (const path of [...this.layer.branches.children]) if (path !== this.trunkPath) path.remove();
     this.leaves = [];
@@ -783,6 +796,7 @@ export class TreeEngine {
     // Whoever was chosen stays chosen, without the ripple of being chosen again
     this.leafOf.get(this.selectedId)?.el.classList.add('selected', 'kept');
     this.setTabStop();
+    if (held) this.leafOf.get(held)?.el.focus({ preventScroll: true });
     if (this.tints) this.setTints(this.tints);
     if (this.matches) this.setMatches(this.matches);
     this.paintRoute();
@@ -823,8 +837,15 @@ export class TreeEngine {
     el('circle', { class: 'face-edge', r: String(FACE_RADIUS + 2.6) }, inner);
     const photo = el('image', { href: address, x: String(-FACE_RADIUS), y: String(-FACE_RADIUS), width: String(FACE_RADIUS * 2), height: String(FACE_RADIUS * 2), 'clip-path': 'url(#faceClip)', preserveAspectRatio: 'xMidYMid slice' }, inner);
     el('circle', { class: 'face-ring', r: String(FACE_RADIUS) }, inner);
-    photo.addEventListener('load', () => leaf.el.classList.add('has-face'), { once: true });
+    // A photo that has arrived before is in the browser's keeping. Drawn again with the tree, it is there from the start,
+    // and does not step in a second time over a leaf that shows for a moment.
+    if (this.arrived.has(address)) leaf.el.classList.add('has-face');
+    photo.addEventListener('load', () => {
+      this.arrived.add(address);
+      leaf.el.classList.add('has-face');
+    }, { once: true });
     photo.addEventListener('error', () => {
+      this.arrived.delete(address);
       leaf.el.classList.remove('has-face');
       face.remove();
       leaf.face = undefined;
@@ -1143,7 +1164,8 @@ export class TreeEngine {
   }
 
   private frame(now: number): void {
-    const dt = Math.min(50, now - this.last);
+    // The first frame can be stamped a moment before the loop was started. Time does not run backwards for a branch.
+    const dt = Math.max(0, Math.min(50, now - this.last));
     this.last = now;
     let active = false;
 
@@ -1188,7 +1210,9 @@ export class TreeEngine {
       if (n.p !== before) {
         this.drawBranch(n);
         active = true;
-      } else if ((want && n.p < 1) || (!want && n.p > 0)) {
+      } else if ((want && n.p < 1 && parentP >= 1) || (!want && n.p > 0 && n.children.every((child) => child.p <= 0))) {
+        // It could move and has not yet. One that waits for its parent to grow, or for its children to go, is kept going by
+        // them while they move. Where they never will, as with a child recorded as born before its parent, the loop rests.
         active = true;
       }
       grown += n.p;
@@ -1513,7 +1537,7 @@ export class TreeEngine {
     return this.stageBox.width - this.insets.right - this.freeLeft;
   }
 
-  private get freeLeft(): number {
+  get freeLeft(): number {
     return this.insets.left ?? 0;
   }
 
@@ -1563,6 +1587,8 @@ export class TreeEngine {
     const bw = this.bounds.x1 - this.bounds.x0, bh = this.bounds.y1 - this.bounds.y0;
     pad.top += this.insets.top;
     const aw = this.freeWidth - pad.side * 2, ah = r.height - pad.top - pad.bottom;
+    // A stage with less room than its own margins has none to show a tree in
+    if (aw <= 0 || ah <= 0) return null;
     let k = Math.min(aw / bw, ah / bh);
     if (!whole && aw / bw < ah / bh && k < 0.44) k = Math.min(0.66, ah / bh);
     return {

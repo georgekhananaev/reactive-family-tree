@@ -10,7 +10,8 @@ import { LANGS, LANG_NAMES } from '@reactive-family-tree/core';
 import type { Lang } from '@reactive-family-tree/core';
 import { useEffect, useId, useRef, useState } from 'react';
 
-import { useT } from '@/lib/i18n';
+import { api } from '@/lib/api';
+import { rememberLanguage, useT } from '@/lib/i18n';
 
 import { Icon } from './Icon';
 import { arrowThrough } from './ui';
@@ -51,6 +52,14 @@ export function LanguageMenu({ signedIn }: { signedIn: boolean }) {
     setBusy(true);
     try {
       await choose(next, { signedIn });
+    } catch {
+      // The words of that language could not be fetched. On a page opened before the tree was last brought up to date they
+      // have moved, so the choice is kept and the page fetched anew, in it. With no connection there is nothing to fetch.
+      if (navigator.onLine) {
+        rememberLanguage(next);
+        if (signedIn) await api.patch('/api/me/language', { language: next }).catch(() => undefined);
+        location.reload();
+      }
     } finally {
       setBusy(false);
       button.current?.focus();

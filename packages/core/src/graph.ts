@@ -11,7 +11,7 @@
  * question here ignores them. Pure functions, shared by the server and the browser.
  */
 
-import { sortKey, yearOf } from './dates';
+import { latestYearOf, sortKey, yearOf } from './dates';
 import { LANGS } from './lang';
 import type { Lang } from './lang';
 import { textOf, writtenIn } from './text';
@@ -130,6 +130,8 @@ export function firstFact(ix: FamilyIndex, subjectId: string, type: FactType): F
 }
 
 export const bornYear = (ix: FamilyIndex, personId: string): number | null => yearOf(firstFact(ix, personId, 'birth')?.date);
+/* The latest year someone can have been born in, where their birth is not known to the year. */
+export const bornByYear = (ix: FamilyIndex, personId: string): number | null => latestYearOf(firstFact(ix, personId, 'birth')?.date);
 export const diedYear = (ix: FamilyIndex, personId: string): number | null => yearOf(firstFact(ix, personId, 'death')?.date);
 
 /* Someone as they are stored, or a copy that already reads in one language and carries no others. */

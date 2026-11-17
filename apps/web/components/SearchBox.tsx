@@ -70,7 +70,8 @@ export function SearchBox({ open, onClose, onMatches }: {
         const buttons = results();
         if (event.target === input.current) {
           if (event.key === 'ArrowDown' && buttons.length) { event.preventDefault(); buttons[0]?.focus(); }
-          if (event.key === 'Enter' && buttons.length) buttons[0]?.click();
+          // Only once the list is the answer to what is typed now, not still to what was typed a moment ago
+          if (event.key === 'Enter' && buttons.length && found.query === query) buttons[0]?.click();
         } else if (event.key === 'ArrowUp' && event.target === buttons[0]) {
           event.preventDefault();
           input.current?.focus();

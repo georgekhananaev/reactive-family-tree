@@ -80,7 +80,9 @@ export interface FamilyTreeHandle {
   yearRange(): YearRange;
   focus(): void;
   readonly trunkX: number;
+  /* The part of the stage that no side panel covers: how wide it is, and where it begins from the left. */
   readonly freeWidth: number;
+  readonly freeLeft: number;
   readonly still: boolean;
   readonly editing: boolean;
   readonly selectedId: string | null;
@@ -134,6 +136,7 @@ export function FamilyTree({
   const stageRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const heavensRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<TreeEngine | null>(null);
 
   // The callbacks as the parent last passed them. The engine reads them here when something happens, so it never has to be made again.
@@ -200,12 +203,18 @@ export function FamilyTree({
     engineRef.current?.setPond(pond);
   }, [pond]);
 
-  const right = insets?.right ?? 0, top = insets?.top ?? 0;
+  // A panel opens on the right of a page read from the left, and on the left of one read from the right
+  const right = insets?.right ?? 0, top = insets?.top ?? 0, left = insets?.left ?? 0;
   useEffect(() => {
     // The year in the sky centres itself in the room that is left, as the tree does
-    stageRef.current?.style.setProperty('--inset', `${right}px`);
-    engineRef.current?.setInsets({ right, top });
-  }, [right, top]);
+    stageRef.current?.style.setProperty('--inset', `${right + left}px`);
+    engineRef.current?.setInsets({ right, top, left });
+  }, [right, top, left]);
+
+  // The class is set here and not in the markup, which would write the whole of it again and wipe what the engine keeps there: that the sky has no moon
+  useEffect(() => {
+    heavensRef.current?.classList.toggle('playing', playing);
+  }, [playing]);
 
   useEffect(() => {
     engineRef.current?.setEditing(editing);
@@ -253,6 +262,7 @@ export function FamilyTree({
       focus: () => engine().focus(),
       get trunkX() { return engine().trunkX; },
       get freeWidth() { return engine().freeWidth; },
+      get freeLeft() { return engine().freeLeft; },
       get still() { return engine().still; },
       get editing() { return engine().editing; },
       get selectedId() { return engine().selectedId; },
@@ -268,7 +278,7 @@ export function FamilyTree({
       {/* Time travel: the year stands in the sky while the slider is away from today */}
       <div id="yearGhost" className={year < THIS_YEAR ? 'year-ghost on' : 'year-ghost'} aria-hidden="true">{year}</div>
       {/* The sun, the moon and the stars: far things, which the camera does not carry */}
-      <div className={playing ? 'heavens playing' : 'heavens'} aria-hidden="true" />
+      <div ref={heavensRef} className="heavens" aria-hidden="true" />
       <div id="world" ref={worldRef}>
         <div className="behind" aria-hidden="true" />
         <svg id="tree" ref={svgRef} aria-label={label}>{DEFS}</svg>

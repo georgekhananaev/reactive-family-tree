@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { api, messageOf } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { family } from '@/lib/auth-client';
+import { useSingle } from '@/lib/hooks';
 import { useHumanCheck } from '@/lib/human-check';
 import { useT } from '@/lib/i18n';
 
@@ -21,6 +22,15 @@ function SignIn() {
   const { t } = useT();
   const [join, setJoin] = useState({ name: '', email: '', message: '' });
   const human = useHumanCheck(app.session.settings.allowJoinRequests ? app.session.humanCheck : null);
+  const ask = useSingle(async () => {
+    try {
+      await api.post('/api/join', join, await human.prove());
+      app.toast(t('Your request was sent to the family’s admins.'));
+      app.closePanel();
+    } catch (error) {
+      app.fail(error);
+    }
+  });
   return (
     <>
       <SignInWays session={app.session} onSignedIn={app.signedIn} onFail={app.fail} />
@@ -36,15 +46,7 @@ function SignIn() {
           </div>
           {human.box}
           <div className="form-actions">
-            <button type="button" onClick={async () => {
-              try {
-                await api.post('/api/join', join, await human.prove());
-                app.toast(t('Your request was sent to the family’s admins.'));
-                app.closePanel();
-              } catch (error) {
-                app.fail(error);
-              }
-            }}>{t('Ask to join')}</button>
+            <button type="button" onClick={() => void ask()}>{t('Ask to join')}</button>
           </div>
         </>
       )}
@@ -65,6 +67,16 @@ function Accept({ token, invite }: { token: string; invite: OpenInvite }) {
   const { t, tx } = useT();
   const [name, setName] = useState(invite.personName ?? '');
   const [email, setEmail] = useState(invite.email);
+  const accept = useSingle(async () => {
+    try {
+      await family.acceptInvite({ token, name, email });
+      history.replaceState(null, '', location.pathname);
+      await app.signedIn();
+      app.toast(t('Welcome, {name}.', { name }));
+    } catch (error) {
+      app.fail(error);
+    }
+  });
   return (
     <>
       <p>
@@ -77,16 +89,7 @@ function Accept({ token, invite }: { token: string; invite: OpenInvite }) {
         <Field label={t('Your email')} wide><input type="email" name="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></Field>
       </div>
       <div className="form-actions">
-        <button type="button" className="primary" onClick={async () => {
-          try {
-            await family.acceptInvite({ token, name, email });
-            history.replaceState(null, '', location.pathname);
-            await app.signedIn();
-            app.toast(t('Welcome, {name}.', { name }));
-          } catch (error) {
-            app.fail(error);
-          }
-        }}>{invite.personName ? t('Yes, that is me') : t('Join')}</button>
+        <button type="button" className="primary" onClick={() => void accept()}>{invite.personName ? t('Yes, that is me') : t('Join')}</button>
       </div>
     </>
   );

@@ -4,6 +4,7 @@ import type { SessionInfo } from '@reactive-family-tree/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
+import { SessionWait } from '@/components/SessionWait';
 import { SignInWays } from '@/components/SignInWays';
 import { api, messageOf } from '@/lib/api';
 import { useT } from '@/lib/i18n';
@@ -25,7 +26,7 @@ export function SignInForClient() {
     location.replace(forClient ? `/api/auth/oauth2/authorize${location.search}` : '/');
   }, [signedIn]);
 
-  if (!session.data || signedIn) return <p className="lead">{t('One moment…')}</p>;
+  if (!session.data || signedIn) return <SessionWait failed={session.isError && !session.data} onRetry={() => void session.refetch()} />;
   return (
     <>
       <h1>{t('Sign in to {family}', { family: session.data.settings.familyName })}</h1>

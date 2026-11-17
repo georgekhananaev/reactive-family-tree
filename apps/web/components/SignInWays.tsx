@@ -7,6 +7,7 @@ import { useState } from 'react';
 
 import { api } from '@/lib/api';
 import { family, sendLink, signInWithGoogle, signInWithPasskey } from '@/lib/auth-client';
+import { useSingle } from '@/lib/hooks';
 import { useHumanCheck } from '@/lib/human-check';
 import { useT } from '@/lib/i18n';
 
@@ -33,7 +34,7 @@ export function SignInWays({ session, backTo = '/', onSignedIn, onFail }: {
       onFail(error);
     }
   };
-  const askForLink = async () => {
+  const askForLink = useSingle(async () => {
     try {
       await sendLink(email, backTo, await human.prove());
       // A demo install has no mailbox to send to, so it hands the link to the page that asked
@@ -41,7 +42,7 @@ export function SignInWays({ session, backTo = '/', onSignedIn, onFail }: {
     } catch (error) {
       onFail(error);
     }
-  };
+  });
 
   return (
     <>
