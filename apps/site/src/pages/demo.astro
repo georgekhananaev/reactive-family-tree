@@ -8,16 +8,23 @@
 import { DemoTree } from '../components/DemoTree';
 import Masthead from '../components/Masthead.astro';
 import Site from '../layouts/Site.astro';
+import { DEMO_APP_URL } from '../lib/demo-app';
 import { demoFamily } from '../lib/demo-family';
 import { SITE_NAME } from '../lib/site.mjs';
 
 // Counted from the family itself, so the page cannot say a number that is not true
 const family = demoFamily();
 const description = `The ${family.name}, ${family.tree.people.length} made-up people, on the live tree in your browser. Choose a leaf, drag and zoom, and replay the family growing year by year.`;
+
+const links = [
+  { href: '/', label: 'Home' },
+  ...(DEMO_APP_URL ? [{ href: DEMO_APP_URL, label: 'App demo' }] : []),
+  { href: '/docs/', label: 'Docs' },
+];
 ---
 
 <Site title={`Demo: the ${family.name} | ${SITE_NAME}`} description={description}>
-  <Masthead links={[{ href: '/', label: 'Home' }, { href: '/docs/', label: 'Docs' }]} />
+  <Masthead links={links} />
 
   <main>
     <DemoTree explorer client:load />

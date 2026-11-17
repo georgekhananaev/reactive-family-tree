@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   check:
@@ -21,9 +21,11 @@ jobs:
       - run: pnpm test
       # The same build the Docker image runs, so a release is never the first time the app is built
       - run: pnpm --filter @reactive-family-tree/web build
+      - run: pnpm --filter @reactive-family-tree/site build
 
   # A push to main that passes the checks goes live on its own. The image is built here, on the
   # kind of processor the server has, so the server only fetches it and swaps the container.
+  # A push to dev builds it too, for the dev copy of the app demo, and never reaches the family's tree.
   image:
     if: github.event_name == 'push' && github.repository == 'georgekhananaev/reactive-family-tree'
     needs: check
@@ -48,7 +50,7 @@ jobs:
           provenance: false
           tags: |
             ghcr.io/${{ github.repository }}:${{ github.sha }}
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.ref_name == 'main' && 'latest' || 'dev' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -58,16 +60,17 @@ jobs:
             BUILT=${{ github.event.head_commit.timestamp }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      # The server keeps the build that is live and the one before it. Here the last five are enough,
-      # and tidying is not worth failing a deploy over.
+      # The server keeps the builds that are live and the ones before them. Here the last ten are
+      # enough, as dev and main both add to them, and tidying is not worth failing a deploy over.
       - uses: actions/delete-package-versions@v5
         continue-on-error: true
         with:
           package-name: ${{ github.event.repository.name }}
           package-type: container
-          min-versions-to-keep: 5
+          min-versions-to-keep: 10
 
   deploy:
+    if: github.ref_name == 'main'
     needs: image
     runs-on: ubuntu-latest
     permissions:
@@ -76,31 +79,71 @@ jobs:
     # One deploy at a time. A newer push waits its turn instead of racing this one.
     concurrency: deploy
     steps:
+      - uses: actions/checkout@v4
       - name: Put this build live
         env:
           GH_TOKEN: ${{ github.token }}
           HOOK: ${{ secrets.DEPLOY_HOOK_URL }}
-        run: |
-          # A run that was overtaken leaves the server to the newer one
-          head=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
-          if [ "$head" != "$GITHUB_SHA" ]; then
-            echo "main has moved on to $head, and its own run puts that live."
-            exit 0
-          fi
-          # The hook is an n8n workflow that has the server fetch the image and swap the container.
-          # The token is what the server fetches with. It can read this repository's packages and
-          # nothing more, and it stops working when this job ends.
-          for attempt in 1 2 3; do
-            status=$(curl --silent --show-error --max-time 120 --output answer.json --write-out '%{http_code}' \
-              --header 'Content-Type: application/json' \
-              --data "{\"revision\":\"$GITHUB_SHA\",\"pass\":\"$GH_TOKEN\"}" "$HOOK") || status=000
-            if [ "$status" = 200 ]; then break; fi
-            echo "Attempt $attempt: the server answered $status."
-            if [ "$attempt" != 3 ]; then sleep 15; fi
-          done
-          [ "$status" = 200 ]
-          jq --raw-output .message answer.json
-          jq --exit-status .ok answer.json > /dev/null
+        run: .github/deploy-hook.sh
+
+  # The project site and a demo of the app, beside the family's tree on the same server. main puts
+  # them live, and dev puts its own copies up at addresses of their own, to try a change first.
+  site-image:
+    if: github.event_name == 'push' && github.repository == 'georgekhananaev/reactive-family-tree'
+    needs: check
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    env:
+      STAGE: ${{ github.ref_name == 'main' && 'live' || 'dev' }}
+      SITE_URL: ${{ github.ref_name == 'main' && 'https://familytree.reactatomics.com' || 'https://dev-familytree.reactatomics.com' }}
+      DEMO_APP_URL: ${{ github.ref_name == 'main' && 'https://demo-familytree.reactatomics.com' || 'https://dev-demo-familytree.reactatomics.com' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/site.Dockerfile
+          push: true
+          provenance: false
+          # The site has its addresses built in, so the stage is part of the tag
+          tags: ghcr.io/${{ github.repository }}-site:${{ env.STAGE }}-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            SITE_URL=${{ env.SITE_URL }}
+            DEMO_APP_URL=${{ env.DEMO_APP_URL }}
+          cache-from: type=gha,scope=site
+          cache-to: type=gha,scope=site,mode=max
+      - uses: actions/delete-package-versions@v5
+        continue-on-error: true
+        with:
+          package-name: ${{ github.event.repository.name }}-site
+          package-type: container
+          min-versions-to-keep: 10
+
+  showcase:
+    needs: [image, site-image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    concurrency: showcase-${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Put the site and the app demo live
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOOK: ${{ secrets.SHOWCASE_HOOK_URL }}
+        run: .github/deploy-hook.sh ${{ github.ref_name == 'main' && 'live' || 'dev' }}
 
   # A version and the changelog change in one place only, the release commit on main, so two
   # branches can never collide over them. A release that has to come through a pull request

@@ -1,13 +1,14 @@
 ---
 /*
  * Home. It opens on the live tree, growing as the page loads. Then one
- * sentence, two actions, and three things the app does.
+ * sentence, the ways to try it, and three things the app does.
  * Author: George Khananaev
  */
 
 import { DemoTree } from '../components/DemoTree';
 import Masthead from '../components/Masthead.astro';
 import Site from '../layouts/Site.astro';
+import { DEMO_APP_URL } from '../lib/demo-app';
 import { demoFamily } from '../lib/demo-family';
 import { AUTHOR, SITE_NAME } from '../lib/site.mjs';
 
@@ -43,6 +44,7 @@ const structuredData = {
       <h1>{SITE_NAME} is an open-source family tree, drawn as a living tree, for a family to host and look after together.</h1>
       <p class="actions">
         <a class="action primary" href="/demo/">Try the demo</a>
+        {DEMO_APP_URL && <a class="action" href={DEMO_APP_URL}>Sign in to the app demo</a>}
         <a class="action" href="/docs/run-your-own/">Run your own</a>
       </p>
       <p class="note">

@@ -1,0 +1,29 @@
+# What the site image is built from: the source and the lockfile, and nothing else.
+# Docker reads this file instead of the .dockerignore at the top when it builds docker/site.Dockerfile.
+
+# Built or fetched again inside the image
+**/node_modules
+**/.next
+**/.astro
+**/.turbo
+**/dist
+**/coverage
+**/*.tsbuildinfo
+
+# No family's data and no secrets, even in an image that never reads them
+**/data
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/.env
+**/.env.*
+credentials
+
+# Not part of the site
+.git
+.github
+.claude
+.idea
+.playwright-mcp
+docs
+apps/web
