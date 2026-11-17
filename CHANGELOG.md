@@ -8,6 +8,23 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-17
+
+### Changed
+- **backup**: A copy of the family is kept automatically just before a restore replaces it (the last five are kept), and a backup no longer carries the sign-in keys Google handed over
+
+### Fixed
+- **sign-in**: A page that cannot reach the server now says so and offers another try, instead of waiting for ever
+- **editing**: A button pressed twice, or Enter followed by a click, no longer sends the same request, invitation or comment twice
+- **members**: Two people opening the same invitation at the same moment are no longer both let in, an invitation is not used up when the account could not be made, and someone invited as a person who has since left the tree can still join
+- **backup**: A nightly copy is written whole or not at all, and a backup is taken from one moment, so an edit made meanwhile cannot leave it half old and half new
+- **GEDCOM**: A date with empty brackets or a very long remark no longer turns a whole import away
+
+### Security
+- **people**: Someone born "between 1910 and 1935", or "after 1910", is now counted as possibly living for as long as they might be, so their details stay hidden from visitors
+- **self-hosting**: Requests from a page on another website can no longer act with a visitor's sign-in, and what a request may send is measured before it is read, so an enormous one cannot fill the server's memory
+- **editing**: A date carrying extra data beside it, or a very long one, is refused instead of being stored
+
 ## [0.7.1] - 2026-11-15
 
 ### Security
