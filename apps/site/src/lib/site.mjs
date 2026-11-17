@@ -20,5 +20,21 @@ export function iconLinks(version) {
   };
 }
 
+/**
+ * Google Analytics, only when the site is built with a measurement ID (PUBLIC_GA_ID). The tags are in
+ * Starlight's head form, so the docs and the site's own pages load the very same thing. Anything that
+ * is not an ID of the form "G-…" is ignored, so nothing else can be written into the page this way.
+ *
+ * @param {string | undefined} id
+ * @returns {{ tag: 'script'; attrs?: Record<string, string | boolean>; content?: string }[]}
+ */
+export function analyticsTags(id) {
+  if (!id || !/^G-[A-Z0-9]+$/.test(id)) return [];
+  return [
+    { tag: 'script', attrs: { async: true, src: `https://www.googletagmanager.com/gtag/js?id=${id}` } },
+    { tag: 'script', content: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${id}');` },
+  ];
+}
+
 /* The two typefaces of the approved design, loaded as docs/demo/web/index.html loads them. */
 export const FONTS = 'https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400..700;1,7..72,400&family=Source+Sans+3:wght@400;500;600;700&display=swap';

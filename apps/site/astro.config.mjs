@@ -13,7 +13,7 @@ import react from '@astrojs/react';
 import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 
-import { AUTHOR, FONTS, SITE_NAME, iconLinks } from './src/lib/site.mjs';
+import { AUTHOR, FONTS, SITE_NAME, analyticsTags, iconLinks } from './src/lib/site.mjs';
 
 /* A short hash of the icon files. It goes on the icon links, so a new icon shows at once. */
 const iconHash = createHash('sha256');
@@ -50,6 +50,7 @@ export default defineConfig({
         { tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.googleapis.com' } },
         { tag: 'link', attrs: { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: true } },
         { tag: 'link', attrs: { rel: 'stylesheet', href: FONTS } },
+        ...analyticsTags(process.env.PUBLIC_GA_ID),
       ],
       sidebar: [
         { label: 'Overview', slug: 'docs' },

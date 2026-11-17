@@ -5,6 +5,7 @@
 #
 # SITE_URL is where the site will be reached, for its links and the address it gives search engines.
 # DEMO_APP_URL is optional: the address of a running demo of the app, which the site then links to.
+# GA_ID is optional too: a Google Analytics measurement ID (G-…). Without it the site loads no analytics.
 
 FROM node:24-slim AS build
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH ASTRO_TELEMETRY_DISABLED=1
@@ -17,8 +18,9 @@ COPY . .
 RUN pnpm install --frozen-lockfile --offline
 ARG SITE_URL
 ARG DEMO_APP_URL=""
+ARG GA_ID=""
 RUN test -n "$SITE_URL" || { echo "Set SITE_URL with --build-arg."; exit 1; }
-RUN SITE_URL="$SITE_URL" PUBLIC_DEMO_APP_URL="$DEMO_APP_URL" pnpm --filter @reactive-family-tree/site build
+RUN SITE_URL="$SITE_URL" PUBLIC_DEMO_APP_URL="$DEMO_APP_URL" PUBLIC_GA_ID="$GA_ID" pnpm --filter @reactive-family-tree/site build
 
 FROM nginxinc/nginx-unprivileged:stable-alpine AS run
 COPY docker/site-nginx.conf /etc/nginx/conf.d/default.conf

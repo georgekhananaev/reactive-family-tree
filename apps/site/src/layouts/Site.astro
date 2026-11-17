@@ -6,7 +6,7 @@
  * Author: George Khananaev
  */
 
-import { AUTHOR, FONTS, SITE_NAME, iconLinks } from '../lib/site.mjs';
+import { AUTHOR, FONTS, SITE_NAME, analyticsTags, iconLinks } from '../lib/site.mjs';
 import '../styles/site.css';
 
 interface Props {
@@ -24,6 +24,9 @@ const canonical = new URL(path, Astro.site).href;
 
 // Set in astro.config.mjs from the icon files themselves
 const icons = iconLinks(import.meta.env.ICON_VERSION);
+
+// The same tags the docs get from astro.config.mjs, when the site is built with an analytics ID
+const analytics = analyticsTags(import.meta.env.PUBLIC_GA_ID);
 ---
 
 <!doctype html>
@@ -46,6 +49,7 @@ const icons = iconLinks(import.meta.env.ICON_VERSION);
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
+    {analytics.map(({ attrs, content }) => (content ? <script is:inline set:html={content} /> : <script is:inline {...attrs} />))}
     <script is:inline>
       // Choose light or dark before anything is drawn: the choice made in the docs first, otherwise the device setting.
       (function () {

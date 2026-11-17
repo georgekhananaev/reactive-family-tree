@@ -136,6 +136,7 @@ jobs:
           build-args: |
             SITE_URL=https://familytree.reactatomics.com
             DEMO_APP_URL=https://demo-familytree.reactatomics.com
+            GA_ID=G-BTXXZTYX02
           cache-from: type=gha,scope=site
           cache-to: type=gha,scope=site,mode=max
       - uses: actions/delete-package-versions@v5
