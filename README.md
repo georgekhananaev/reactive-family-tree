@@ -4,6 +4,8 @@ A family tree drawn as a living tree. Branches are ink, leaves are people, and t
 whole thing grows, folds, and answers to touch. One family per install, run by its
 own relatives, with nothing sent anywhere else.
 
+**[Try the app demo](https://demo-familytree.reactatomics.com)** · **[Project site and docs](https://familytree.reactatomics.com)** · [Changelog](CHANGELOG.md)
+
 - **It looks like a tree.** Ancestors are the roots, descendants are the canopy.
   Light and dark, phone and desktop, and it stands still for people who ask for
   less motion.
@@ -44,6 +46,52 @@ own relatives, with nothing sent anywhere else.
   otherwise themselves.
 
 Created by George Khananaev. MIT licensed.
+
+## Try it
+
+Two places to see it before you install anything:
+
+- **[The project site](https://familytree.reactatomics.com)** has the tree to
+  play with right in your browser: choose a leaf, drag and zoom, and replay the
+  family growing year by year. The documentation is there too.
+- **[The app demo](https://demo-familytree.reactatomics.com)** is the whole app,
+  the same build a family runs, with the made-up Marlow family: 50 people over
+  five generations. Sign in as any of the ready-made accounts and try what that
+  role can do.
+
+| Sign in as | Role | Worth trying |
+|------------|------|--------------|
+| Helen | Owner | Everything, including "Manage family" and the settings |
+| Peter | Admin | Editing anywhere, and reviewing suggestions |
+| Margaret | Steward of her branch | An AI's draft is waiting for her to look over |
+| Karl | Steward of his branch | A suggestion is waiting for his review |
+| Nora | Steward of her branch | Editing inside a branch, and suggesting outside it |
+| Sophie | Member | Looking after her own leaf, and suggesting fixes elsewhere |
+| Daniel | Member with no branch | Seeing what a relative can and cannot change |
+
+The app demo is one copy shared by everyone who visits it, so you may find
+someone else's changes in it. It goes back to the original family once a day,
+and whoever is signed in as the owner can start it again sooner, with
+"Start the demo again" under "Manage family", "Data". No email is sent from it.
+
+## Who can do what
+
+There is one rule: **an edit inside your own branch is published at once, and
+an edit anywhere else becomes a suggestion** for that branch's steward or an
+admin to review.
+
+| Role | Can |
+|------|-----|
+| Owner | Everything an admin can, and also add or remove owners and restore a backup |
+| Admin | Edit anywhere, review any suggestion, invite people, change roles, branches and settings, import and export GEDCOM |
+| Steward | A member given one or more branches. Edits inside them are published at once |
+| Member | Edit their own leaf, add a memory to anyone they can see, suggest changes everywhere else |
+| Visitor | See the tree only if the family made it public, and suggest a change only if allowed |
+
+A branch is one person with their partners, all their descendants, and the
+descendants' partners. Nobody can make an account for themselves: accounts come
+from an invitation. [Who can do what](https://familytree.reactatomics.com/docs/who-can-do-what/)
+has the full rules.
 
 ## The garden behind it
 
@@ -99,7 +147,8 @@ pnpm demo
 ```
 
 This starts the same app with the fictional Marlow family, 50 people over five
-generations, and a ready-made account for every role. It keeps its data in a
+generations, and a ready-made account for every role, the same as the
+[app demo](https://demo-familytree.reactatomics.com). It keeps its data in a
 file of its own, so it never touches a real family's tree.
 
 ### With Docker
@@ -200,9 +249,21 @@ pnpm db:generate  # after changing the tables in packages/db
 The tests run against a real database file in a temporary folder, through the same
 API the page uses. `CONTRIBUTING.md` has the rest.
 
+## Documentation
+
+The full documentation is on the [project site](https://familytree.reactatomics.com/docs/):
+
+- [Run your own](https://familytree.reactatomics.com/docs/run-your-own/): on your computer, with Docker, or on a server
+- [Who can do what](https://familytree.reactatomics.com/docs/who-can-do-what/): roles, branches, and what happens to an edit
+- [Privacy](https://familytree.reactatomics.com/docs/privacy/): who counts as living, and what a visitor or a relative sees
+- [Connect your AI](https://familytree.reactatomics.com/docs/connect-your-ai/): the MCP tools, and how drafts work
+- [The React package](https://familytree.reactatomics.com/docs/react-package/): the tree in your own app
+- [Contributing](https://familytree.reactatomics.com/docs/contributing/): how the code is laid out
+
 ## More
 
 - [The plan](docs/README.md): what it is, how it looks and moves, and how it is built
+- [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security](SECURITY.md)
 - [License](LICENSE)
