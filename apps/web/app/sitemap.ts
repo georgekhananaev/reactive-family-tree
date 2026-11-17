@@ -10,8 +10,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   await store.fresh();
   const tree = await views.tree(members.visitor());
   if (tree.closed) return [];
+  const front = { url: config.baseUrl, changeFrequency: 'weekly' as const, priority: 1 };
+  // A demo is planted again from scratch now and then, and its people get new addresses each time
+  if (config.demoMode) return [front];
   return [
-    { url: config.baseUrl, changeFrequency: 'weekly', priority: 1 },
+    front,
     ...tree.people.flatMap((person) => (person.masked || person.pending ? [] : [{ url: `${config.baseUrl}/people/${person.id}`, changeFrequency: 'monthly' as const, priority: 0.6 }])),
   ];
 }
