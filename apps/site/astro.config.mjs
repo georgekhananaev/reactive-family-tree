@@ -40,6 +40,8 @@ export default defineConfig({
       description: 'How to run Reactive Family Tree for your own family, and how to build on it.',
       favicon: icons.svg.href,
       customCss: ['./src/styles/docs.css'],
+      // Each docs page names its own shared-link picture
+      routeMiddleware: './src/route-data.ts',
       // Commands are shown as plain code, without the drawn window around a terminal
       expressiveCode: { defaultProps: { frame: 'code' } },
       head: [

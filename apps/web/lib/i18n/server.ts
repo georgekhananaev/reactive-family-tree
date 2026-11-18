@@ -13,6 +13,9 @@ import { getApp } from '@/lib/server';
 import { bookFor } from './books';
 import type { WebPhrase } from './phrases';
 
+/* How a shared link's preview names the language it is written in. */
+export const OG_LOCALE: Record<Lang, string> = { en: 'en_US', he: 'he_IL', ru: 'ru_RU' };
+
 /* The language this request is read in. */
 export async function requestLang(): Promise<Lang> {
   const [{ store }, asked, said] = await Promise.all([getApp(), cookies(), headers()]);

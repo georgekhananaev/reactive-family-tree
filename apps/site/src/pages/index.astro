@@ -10,9 +10,9 @@ import Masthead from '../components/Masthead.astro';
 import Site from '../layouts/Site.astro';
 import { DEMO_APP_URL } from '../lib/demo-app';
 import { demoFamily } from '../lib/demo-family';
-import { AUTHOR, SITE_NAME } from '../lib/site.mjs';
+import { AUTHOR, SITE_NAME, TAGLINE, cardPath } from '../lib/site.mjs';
 
-const description = 'An open-source family tree drawn as a living tree. Host it for your family, let relatives look after their own branches, and connect the AI you already use.';
+const description = `An open-source ${TAGLINE.replace(/^a /, '')}. Host it for your family, let relatives look after their own branches, and connect the AI you already use.`;
 
 // Counted from the family itself, so the page cannot say a number that is not true
 const family = demoFamily();
@@ -23,6 +23,7 @@ const structuredData = {
   name: SITE_NAME,
   description,
   url: new URL('/', Astro.site).href,
+  image: new URL(cardPath('/'), Astro.site).href,
   applicationCategory: 'LifestyleApplication',
   operatingSystem: 'Web',
   license: 'https://opensource.org/license/mit',
@@ -32,7 +33,7 @@ const structuredData = {
 };
 ---
 
-<Site title={`${SITE_NAME}: a family tree drawn as a living tree`} description={description} structuredData={structuredData}>
+<Site title={`${SITE_NAME}: ${TAGLINE}`} description={description} structuredData={structuredData}>
   <Masthead wordmark links={[{ href: '/demo/', label: 'Demo' }, { href: '/docs/', label: 'Docs' }]} />
 
   <main>

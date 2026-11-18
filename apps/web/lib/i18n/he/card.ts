@@ -156,4 +156,9 @@ export const card = {
   'Brothers and sisters': 'אחים ואחיות',
   'See {name} on the tree': 'לראות את {name} בעץ',
   'See them on the tree': 'לראות בעץ',
+
+  // ---------- The picture a shared link shows ----------
+  '{n## person|# people}': '{n#אדם אחד|שני אנשים|# אנשים}',
+  '{n## generation|# generations}': '{n#דור אחד|שני דורות|# דורות}',
+  'since {year}': 'מאז {year}',
 } as const;

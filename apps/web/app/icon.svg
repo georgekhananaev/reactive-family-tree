@@ -1,36 +1,85 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- A small family tree: a trunk, four branches and five beech leaves in the tree's own colours. Author: George Khananaev -->
+  <!-- Reactive Family Tree v4: Fan-shaped Ginkgo crown (with a golden Ginkgo leaf) and slender Olive lower leaves. Author: George Khananaev -->
   <style>
-    .bark { fill: none; stroke: #3A3028; stroke-linecap: round; }
-    .trunk { fill: #3A3028; }
-    .blade { stroke: #14261F; stroke-opacity: 0.5; stroke-width: 2.4; }
-    .vein { fill: none; stroke: #14261F; stroke-opacity: 0.4; stroke-width: 2.4; stroke-linecap: round; }
-    .l0 { fill: #2F6B4F; } .l1 { fill: #3A7853; } .l2 { fill: #508C58; } .l3 { fill: #6FA560; } .gold { fill: #C9992E; }
+    .root { fill: #3A3028; opacity: 0.34; }
+    .ground { fill: none; stroke: #3A3028; stroke-opacity: 0.48; stroke-width: 1.4; stroke-linecap: round; }
+    .bark { fill: #3A3028; }
+    .blade { stroke: #14261F; stroke-opacity: 0.52; stroke-width: 1.5; stroke-linejoin: round; }
+    .vein { fill: none; stroke: #14261F; stroke-opacity: 0.38; stroke-width: 1.6; stroke-linecap: round; }
+    .vein-gold { fill: none; stroke: #5A3F0C; stroke-opacity: 0.48; stroke-width: 1.6; stroke-linecap: round; }
+    .l0 { fill: #2F6B4F; } .l1 { fill: #3A7853; } .l2 { fill: #508C58; } .l3 { fill: #6FA560; } .l4 { fill: #8DBF6A; }
+    .gold { fill: #C9992E; } .gold2 { fill: #D4A742; }
+    .wash-light { stop-color: #FFFFFF; } .wash-shade { stop-color: #14261F; }
+    .petal { fill: #E58FA6; stroke: #A9506A; stroke-width: 0.75; } .heart { fill: #C9992E; }
     @media (prefers-color-scheme: dark) {
-      .bark { stroke: #8491B4; }
-      .trunk { fill: #8491B4; }
-      .blade { stroke: #F1FBF3; }
-      .vein { stroke: #0C1322; }
-      .l0 { fill: #8FD0A8; } .l1 { fill: #A3D9B5; } .l2 { fill: #BFE3C8; } .l3 { fill: #CDEBCB; } .gold { fill: #E3C77A; }
+      .root { fill: #8491B4; opacity: 0.28; }
+      .ground { stroke: #8491B4; stroke-opacity: 0.45; }
+      .bark { fill: #8491B4; }
+      .blade { stroke: #F1FBF3; stroke-opacity: 0.55; }
+      .vein { stroke: #0C1322; stroke-opacity: 0.38; }
+      .vein-gold { stroke: #4E3B0E; stroke-opacity: 0.5; }
+      .l0 { fill: #8FD0A8; } .l1 { fill: #A3D9B5; } .l2 { fill: #BFE3C8; } .l3 { fill: #CDEBCB; } .l4 { fill: #DCF3D2; }
+      .gold { fill: #E3C77A; } .gold2 { fill: #EBD08C; }
+      .wash-light { stop-color: #FFFFFF; } .wash-shade { stop-color: #0C1322; }
+      .petal { fill: #F2A7BA; stroke: #FBD5DE; } .heart { fill: #F3D36B; }
     }
   </style>
   <defs>
-    <g id="leaf" transform="scale(0.42)">
-      <path class="blade" d="M0,-8 C-18,-18 -20,-44 0,-64 C20,-44 18,-18 0,-8 Z"/>
-      <path class="vein" d="M0,-8 L0,-56"/>
+    <radialGradient id="wash" cx="36%" cy="32%" r="72%">
+      <stop class="wash-light" offset="0" stop-opacity="0.42"/>
+      <stop class="wash-light" offset="0.55" stop-opacity="0.05"/>
+      <stop class="wash-shade" offset="1" stop-opacity="0.18"/>
+    </radialGradient>
+    <g id="beech">
+      <path class="blade" d="M0,0 C-16.5,-10 -18.5,-34 0,-50 C18.5,-34 16.5,-10 0,0 Z"/>
+      <path d="M0,0 C-16.5,-10 -18.5,-34 0,-50 C18.5,-34 16.5,-10 0,0 Z" fill="url(#wash)"/>
+      <path class="vein" d="M0,-1 L0,-44 M0,-14 L-8,-22 M0,-14 L8,-22 M0,-27 L-7.5,-34.5 M0,-27 L7.5,-34.5"/>
+    </g>
+    <g id="beech-gold">
+      <path class="blade" d="M0,0 C-16.5,-10 -18.5,-34 0,-50 C18.5,-34 16.5,-10 0,0 Z"/>
+      <path d="M0,0 C-16.5,-10 -18.5,-34 0,-50 C18.5,-34 16.5,-10 0,0 Z" fill="url(#wash)"/>
+      <path class="vein-gold" d="M0,-1 L0,-44 M0,-14 L-8,-22 M0,-14 L8,-22 M0,-27 L-7.5,-34.5 M0,-27 L7.5,-34.5"/>
+    </g>
+    <g id="olive">
+      <path class="blade" d="M0,0 C-11,-12 -12,-36 0,-52 C12,-36 11,-12 0,0 Z"/>
+      <path d="M0,0 C-11,-12 -12,-36 0,-52 C12,-36 11,-12 0,0 Z" fill="url(#wash)"/>
+      <path class="vein" d="M0,-1 L0,-46 M0,-16 L-5.5,-23 M0,-16 L5.5,-23 M0,-29 L-5.5,-36 M0,-29 L5.5,-36"/>
+    </g>
+    <g id="ginkgo">
+      <path class="blade" d="M0,0 C-7,-6 -24,-15 -27,-30 C-21,-41 -8,-43 -2,-35 L0,-30 L2,-35 C8,-43 21,-41 27,-30 C24,-15 7,-6 0,0 Z"/>
+      <path d="M0,0 C-7,-6 -24,-15 -27,-30 C-21,-41 -8,-43 -2,-35 L0,-30 L2,-35 C8,-43 21,-41 27,-30 C24,-15 7,-6 0,0 Z" fill="url(#wash)"/>
+      <path class="vein" d="M0,-2 L-18,-31 M0,-2 L-9.5,-36 M0,-2 L0,-29 M0,-2 L9.5,-36 M0,-2 L18,-31"/>
+    </g>
+    <g id="ginkgo-gold">
+      <path class="blade" d="M0,0 C-7,-6 -24,-15 -27,-30 C-21,-41 -8,-43 -2,-35 L0,-30 L2,-35 C8,-43 21,-41 27,-30 C24,-15 7,-6 0,0 Z"/>
+      <path d="M0,0 C-7,-6 -24,-15 -27,-30 C-21,-41 -8,-43 -2,-35 L0,-30 L2,-35 C8,-43 21,-41 27,-30 C24,-15 7,-6 0,0 Z" fill="url(#wash)"/>
+      <path class="vein-gold" d="M0,-2 L-18,-31 M0,-2 L-9.5,-36 M0,-2 L0,-29 M0,-2 L9.5,-36 M0,-2 L18,-31"/>
+    </g>
+    <g id="blossom">
+      <ellipse class="petal" cx="0" cy="-5.2" rx="3.1" ry="4.7"/>
+      <ellipse class="petal" cx="0" cy="-5.2" rx="3.1" ry="4.7" transform="rotate(72)"/>
+      <ellipse class="petal" cx="0" cy="-5.2" rx="3.1" ry="4.7" transform="rotate(144)"/>
+      <ellipse class="petal" cx="0" cy="-5.2" rx="3.1" ry="4.7" transform="rotate(216)"/>
+      <ellipse class="petal" cx="0" cy="-5.2" rx="3.1" ry="4.7" transform="rotate(288)"/>
+      <circle class="heart" r="2.2"/>
     </g>
   </defs>
+  <!-- Gently curving trunk and limbs -->
   <g class="bark">
-    <path d="M32,46 L32,27" stroke-width="4"/>
-    <path d="M32,43 C27,40 22,35 19.5,31" stroke-width="3.2"/>
-    <path d="M32,43 C37,40 42,35 44.5,31" stroke-width="3.2"/>
-    <path d="M32,53 C29,51 25,49 22.5,47" stroke-width="2.8"/>
-    <path d="M32,53 C35,51 39,49 41.5,47" stroke-width="2.8"/>
+    <path d="M37.80,60.50 L37.20,58.81 L36.66,57.12 L36.16,55.44 L35.70,53.74 L35.27,52.04 L34.87,50.32 L34.51,48.58 L34.18,46.82 L33.88,45.03 L33.62,43.22 L33.38,41.38 L33.18,39.50 L33.01,37.59 L32.87,35.64 L32.76,33.65 L32.68,31.62 L32.63,29.55 L32.61,27.43 L32.62,25.26 L32.65,23.03 L31.35,22.97 L31.17,25.19 L31.00,27.37 L30.85,29.50 L30.70,31.59 L30.56,33.63 L30.42,35.63 L30.28,37.60 L30.13,39.52 L29.96,41.42 L29.78,43.28 L29.58,45.11 L29.36,46.92 L29.11,48.70 L28.83,50.45 L28.51,52.18 L28.15,53.89 L27.75,55.58 L27.29,57.24 L26.79,58.88 L26.20,60.50 Q32.00,61.70 37.80,60.50 Z"/>
+    <path d="M33.19,39.91 L32.67,38.96 L32.08,38.11 L31.42,37.38 L30.70,36.75 L29.95,36.21 L29.17,35.75 L28.37,35.36 L27.56,35.01 L26.73,34.70 L25.90,34.41 L25.06,34.13 L24.22,33.84 L23.39,33.55 L22.56,33.24 L21.74,32.90 L20.94,32.52 L20.15,32.09 L19.39,31.60 L18.65,32.55 L19.42,33.17 L20.23,33.74 L21.04,34.25 L21.87,34.71 L22.70,35.14 L23.52,35.55 L24.33,35.94 L25.11,36.31 L25.86,36.69 L26.57,37.08 L27.22,37.48 L27.82,37.90 L28.36,38.34 L28.83,38.81 L29.22,39.31 L29.55,39.84 L29.82,40.43 L30.01,41.09 Z"/>
+    <path d="M33.59,41.09 L33.79,40.42 L34.06,39.83 L34.40,39.29 L34.81,38.79 L35.30,38.32 L35.86,37.88 L36.48,37.46 L37.16,37.07 L37.90,36.69 L38.68,36.32 L39.49,35.94 L40.32,35.56 L41.18,35.16 L42.03,34.74 L42.89,34.27 L43.73,33.76 L44.56,33.19 L45.35,32.55 L44.61,31.60 L43.83,32.10 L43.03,32.54 L42.21,32.92 L41.37,33.26 L40.51,33.56 L39.66,33.85 L38.79,34.12 L37.93,34.39 L37.07,34.67 L36.22,34.98 L35.38,35.32 L34.55,35.71 L33.74,36.16 L32.97,36.70 L32.23,37.33 L31.55,38.07 L30.94,38.93 L30.41,39.91 Z"/>
+    <path d="M33.06,48.30 L32.45,47.66 L31.81,47.10 L31.15,46.62 L30.46,46.23 L29.77,45.90 L29.06,45.63 L28.34,45.42 L27.62,45.25 L26.90,45.12 L26.17,45.01 L25.44,44.92 L24.70,44.84 L23.96,44.76 L23.22,44.68 L22.47,44.59 L21.73,44.49 L20.98,44.36 L20.22,44.21 L19.89,45.36 L20.67,45.62 L21.44,45.84 L22.20,46.04 L22.95,46.22 L23.69,46.40 L24.41,46.57 L25.11,46.74 L25.78,46.92 L26.43,47.11 L27.04,47.32 L27.62,47.55 L28.16,47.81 L28.66,48.10 L29.12,48.41 L29.53,48.77 L29.91,49.16 L30.24,49.60 L30.54,50.10 Z"/>
+    <path d="M33.46,50.10 L33.76,49.60 L34.09,49.16 L34.47,48.77 L34.88,48.41 L35.34,48.10 L35.84,47.81 L36.38,47.55 L36.96,47.32 L37.57,47.11 L38.22,46.92 L38.89,46.74 L39.59,46.57 L40.31,46.40 L41.05,46.22 L41.80,46.04 L42.56,45.84 L43.33,45.62 L44.11,45.36 L43.78,44.21 L43.02,44.36 L42.27,44.49 L41.53,44.59 L40.78,44.68 L40.04,44.76 L39.30,44.84 L38.56,44.92 L37.83,45.01 L37.10,45.12 L36.38,45.25 L35.66,45.42 L34.94,45.63 L34.23,45.90 L33.54,46.23 L32.85,46.62 L32.19,47.10 L31.55,47.66 L30.94,48.30 Z"/>
   </g>
-  <path class="trunk" d="M27.5,63 C30.2,58 30,52 30,44 L34,44 C34,52 33.8,58 36.5,63 Z"/>
-  <use href="#leaf" class="l1" transform="translate(32,28)"/>
-  <use href="#leaf" class="l0" transform="translate(19.5,31.5) rotate(-45)"/>
-  <use href="#leaf" class="l2" transform="translate(44.5,31.5) rotate(45)"/>
-  <use href="#leaf" class="l3" transform="translate(22.5,47.5) rotate(-60)"/>
-  <use href="#leaf" class="gold" transform="translate(41.5,47.5) rotate(60)"/>
+
+  <!-- Two slender Olive leaves below + three fan-shaped Ginkgo leaves above -->
+  <use href="#olive" class="l3" transform="translate(21.5,45.2) rotate(-74) scale(0.42)"/>
+  <use href="#olive" class="l2" transform="translate(42.5,45.2) rotate(74) scale(0.42)"/>
+  <use href="#ginkgo" class="l0" transform="translate(20.2,33.0) rotate(-52) scale(0.42)"/>
+  <use href="#ginkgo-gold" class="gold" transform="translate(43.8,33.0) rotate(52) scale(0.42)"/>
+  <use href="#ginkgo" class="l1" transform="translate(32.0,23.5) scale(0.46)"/>
+
+  <!-- Union blossom at the main fork -->
+  <use href="#blossom" transform="translate(31.8,40.0) scale(0.82)"/>
 </svg>

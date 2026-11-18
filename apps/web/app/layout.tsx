@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from 'next';
 import { LANG_COOKIE, chooseLang, directionOf } from '@reactive-family-tree/core';
+import { familyText } from '@reactive-family-tree/server';
 import { Assistant, Frank_Ruhl_Libre, Literata, Source_Sans_3 } from 'next/font/google';
 import { cookies, headers } from 'next/headers';
 import { connection } from 'next/server';
 import type { ReactNode } from 'react';
 
 import { appearanceScript, placeOf } from '@/lib/appearance';
+import { previewImage } from '@/lib/card/meta';
 import { bookFor } from '@/lib/i18n/books';
 import { getT } from '@/lib/i18n/server';
 import { getApp } from '@/lib/server';
@@ -29,10 +31,16 @@ const uiHebrew = Assistant({ subsets: ['hebrew'], variable: '--font-ui-hebrew', 
 const FONTS = [display, slanted, ui, displayCyrillic, uiCyrillic, displayHebrew, uiHebrew].map((font) => font.variable).join(' ');
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { t } = await getT();
+  const [{ lang, t }, { store, config }] = await Promise.all([getT(), getApp()]);
+  await store.fresh();
   return {
+    // The address this install is reached at is only known while it runs, so every link in the page's head is made whole from it
+    metadataBase: new URL(config.baseUrl),
     title: t('Family tree'),
     description: t('A family tree that grows.'),
+    // A shared link to any page shows the tree's card, large. The tree's page and a person's set their own.
+    openGraph: { images: [previewImage('/preview.png', store.seq, t('The {family} tree.', { family: familyText(store.settings, 'familyName', lang) }))] },
+    twitter: { card: 'summary_large_image' },
   };
 }
 

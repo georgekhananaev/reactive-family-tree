@@ -17,8 +17,9 @@ import { cache } from 'react';
 import { factPieces } from '@/components/card/InLang';
 import { FACT_LABEL } from '@/components/card/labels';
 import { Photo } from '@/components/Photo';
+import { previewImage } from '@/lib/card/meta';
 import { portraitUrl } from '@/lib/format';
-import { getT, requestLang } from '@/lib/i18n/server';
+import { OG_LOCALE, getT, requestLang } from '@/lib/i18n/server';
 import { getApp } from '@/lib/server';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,8 @@ interface Loaded {
   baseUrl: string;
   /* Whether someone who is not signed in sees this person too. Only then may search engines list the page. */
   open: boolean;
+  /* The number of the tree's last change. */
+  seq: number;
 }
 
 const load = cache(async (id: string): Promise<Loaded | null> => {
@@ -53,7 +56,7 @@ const load = cache(async (id: string): Promise<Loaded | null> => {
   const open = reader.visitor || Boolean(await seenBy(app.members.visitor()));
   // The family's name is words like a person's: in the reader's language where the family has written it in theirs
   const { settings } = app.store;
-  return { detail, familyName: familyText(settings, 'familyName', lang), baseUrl: app.config.baseUrl, open };
+  return { detail, familyName: familyText(settings, 'familyName', lang), baseUrl: app.config.baseUrl, open, seq: app.store.seq };
 });
 
 const years = (person: { born?: number | null; died?: number | null }, t: Say) =>
@@ -61,9 +64,9 @@ const years = (person: { born?: number | null; died?: number | null }, t: Say) =
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const found = await load((await params).id);
-  const { t, list } = await getT();
+  const { lang, t, list } = await getT();
   if (!found) return { title: t('Not found'), robots: { index: false } };
-  const { detail: d, familyName, baseUrl, open } = found;
+  const { detail: d, familyName, open, seq } = found;
   const birth = d.facts.find((fact) => fact.type === 'birth');
   const partners = d.unions.flatMap((union) => (union.partner?.id ? [union.partner] : []));
   const children = d.unions.reduce((count, union) => count + union.children.length, 0);
@@ -75,12 +78,14 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const title = `${d.name}${years(d, t)}, ${familyName}`;
   const description = parts.length ? `${parts.join(', ')}.` : t('{name} on the {family} tree.', { name: d.name, family: familyName });
   return {
-    // The address this install is reached at is only known while it runs, so links are made whole here
-    metadataBase: new URL(baseUrl),
     title,
     description,
     alternates: { canonical: `/people/${d.id}` },
-    openGraph: { type: 'profile', title, description, url: `/people/${d.id}`, siteName: familyName },
+    openGraph: {
+      type: 'profile', title, description, url: `/people/${d.id}`, siteName: familyName, locale: OG_LOCALE[lang],
+      // Their picture shows them only when a visitor may see them. For anyone else it is the tree's card, and says so.
+      images: [previewImage(`/people/${d.id}/preview.png`, seq, open ? t('{name} on the {family} tree.', { name: d.name, family: familyName }) : t('The {family} tree.', { family: familyName }))],
+    },
     robots: open ? undefined : { index: false, follow: false },
   };
 }

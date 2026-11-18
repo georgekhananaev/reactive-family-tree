@@ -3,13 +3,14 @@ import type { Metadata } from 'next';
 
 import { Explorer } from '@/components/Explorer';
 import { buildInfo } from '@/lib/build';
-import { getT } from '@/lib/i18n/server';
+import { previewImage } from '@/lib/card/meta';
+import { OG_LOCALE, getT } from '@/lib/i18n/server';
 import { getApp } from '@/lib/server';
 
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { store, config } = await getApp();
+  const { store } = await getApp();
   await store.fresh();
   const { lang, t } = await getT();
   // The family's name and line as this reader reads them
@@ -17,12 +18,13 @@ export async function generateMetadata(): Promise<Metadata> {
   const { visibility } = store.settings;
   const about = description || t('The {family} tree.', { family: familyName });
   return {
-    // The address this install is reached at is only known while it runs, so links are made whole here
-    metadataBase: new URL(config.baseUrl),
     title: familyName,
     description: about,
     alternates: { canonical: '/' },
-    openGraph: { type: 'website', title: familyName, description: about, url: '/', siteName: familyName },
+    openGraph: {
+      type: 'website', title: familyName, description: about, url: '/', siteName: familyName, locale: OG_LOCALE[lang],
+      images: [previewImage('/preview.png', store.seq, t('The {family} tree.', { family: familyName }))],
+    },
     // A private tree asks search engines to leave it alone
     robots: visibility === 'private' ? { index: false, follow: false } : undefined,
   };

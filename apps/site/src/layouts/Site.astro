@@ -6,7 +6,7 @@
  * Author: George Khananaev
  */
 
-import { AUTHOR, FONTS, SITE_NAME, analyticsTags, iconLinks } from '../lib/site.mjs';
+import { AUTHOR, FONTS, SITE_NAME, analyticsTags, cardTags, iconLinks } from '../lib/site.mjs';
 import '../styles/site.css';
 
 interface Props {
@@ -21,6 +21,9 @@ const { title, description, structuredData } = Astro.props;
 // One address per page, always with its closing slash, whichever way it was asked for
 const path = Astro.url.pathname.endsWith('/') ? Astro.url.pathname : `${Astro.url.pathname}/`;
 const canonical = new URL(path, Astro.site).href;
+
+// The picture a shared link shows, made for this page at build time
+const card = cardTags(path, Astro.site, title);
 
 // Set in astro.config.mjs from the icon files themselves
 const icons = iconLinks(import.meta.env.ICON_VERSION);
@@ -49,6 +52,9 @@ const analytics = analyticsTags(import.meta.env.PUBLIC_GA_ID);
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content="en_US" />
+    {card.map(({ attrs }) => <meta {...attrs} />)}
+    <meta name="twitter:card" content="summary_large_image" />
     {analytics.map(({ attrs, content }) => (content ? <script is:inline set:html={content} /> : <script is:inline {...attrs} />))}
     <script is:inline>
       // Choose light or dark before anything is drawn: the choice made in the docs first, otherwise the device setting.

@@ -140,4 +140,8 @@ export const card: Record<keyof typeof he, string> = {
   'Brothers and sisters': 'Братья и сёстры',
   'See {name} on the tree': 'Показать на дереве: {name}',
   'See them on the tree': 'Показать на дереве',
+
+  '{n## person|# people}': '{n## человек|# человека|# человек}',
+  '{n## generation|# generations}': '{n## поколение|# поколения|# поколений}',
+  'since {year}': 'с\xa0{year}\xa0года',
 };

@@ -6,6 +6,8 @@ const config: NextConfig = {
   // One self-contained folder for the Docker image
   output: 'standalone',
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
+  // The pictures a shared link shows read their typefaces and the tree icon as files while the app runs
+  outputFileTracingIncludes: { '**/preview.png': ['./assets/card/*.ttf', './app/icon.svg'] },
   // The workspace packages are TypeScript source, compiled here with the app
   transpilePackages: [
     'reactive-family-tree',
