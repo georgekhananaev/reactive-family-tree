@@ -8,6 +8,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-19
+
+### Added
+- **site**: A public demo of the app and a project site, at familytree.reactatomics.com, with a robots.txt and a sitemap for search engines
+- **site**: Google Analytics on the project site, only when it is built with a measurement ID (the app itself loads no analytics)
+- **tree**: A link to the tree or to a person shows a picture card in chat apps and on social sites, in English, Hebrew and Russian, and the app has a new icon
+
+### Fixed
+- **tree**: Search engines can now read what a public tree needs to draw itself, so Google no longer shows it as "could not be loaded"; they are shown only what any visitor sees
+
 ## [0.8.0] - 2026-11-17
 
 ### Changed

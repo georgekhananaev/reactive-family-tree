@@ -1,6 +1,6 @@
 {
   "name": "@reactive-family-tree/db",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "description": "Database schema, migrations and client.",
   "author": "George Khananaev",

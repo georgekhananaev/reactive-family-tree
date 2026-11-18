@@ -1,6 +1,6 @@
 {
   "name": "@reactive-family-tree/server",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "description": "Services: edits, permissions, privacy, members, realtime, email. The one write path.",
   "author": "George Khananaev",
