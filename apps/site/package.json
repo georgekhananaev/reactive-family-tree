@@ -1,6 +1,6 @@
 {
   "name": "@reactive-family-tree/site",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "The project site: what Reactive Family Tree is, a live tree to play with, and the docs.",
   "author": "George Khananaev",

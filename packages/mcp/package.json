@@ -1,6 +1,6 @@
 {
   "name": "@reactive-family-tree/mcp",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "The MCP server: tools, resources and prompts for a relative's own AI.",
   "author": "George Khananaev",

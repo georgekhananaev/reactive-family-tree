@@ -1,6 +1,6 @@
 {
   "name": "@reactive-family-tree/web",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "The app: the tree, sign-in, editing, review, admin, the API and the MCP endpoint.",
   "author": "George Khananaev",

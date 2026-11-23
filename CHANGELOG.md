@@ -8,6 +8,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-24
+
+### Added
+- **tree**: The admin can choose how roomy the tree is, from tight to very roomy, and sees the tree change while choosing, before saving
+
+### Changed
+- **tree**: A large family's tree is laid out so that no name is written over another
+
 ## [0.9.0] - 2026-11-19
 
 ### Added

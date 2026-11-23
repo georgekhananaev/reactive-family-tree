@@ -1,6 +1,6 @@
 {
   "name": "@reactive-family-tree/gedcom",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "GEDCOM in and out.",
   "author": "George Khananaev",

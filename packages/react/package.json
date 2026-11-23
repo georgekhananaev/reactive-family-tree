@@ -1,6 +1,6 @@
 {
   "name": "reactive-family-tree",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "A family tree drawn as a living tree: ink branches, watercolour leaves, growth, gestures. One React component.",
   "author": "George Khananaev",
   "license": "MIT",
