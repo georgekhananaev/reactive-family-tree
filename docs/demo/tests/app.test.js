@@ -1,5 +1,5 @@
 /*
- * The journeys of the plan, end to end over HTTP against a real server:
+ * The family's journeys, end to end over HTTP against a real server:
  * who sees what, who may change what, suggestions and review, undo, drafts
  * from an AI client, and data in and out.
  */

@@ -24,22 +24,21 @@ import type { MoonChoice } from './sky';
 import type { Place } from './sky';
 import { PONDS, startLeap } from './pond';
 import type { Pond, PondChoice } from './pond';
+import { LEAF_BODY, NAME_SIZE, SPACING, YEARS_SIZE, arrange, bez, branchWidth, curveOf, linesOf, norm, placeNames, radiusOf, ringsFor, twigOf, widthOf } from './layout';
+import type { Bezier, Body, Fork, Hung, Knot, Leafage, NameTag, Point, Twig } from './layout';
 
 const NS = 'http://www.w3.org/2000/svg';
-const SPREAD = (92 * Math.PI) / 180;
-const RADII = [0, 185, 355, 520, 680];
-const RADIUS_STEP = 150;                 // each generation beyond the fifth
 const TRUNK = 160;
 const MOON_RADIUS = 59;                 // of the moon's disc, in its own drawing, which is 120 across
 const FAR_DRIFT = 0.25;                 // how much of the tree's movement across the screen the sun and the moon follow
 const FAR_GROWTH = 0.3;                 // how much of a zoom they follow: twice as near makes them a quarter larger
-const NAME_SIZE = 23;
-const YEARS_SIZE = 16;
-const BRANCH_BASE = 3.3;
 const ROOT_SEED = 0.1;                   // the reach of the first root, before any trunk
 const ROOT_EASE = 1.6;
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3.2;
+const FAR_ZOOM = 0.3;                    // further out than this on a small tree, and the names are too small to read and step aside
+const MID_ZOOM = 0.44;                   // further out than this, and the years under them do
+const ZOOM_REACH = 1.5;                  // a larger tree keeps its names to that much further out, and no further
 
 const GRAFT_SHAPES: readonly ShapeName[] = ['olive', 'ginkgo', 'linden'];
 const RELATIONS: readonly Relation[] = ['child', 'partner', 'parent', 'sibling'];
@@ -138,13 +137,6 @@ export interface YearRange {
 
 /* ---------- The parts of the drawing ---------- */
 
-interface Point {
-  x: number;
-  y: number;
-}
-
-type Bezier = readonly [Point, Point, Point, Point];
-
 /* The pen a branch is drawn with: its own grain, the length that grain is spread along, and how rough it is. */
 interface Ink {
   seed: number;
@@ -164,20 +156,13 @@ interface Partner {
   union: TreeUnion;
 }
 
-/* One place on the tree: a person, with their partners beside them and their children further out. */
-interface TreeNode {
-  id: string;
+/* One place on the tree: a person, with their partners beside them and their children further out. layout() says how much of the family hangs here and where the node is heading. */
+interface TreeNode extends Fork<TreeNode> {
   person: TreePerson;
-  depth: number;
   parent: TreeNode | null;
   partners: Partner[];
-  children: TreeNode[];
-  /* layout(): how much of the family hangs here, and where the node is heading */
-  count: number;
-  weight: number;
-  tx: number;
-  ty: number;
-  ttheta: number;
+  /* layout(): the leaves here, the person's first, with how far each leans, its size and its name */
+  hung: Hung[];
   /* setData(): where it comes from, and how far its branch has grown */
   inked: boolean;
   p: number;
@@ -232,18 +217,6 @@ interface Root {
   drawn?: string;
 }
 
-interface LabelBox {
-  x: number;
-  y: number;
-  anchor: 'start' | 'end' | 'middle';
-  nameDy: number;
-  yearsDy: number;
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
-}
-
 /* A + bud remembers which relative it adds, and where on its leaf the twig starts when it is pulled out. */
 type HandleElement = SVGGElement & { relation: Relation; origin: Point };
 
@@ -281,6 +254,12 @@ function closest<E extends Element = Element>(target: EventTarget | null, select
 /* A masked leaf has only an id. Everything else is read through this, and reads as nothing when the leaf is masked. */
 const unmasked = (person: TreePerson | undefined): PersonLeaf | undefined => (person?.masked ? undefined : person);
 
+/* How large someone's leaf is drawn: small for a small child, in between for the young. With no birth year on record, full size. */
+function scaleOf(person: TreePerson): number {
+  const born = unmasked(person)?.born ?? -Infinity;
+  return born >= THIS_YEAR - 5 ? 0.58 : born >= THIS_YEAR - 18 ? 0.8 : 1;
+}
+
 function hash(text: string): number {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) {
@@ -293,19 +272,6 @@ function hash(text: string): number {
   return (h >>> 0) / 4294967296;
 }
 const rnd = (id: string, salt: string): number => hash(`${id}|${salt}`);
-
-function norm(v: Point): Point {
-  const length = Math.hypot(v.x, v.y) || 1;
-  return { x: v.x / length, y: v.y / length };
-}
-
-function bez(b: Bezier, t: number): Point {
-  const u = 1 - t;
-  return {
-    x: u * u * u * b[0].x + 3 * u * u * t * b[1].x + 3 * u * t * t * b[2].x + t * t * t * b[3].x,
-    y: u * u * u * b[0].y + 3 * u * u * t * b[1].y + 3 * u * t * t * b[2].y + t * t * t * b[3].y,
-  };
-}
 
 function bezTangent(b: Bezier, t: number): Point {
   const u = 1 - t;
@@ -365,8 +331,6 @@ function outline(b: Bezier, widthAt: (s: number) => number, t: number, ink: Ink,
 }
 
 const easeOut = (t: number): number => 1 - Math.pow(1 - t, 2.2);
-const radiusOf = (depth: number): number => RADII[depth] ?? RADII[RADII.length - 1] + (depth - RADII.length + 1) * RADIUS_STEP;
-const branchWidth = (count: number): number => BRANCH_BASE * Math.sqrt(count);
 
 /*
  * A leaf, as markup. Built from fixed markup only, never from anything a person typed. The same goes for every
@@ -381,19 +345,7 @@ const branchWidth = (count: number): number => BRANCH_BASE * Math.sqrt(count);
 const FACE_CENTRE = -49;
 export const FACE_RADIUS = 28;
 
-/*
- * What a name has to keep clear of, as distances from the fork along the leaf:
- * the round patch that stands for it when other names look for room, then its
- * middle, its far end and half its width.
- */
-interface Body {
-  patchAt: number;
-  patch: number;
-  mid: number;
-  reach: number;
-  half: number;
-}
-const LEAF_BODY: Body = { patchAt: 38, patch: 25, mid: 40, reach: 66, half: 28 };
+/* What a name has to keep clear of where a round photo stands in for the leaf. */
 const FACE_BODY: Body = { patchAt: -FACE_CENTRE, patch: FACE_RADIUS + 2, mid: -FACE_CENTRE, reach: FACE_RADIUS - FACE_CENTRE, half: FACE_RADIUS };
 
 function leafMarkup(shape: LeafShape, depth: number, goldIndex: number): string {
@@ -433,6 +385,15 @@ export class TreeEngine {
   private readonly portraitOf: TreeEngineOptions['portraitOf'];
   private faces = false;
   private labels = ENGLISH;
+  /* How much roomier or tighter than it comes the family asked the tree to be. */
+  private spacing = 1;
+  /* How far out each generation stands before that, found when the family last changed, and how many times larger than a small tree this one now is. */
+  private rings: number[] = [];
+  private grown = 1;
+  /* For measuring names as the page's own fonts write them, and what has been measured since the fonts last changed. */
+  private readonly pen = document.createElement('canvas').getContext('2d');
+  private fonts: Record<'name' | 'years', string> | null = null;
+  private readonly widths = new Map<string, number>();
 
   private year: number;
   private hoverId: string | null;
@@ -552,6 +513,11 @@ export class TreeEngine {
     this.twigTip.innerHTML = `<path class="twig-leaf" d="${SHAPES.beech.d}" transform="scale(0.6)"/><text class="handle-label" text-anchor="middle" y="26"></text>`;
     this.buildRoots();
     this.listen();
+    // A font that arrives after the names were written writes them a little wider or narrower, so they are measured and placed again
+    document.fonts.addEventListener('loadingdone', () => {
+      this.widths.clear();
+      if (this.shift >= 1 && this.leaves.length) this.placeLabels();
+    }, { signal: this.abort.signal });
     this.gustSoon(5200);
     this.resizer = new ResizeObserver(() => {
       if (!this.userMoved) return this.fit();
@@ -668,7 +634,7 @@ export class TreeEngine {
       seen.add(personId);
       const node: TreeNode = {
         // Children are looked up before they are grown. The root is whoever the server names, and is taken to be among the people it sent
-        id: personId, person: this.people.get(personId)!, depth, parent, partners: [], children: [], leaves: [],
+        id: personId, person: this.people.get(personId)!, depth, parent, partners: [], children: [], leaves: [], hung: [],
         // Filled in by layout(), setData() and pose() before anything reads them
         count: 0, weight: 0, tx: 0, ty: 0, ttheta: 0, inked: false, p: 0, fx: 0, fy: 0, ftheta: 0, blossomOn: false,
         x: 0, y: 0, theta: 0, dir: { x: 0, y: -1 }, w0: 0, w1: 0, duration: 0,
@@ -690,43 +656,61 @@ export class TreeEngine {
     return list;
   }
 
-  /* Generations on arcs, the order of the family as the angle. Sets where each node is heading. */
-  private layout(): void {
-    if (!this.nodes.length) return;
-    const maxDepth = Math.max(4, ...this.nodes.map((n) => n.depth));
-    const weigh = (n: TreeNode): void => {
-      let kids = 0;
-      n.count = 1 + n.partners.length;
-      for (const child of n.children) {
-        weigh(child);
-        kids += child.weight;
-        n.count += child.count;
+  /*
+   * Generations on rings, the order of the family as the angle. Sets where each node is heading. How far out the rings
+   * stand is worked out again only when asked, as when the family has changed: making the tree roomier or tighter keeps it.
+   */
+  private layout(family = true): void {
+    const root = this.nodes[0];
+    if (!root) return;
+    if (family) {
+      for (const n of this.nodes) {
+        // A partner's leaf leans away from the person's. Alone, someone with children leans to one side of the branch that goes on to them.
+        const offsets = n.partners.length ? [-0.66, ...n.partners.map((_, i) => 0.66 + i * 0.6)]
+          : n.children.length ? [rnd(n.id, 's') > 0.5 ? 0.7 : -0.7] : [0];
+        n.hung = [n.person, ...n.partners.map((partner) => partner.person)].map((person, i) => ({ offset: offsets[i], scale: scaleOf(person), tag: this.tagOf(person) }));
       }
-      const own = (maxDepth / Math.max(n.depth, 1.5)) * (1 + 0.5 * n.partners.length);
-      n.weight = Math.max(own, kids);
+      this.rings = ringsFor(root, rnd);
+    }
+    const rings = this.rings.map((ring) => ring * this.spacing), last = rings.length - 1;
+    arrange(root, rings, rnd);
+    this.grown = last ? rings[last] / radiusOf(last) : 1;
+  }
+
+  /* What is written beside someone's leaf, and how wide the page's fonts write it. A private relative is an unnamed leaf. */
+  private tagOf(person: TreePerson): NameTag | null {
+    if (person.masked) return null;
+    const lines = linesOf(this.nameOf(person));
+    // The years as wide as they will ever be written: someone who has died has both years once the slider is past the second
+    const years = person.pending ? this.yearsOf(person) : person.born ? (person.died ? `${person.born}–${person.died}` : String(person.born)) : '';
+    return { lines, years: Boolean(years), width: Math.max(...lines.map((line) => this.measured(line, 'name')), years ? this.measured(years, 'years') : 0) };
+  }
+
+  /* How wide the page writes a name, or the years under one. Where it cannot be asked, by counting letters. */
+  private measured(text: string, kind: 'name' | 'years'): number {
+    const counted = widthOf(text, kind === 'name' ? NAME_SIZE : YEARS_SIZE);
+    if (!this.pen) return counted;
+    const key = `${kind}|${text}`;
+    let width = this.widths.get(key);
+    if (width === undefined) {
+      this.fonts ??= this.readFonts();
+      this.pen.font = this.fonts[kind];
+      width = this.pen.measureText(text).width || counted;
+      this.widths.set(key, width);
+    }
+    return width;
+  }
+
+  /* The fonts tree.css gives a name and its years, read from a name that is written for a moment and taken away. */
+  private readFonts(): Record<'name' | 'years', string> {
+    const probe = el('g', { class: 'label' }, this.layer.labels);
+    const fontOf = (kind: 'name' | 'years'): string => {
+      const { fontWeight, fontSize, fontFamily } = getComputedStyle(el('text', { class: kind }, probe));
+      return `${fontWeight} ${fontSize} ${fontFamily}`;
     };
-    const place = (n: TreeNode, a0: number, a1: number): void => {
-      const kids = n.children;
-      if (kids.length) {
-        const sum = kids.reduce((s, c) => s + c.weight, 0);
-        const span = ((a1 - a0) * sum) / n.weight;
-        let cursor = (a0 + a1) / 2 - span / 2;
-        for (const child of kids) {
-          const width = (span * child.weight) / sum;
-          place(child, cursor, cursor + width);
-          cursor += width;
-        }
-        n.ttheta = (kids[0].ttheta + kids[kids.length - 1].ttheta) / 2;
-      } else {
-        n.ttheta = (a0 + a1) / 2;
-      }
-      if (n.depth > 0) n.ttheta += (rnd(n.id, 't') - 0.5) * 0.035;
-      const r = radiusOf(n.depth) + (n.depth ? (rnd(n.id, 'r') - 0.5) * 30 : 0);
-      n.tx = r * Math.sin(n.ttheta);
-      n.ty = -r * Math.cos(n.ttheta);
-    };
-    weigh(this.nodes[0]);
-    place(this.nodes[0], -SPREAD, SPREAD);
+    const fonts = { name: fontOf('name'), years: fontOf('years') };
+    probe.remove();
+    return fonts;
   }
 
   /* Put everyone `e` of the way from where they were to where they are going, and shape the branches. */
@@ -740,18 +724,9 @@ export class TreeEngine {
         continue;
       }
       const p = n.parent;
-      const P0 = { x: p.x, y: p.y }, P3 = { x: n.x, y: n.y };
-      const length = Math.hypot(P3.x - P0.x, P3.y - P0.y) || 1;
-      const chord = { x: (P3.x - P0.x) / length, y: (P3.y - P0.y) / length };
-      const radial = { x: Math.sin(n.theta), y: -Math.cos(n.theta) };
-      const dIn = norm({ x: p.dir.x * 0.65 + chord.x * 0.35, y: p.dir.y * 0.65 + chord.y * 0.35 });
-      const dOut = norm({ x: radial.x * 0.6 + chord.x * 0.4, y: radial.y * 0.6 + chord.y * 0.4 });
-      const side = { x: -chord.y, y: chord.x };
-      const wobA = (rnd(n.id, 'a') - 0.5) * length * 0.16, wobB = (rnd(n.id, 'b') - 0.5) * length * 0.16;
-      const P1 = { x: P0.x + dIn.x * length * 0.4 + side.x * wobA, y: P0.y + dIn.y * length * 0.4 + side.y * wobA };
-      const P2 = { x: P3.x - dOut.x * length * 0.36 + side.x * wobB, y: P3.y - dOut.y * length * 0.36 + side.y * wobB };
-      n.bz = [P0, P1, P2, P3];
-      n.dir = norm({ x: P3.x - P2.x, y: P3.y - P2.y });
+      const { bz, dir, length } = curveOf(n.id, { x: p.x, y: p.y }, p.dir, { x: n.x, y: n.y }, n.theta, rnd);
+      n.bz = bz;
+      n.dir = dir;
       n.w0 = branchWidth(n.count);
       n.w1 = n.children.length ? n.w0 * 0.8 : 2;
       n.duration = Math.max(320, Math.min(700, (480 * length) / 200));
@@ -773,10 +748,7 @@ export class TreeEngine {
 
     for (const n of this.nodes) {
       if (n.parent) n.pathEl = el('path', { class: 'branch' }, this.layer.branches);
-      const offsets = n.partners.length ? [-0.66, ...n.partners.map((_, i) => 0.66 + i * 0.6)]
-        : n.children.length ? [rnd(n.id, 's') > 0.5 ? 0.7 : -0.7] : [0];
-      n.leaves = [this.makeLeaf(n.person, n, offsets[0], false)];
-      n.partners.forEach((partner, i) => n.leaves.push(this.makeLeaf(partner.person, n, offsets[i + 1], true)));
+      n.leaves = [n.person, ...n.partners.map((partner) => partner.person)].map((person, i) => this.makeLeaf(person, n, n.hung[i], i > 0));
       if (n.partners.length) {
         n.blossomEl = el('g', { class: `blossom${n.blossomOn ? ' on' : ''}` }, this.layer.blossoms);
         n.blossomEl.innerHTML = `<g class="unfurl">${BLOSSOM}</g>`;
@@ -803,9 +775,7 @@ export class TreeEngine {
     for (const leaf of this.leaves) if (leaf.inked) this.flash(leaf.el, 'inked', 1600);
   }
 
-  private makeLeaf(person: TreePerson, node: TreeNode, offset: number, isPartner: boolean): Leaf {
-    const born = unmasked(person)?.born ?? -Infinity;   // with no birth year on record, a leaf is drawn full size
-    const scale = born >= THIS_YEAR - 5 ? 0.58 : born >= THIS_YEAR - 18 ? 0.8 : 1;
+  private makeLeaf(person: TreePerson, node: TreeNode, { offset, scale }: Hung, isPartner: boolean): Leaf {
     const shape = SHAPES[isPartner ? GRAFT_SHAPES[Math.floor(hash(unmasked(person)?.birthName || person.id) * GRAFT_SHAPES.length)] : 'beech'];
     // A leaf that was already showing is drawn showing, in its right colour, so nothing unfurls or changes colour twice
     const on = this.wasOn.has(`${person.id}@${node.id}`);
@@ -924,82 +894,35 @@ export class TreeEngine {
     }
   }
 
-  /* Each name tries a few spots around its leaf and takes the one that overlaps the least. */
+  /*
+   * Write each name beside its leaf, where it is in the way of the least. Leaves in a folded branch are not there to be
+   * kept clear of, and get their names when the branch is opened.
+   */
   private placeLabels(): void {
     this.layer.labels.replaceChildren();
-    const bodyOf = (leaf: Leaf): Body => (this.faces && leaf.face ? FACE_BODY : LEAF_BODY);
-    const blobs = this.leaves.map((leaf) => {
-      const body = bodyOf(leaf), along = body.patchAt * leaf.scale;
-      return { leaf, face: body === FACE_BODY, x: leaf.node.x + Math.sin(leaf.angle) * along, y: leaf.node.y - Math.cos(leaf.angle) * along, r: body.patch * leaf.scale };
+    const showing = this.leaves.filter((leaf) => !this.hiddenByCollapse(leaf.node)).sort((a, b) => b.node.depth - a.node.depth);
+    const seen = new Set(showing);
+    for (const leaf of this.leaves) if (!seen.has(leaf)) leaf.labelEl = leaf.yearsEl = null;
+    const leafage = showing.map((leaf): Leafage => {
+      const face = this.faces && Boolean(leaf.face);
+      return { x: leaf.node.x, y: leaf.node.y, angle: leaf.angle, scale: leaf.scale, body: face ? FACE_BODY : LEAF_BODY, face, tag: this.tagOf(leaf.person) };
     });
-    const placed: LabelBox[] = [];
-    const boxAt = (x: number, y: number, ox: number, oy: number, width: number): LabelBox => {
-      const box: LabelBox = { x, y, anchor: 'middle', nameDy: 0, yearsDy: 0, left: 0, right: 0, top: 0, bottom: 0 };
-      if (Math.abs(ox) >= 0.38) {
-        box.anchor = ox > 0 ? 'start' : 'end';
-        box.x += ox > 0 ? 3 : -3;
-        box.nameDy = NAME_SIZE * 0.15;
-        box.yearsDy = box.nameDy + YEARS_SIZE + 3;
-      } else if (oy < 0) {
-        box.anchor = 'middle';
-        box.yearsDy = -2;
-        box.nameDy = -2 - YEARS_SIZE - 3;
-      } else {
-        box.anchor = 'middle';
-        box.nameDy = NAME_SIZE;
-        box.yearsDy = NAME_SIZE + YEARS_SIZE + 3;
-      }
-      box.left = box.anchor === 'start' ? box.x : box.anchor === 'end' ? box.x - width : box.x - width / 2;
-      box.right = box.left + width;
-      box.top = box.y + box.nameDy - NAME_SIZE * 0.8;
-      box.bottom = box.y + box.yearsDy + 3;
-      return box;
-    };
-    const costOf = (box: LabelBox, self: Leaf): number => {
-      let cost = 0;
-      for (const other of placed) {
-        if (box.left < other.right + 4 && box.right > other.left - 4 && box.top < other.bottom + 2 && box.bottom > other.top - 2) cost += 3;
-      }
-      for (const blob of blobs) {
-        // A name may lean over its own leaf, which is narrow. A face is round and wide, and nobody's name crosses it.
-        if (blob.leaf === self && !blob.face) continue;
-        const nx = Math.max(box.left, Math.min(blob.x, box.right)), ny = Math.max(box.top, Math.min(blob.y, box.bottom));
-        if (Math.hypot(nx - blob.x, ny - blob.y) < blob.r) cost += 2;
-      }
-      return cost;
-    };
-
-    for (const leaf of [...this.leaves].sort((a, b) => b.node.depth - a.node.depth)) {
+    const forks = [...new Set(showing.map((leaf) => leaf.node))];
+    // Every node below the root has a branch, shaped by pose()
+    const twigs = forks.filter((n) => n.parent).map((n): Twig => twigOf(n.bz!, n.w0 / 2));
+    const knots = forks.filter((n) => n.blossomEl).map((n): Knot => ({ x: n.x, y: n.y, r: 10 }));
+    placeNames(leafage, twigs, knots).forEach((box, i) => {
+      const leaf = showing[i], { tag } = leafage[i];
       leaf.labelEl = leaf.yearsEl = null;
-      if (leaf.person.masked) continue;        // a private relative is an unnamed leaf
-      const { node: n, scale: s } = leaf;
-      const dx = Math.sin(leaf.angle), dy = -Math.cos(leaf.angle), px = -dy, py = dx;
-      const name = this.nameOf(leaf.person);
-      const width = Math.max(name.length * NAME_SIZE * 0.58, 9 * YEARS_SIZE * 0.5);
-      const body = bodyOf(leaf);
-      const tip = body.reach * s + 12, side = body.half * s + 10;
-      const mid = body.mid * s, high = (body.reach - 4) * s, low = (body.mid - 26) * s;
-      // Past the tip, beside the middle, further past the tip, beside the far end, beside the near end
-      const spots = [
-        [dx * tip, dy * tip], [dx * mid + px * side, dy * mid + py * side], [dx * mid - px * side, dy * mid - py * side],
-        [dx * (tip + 22), dy * (tip + 22)], [dx * high + px * side, dy * high + py * side], [dx * high - px * side, dy * high - py * side],
-        [dx * low + px * (side + 8), dy * low + py * (side + 8)], [dx * low - px * (side + 8), dy * low - py * (side + 8)],
-      ];
-      // The first spot always costs less than Infinity, so one of them is always taken
-      let best!: LabelBox, bestCost = Infinity;
-      spots.forEach((spot, index) => {
-        const length = Math.hypot(spot[0], spot[1]) || 1;
-        const box = boxAt(n.x + spot[0], n.y + spot[1], spot[0] / length, spot[1] / length, width);
-        const cost = costOf(box, leaf) + index * 0.1;
-        if (cost < bestCost) { bestCost = cost; best = box; }
+      if (!box || !tag) return;
+      leaf.labelEl = el('g', { class: 'label', transform: `translate(${box.x.toFixed(1)} ${box.y.toFixed(1)})` }, this.layer.labels);
+      tag.lines.forEach((line, at) => {
+        el('text', { class: 'name', 'text-anchor': box.anchor, y: box.lineDy[at].toFixed(1) }, leaf.labelEl!).textContent = line;
       });
-      placed.push(best);
-      leaf.labelEl = el('g', { class: 'label', transform: `translate(${best.x.toFixed(1)} ${best.y.toFixed(1)})` }, this.layer.labels);
-      el('text', { class: 'name', 'text-anchor': best.anchor, y: best.nameDy.toFixed(1) }, leaf.labelEl).textContent = name;
-      leaf.yearsEl = el('text', { class: 'years', 'text-anchor': best.anchor, y: best.yearsDy.toFixed(1) }, leaf.labelEl);
+      leaf.yearsEl = el('text', { class: 'years', 'text-anchor': box.anchor, y: box.yearsDy.toFixed(1) }, leaf.labelEl);
       leaf.yearsEl.textContent = leaf.yearsNow ?? '';
       leaf.labelEl.classList.toggle('on', leaf.on);
-    }
+    });
     if (this.matches) this.setMatches(this.matches);
   }
 
@@ -1294,6 +1217,38 @@ export class TreeEngine {
   toggleBranch(nodeId: string): void {
     if (this.collapsed.has(nodeId)) this.collapsed.delete(nodeId);
     else this.collapsed.add(nodeId);
+    // The names around a folded branch may use its room, and give it back when it opens
+    if (this.shift >= 1) this.placeLabels();
+    this.kick();
+  }
+
+  /*
+   * How roomy the tree is: 1 as it comes, more for leaves further apart, less for closer together. Everyone moves to
+   * their new place, as after a change to the family, and the names are written again once they are there.
+   */
+  setSpacing(spacing: number): void {
+    const roomy = Math.max(SPACING.min, Math.min(SPACING.max, spacing));
+    if (roomy === this.spacing) return;
+    this.spacing = roomy;
+    // Before the family has arrived there is nobody to move. They are placed this far apart when they do.
+    if (!this.nodes.length) return;
+    this.layout(false);
+    for (const n of this.nodes) {
+      n.fx = n.x;
+      n.fy = n.y;
+      n.ftheta = n.theta;
+    }
+    this.shift = this.still ? 1 : 0;
+    this.shiftStart = performance.now();
+    this.pose(this.shift);
+    this.placeElements();
+    for (const n of this.nodes) if (n.parent) this.drawBranch(n);
+    this.layer.labels.replaceChildren();
+    if (this.shift >= 1) this.placeLabels();
+    this.drawHandles();
+    this.measure();
+    if (this.userMoved) this.paintCamera();
+    else this.fit(false, true);
     this.kick();
   }
 
@@ -1414,11 +1369,13 @@ export class TreeEngine {
   /* ---------- Camera: a transform on the world, moved by the graphics card ---------- */
 
   private measure(): void {
-    const b: Area = { x0: -400, x1: 400, y0: -300, y1: TRUNK + 150 };
+    const b: Area = { x0: -550, x1: 550, y0: -425, y1: TRUNK + 150 };
     for (const n of this.nodes) {
-      b.x0 = Math.min(b.x0, n.tx); b.x1 = Math.max(b.x1, n.tx); b.y0 = Math.min(b.y0, n.ty);
+      // Room for the leaves at each fork and for a name written past them: a long name on the outermost ring is part of the picture too
+      const beside = Math.max(150, 104 + Math.max(...n.hung.map(({ tag }) => tag?.width ?? 0)));
+      const above = 125 + (n.hung.some(({ tag }) => (tag?.lines.length ?? 0) > 1) ? 24 : 0);
+      b.x0 = Math.min(b.x0, n.tx - beside); b.x1 = Math.max(b.x1, n.tx + beside); b.y0 = Math.min(b.y0, n.ty - above);
     }
-    b.x0 -= 150; b.x1 += 150; b.y0 -= 125;
     // A pond that reaches further right than a small tree's frame is part of the picture too
     if (this.pond) b.x1 = Math.max(b.x1, this.pond.kind.at.x + this.pond.kind.box.x + this.pond.kind.box.w);
     const changed = (['x0', 'x1', 'y0', 'y1'] as const).some((key) => Math.abs(b[key] - this.bounds[key]) > 0.5) || !this.decorated;
@@ -1436,7 +1393,8 @@ export class TreeEngine {
     this.cameraQueued = false;
     const { cam, bounds } = this;
     this.world.style.transform = `translate(${(cam.x + bounds.x0 * cam.k).toFixed(2)}px,${(cam.y + bounds.y0 * cam.k).toFixed(2)}px) scale(${cam.k.toFixed(4)})`;
-    const zoom = cam.k < 0.3 ? 'far' : cam.k < 0.44 ? 'mid' : 'near';
+    const near = cam.k * this.reach;
+    const zoom = near < FAR_ZOOM ? 'far' : near < MID_ZOOM ? 'mid' : 'near';
     if (this.svg.getAttribute('data-zoom') !== zoom) this.svg.setAttribute('data-zoom', zoom);
     this.paintFar();
     this.on.moved?.();
@@ -1580,6 +1538,19 @@ export class TreeEngine {
   }
 
   /* Where the camera stands to show the tree as the page opens it, or all of it. Null while the page has no room to show anything. */
+  /*
+   * A larger tree is looked at from further out. It keeps its names, and counts as readable, until it is that much
+   * further out than a small one: up to a point, past which nothing on it could be read anyway.
+   */
+  private get reach(): number {
+    return Math.max(1, Math.min(ZOOM_REACH, this.grown));
+  }
+
+  /* The furthest out the tree may be looked at from: 0.15 of its size, or from as far as it takes to see all of a tree too large for that. */
+  private get minZoom(): number {
+    return Math.min(MIN_ZOOM, this.fitted(true)?.k ?? MIN_ZOOM);
+  }
+
   private fitted(whole: boolean): Camera | null {
     const r = this.stageBox;
     if (r.width < 40 || r.height < 40) return null;
@@ -1590,7 +1561,8 @@ export class TreeEngine {
     // A stage with less room than its own margins has none to show a tree in
     if (aw <= 0 || ah <= 0) return null;
     let k = Math.min(aw / bw, ah / bh);
-    if (!whole && aw / bw < ah / bh && k < 0.44) k = Math.min(0.66, ah / bh);
+    // Where the whole tree would be too small to read, as on an upright phone, it fills the height and is moved sideways
+    if (!whole && aw / bw < ah / bh && k * this.reach < MID_ZOOM) k = Math.min(0.66, ah / bh);
     return {
       k,
       x: this.freeLeft + (bw * k <= aw + 1 ? pad.side + (aw - bw * k) / 2 - this.bounds.x0 * k : this.freeWidth / 2),
@@ -1627,7 +1599,7 @@ export class TreeEngine {
   private showArea(box: Area): void {
     const top = 84 + this.insets.top, bottom = 104, side = 24;
     const aw = this.freeWidth - side * 2, ah = this.stageBox.height - top - bottom;
-    const k = Math.max(MIN_ZOOM, Math.min(0.9, aw / (box.x1 - box.x0 + 220), ah / (box.y1 - box.y0 + 220)));
+    const k = Math.max(this.minZoom, Math.min(0.9, aw / (box.x1 - box.x0 + 220), ah / (box.y1 - box.y0 + 220)));
     this.userMoved = true;
     this.glideTo({ k, x: this.freeLeft + side + aw / 2 - ((box.x0 + box.x1) / 2) * k, y: top + ah / 2 - ((box.y0 + box.y1) / 2) * k }, 750);
   }
@@ -1675,7 +1647,7 @@ export class TreeEngine {
 
   /* Glide to a zoom level, keeping the given point of the screen where it is. */
   private zoomTo(px: number, py: number, k: number, ms = 260): void {
-    const target = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, k)), f = target / this.cam.k;
+    const target = Math.max(this.minZoom, Math.min(MAX_ZOOM, k)), f = target / this.cam.k;
     this.userMoved = true;
     this.glideTo({ k: target, x: px - (px - this.cam.x) * f, y: py - (py - this.cam.y) * f }, ms);
   }
@@ -1687,7 +1659,7 @@ export class TreeEngine {
 
   private zoomAt(px: number, py: number, factor: number): void {
     this.cameraRun++;
-    const k = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.cam.k * factor));
+    const k = Math.max(this.minZoom, Math.min(MAX_ZOOM, this.cam.k * factor));
     const f = k / this.cam.k;
     this.cam.x = px - (px - this.cam.x) * f;
     this.cam.y = py - (py - this.cam.y) * f;
@@ -1856,7 +1828,7 @@ export class TreeEngine {
     stage.addEventListener('wheel', (e) => {
       e.preventDefault();
       const step = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0016));
-      const k = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, (this.zoomGoal?.k ?? this.cam.k) * step));
+      const k = Math.max(this.minZoom, Math.min(MAX_ZOOM, (this.zoomGoal?.k ?? this.cam.k) * step));
       this.zoomGoal = { k, x: e.clientX - this.stageBox.left, y: e.clientY - this.stageBox.top };
       if (this.still) {
         this.zoomAt(this.zoomGoal.x, this.zoomGoal.y, k / this.cam.k);

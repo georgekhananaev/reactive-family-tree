@@ -1,5 +1,5 @@
 /*
- * The journeys of the plan, end to end through the web API and the sign-in
+ * The family's journeys, end to end through the web API and the sign-in
  * library, against a real database: who sees what, who may change what,
  * suggestions and review, undo, drafts, invitations and data in and out.
  */

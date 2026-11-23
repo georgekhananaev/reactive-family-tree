@@ -2,11 +2,12 @@
 
 /*
  * Manage family, the look: how the tree looks and sounds for everyone. Light
- * or dark, the moon over it after dark, the pond beside it, where the family
- * is (which the sun and the moon are drawn from), and the music.
+ * or dark, the moon over it after dark, the pond beside it, how roomy it is,
+ * where the family is (which the sun and the moon are drawn from), and the
+ * music.
  */
 
-import type { AdminSettings, AdminSettingsView, Appearance, Lang, MoonMode, MusicMode, PondMode } from '@reactive-family-tree/core';
+import type { AdminSettings, AdminSettingsView, Appearance, Lang, MoonMode, MusicMode, PondMode, SpacingMode } from '@reactive-family-tree/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { MELODIES, QUICK_TUNES, moonFor, skyOver } from 'reactive-family-tree';
@@ -41,6 +42,15 @@ const POND: readonly (readonly [PondMode, WebPhrase])[] = [
   ['garden', 'A garden pond with a bridge and a pine'],
   ['koi', 'A small koi pond with a stone lantern'],
   ['none', 'No pond'],
+];
+
+/* From the tightest to the roomiest, as the slider runs. */
+const SPACING: readonly (readonly [SpacingMode, WebPhrase])[] = [
+  ['tight', 'Tight'],
+  ['compact', 'Compact'],
+  ['normal', 'Normal'],
+  ['roomy', 'Roomy'],
+  ['wide', 'Very roomy'],
 ];
 
 const MUSIC: readonly (readonly [MusicMode, WebPhrase])[] = [
@@ -123,11 +133,17 @@ export function LookTab() {
   const [changed, setChanged] = useState<Partial<Typed>>({});
   // The melody being tried out, if one is, as the calm one or as the quick tune. It plays on this page only, and stops when the tab is left.
   const [heard, setHeard] = useState<MelodyTrial | null>(null);
-  const { audition } = app;
+  const { audition, trySpacing } = app;
   useEffect(() => {
     audition(heard);
     return () => audition(null);
   }, [audition, heard]);
+  // How roomy the tree is can be seen on the tree itself while it is being chosen. Leaving the tab without saving puts it back.
+  const tried = changed.spacing ?? null;
+  useEffect(() => {
+    trySpacing(tried);
+    return () => trySpacing(null);
+  }, [trySpacing, tried]);
   // Every timezone, and where its city is. A long list, fetched when the tab is first opened.
   const { data: zones } = useQuery({ queryKey: ['zone-places'], queryFn: async () => (await import('@/lib/zone-places')).ZONE_PLACES, staleTime: Infinity });
   if (!view) return <Loading error={error} />;
@@ -176,6 +192,8 @@ export function LookTab() {
     }, refused, { maximumAge: 3_600_000, timeout: 10_000 });
   };
 
+  const spacingAt = SPACING.findIndex(([mode]) => mode === shown.spacing), spacingWord = t(SPACING[spacingAt][1]);
+
   const save = async () => {
     if ([latitude, longitude].some(Number.isNaN)) return app.toast(t('Latitude and longitude are numbers, such as 32 and 35.'));
     if ((latitude === null) !== (longitude === null)) return app.toast(t('Give both the latitude and the longitude, or neither.'));
@@ -211,6 +229,17 @@ export function LookTab() {
         <Field label={t('Beside the tree')} wide><Select options={inWords(t, POND)} value={shown.pond} onChange={(value) => set('pond', value)} /></Field>
       </div>
       {shown.pond !== 'none' && <p className="hint-line">{t('Koi swim in the pond, and now and then one leaps.')}</p>}
+
+      <h3>{t('How roomy the tree is')}</h3>
+      <div className="fields">
+        <Field label={`${t('Between the leaves')}: ${spacingWord}`} wide>
+          <input
+            type="range" className="stops" min={0} max={SPACING.length - 1} step={1} value={spacingAt} aria-valuetext={spacingWord}
+            onChange={(event) => set('spacing', SPACING[Number(event.target.value)][0])}
+          />
+        </Field>
+      </div>
+      <p className="hint-line">{t('A large family’s tree already grows by itself until no name is written over another. This draws everyone closer together than that, or further apart, which also makes the tree larger. The tree behind changes at once, before anything is saved.')}</p>
 
       <h3>{t('Where the family is')}</h3>
       <p className="hint-line">{t('The sun and the moon on the tree stand where they really stand over this place: the moon turned the way it is seen from there, the sun warmer near sunrise and sunset. By the sun, it also decides when the tree turns dark.')}</p>

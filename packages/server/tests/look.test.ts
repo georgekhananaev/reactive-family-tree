@@ -26,6 +26,13 @@ test('an admin chooses the moon and the light, and every browser is told', async
   }
   for (const pond of [true, 'lake']) expect((await helen.patch('/api/settings', { pond })).status, String(pond)).toBe(400);
   await helen.patch('/api/settings', { pond: 'garden' });
+  // The tree is as roomy as it comes until the family asks for it tighter or roomier
+  expect(told.spacing).toBe('normal');
+  for (const spacing of ['tight', 'compact', 'roomy', 'wide', 'normal']) {
+    expect((await helen.patch('/api/settings', { spacing })).status, spacing).toBe(200);
+    expect((await browser(demo.app).get('/api/session')).data.settings.spacing).toBe(spacing);
+  }
+  for (const spacing of [1.5, 'huge', '']) expect((await helen.patch('/api/settings', { spacing })).status, String(spacing)).toBe(400);
   for (const moon of ['tonight', 'full', 'none']) {
     expect((await helen.patch('/api/settings', { moon })).status, moon).toBe(200);
   }

@@ -7,7 +7,7 @@
  */
 
 import { describeKinship, stepWord } from '@reactive-family-tree/core';
-import type { Appearance, EditResult, MemberView, MembersInfo, PersonLeaf, Relation, Relationship, SessionInfo, TreePerson, TreeSnapshot } from '@reactive-family-tree/core';
+import type { Appearance, EditResult, MemberView, MembersInfo, PersonLeaf, Relation, Relationship, SessionInfo, SpacingMode, TreePerson, TreeSnapshot } from '@reactive-family-tree/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -17,7 +17,7 @@ import type { FamilyTreeHandle, MelodyTrial, Place, TreeInsets, TreeLabels } fro
 import { activity, api, messageOf } from '@/lib/api';
 import { AppProvider } from '@/lib/app-context';
 import type { AppController, CardMode, Painting, PanelArgs, PanelName, ToastOptions } from '@/lib/app-context';
-import { OWN_CHOICE, bySun, placeOf, themeFor } from '@/lib/appearance';
+import { OWN_CHOICE, SPACING_OF, bySun, placeOf, themeFor } from '@/lib/appearance';
 import type { Theme } from '@/lib/appearance';
 import { signOut } from '@/lib/auth-client';
 import { branchOf, displayName, portraitUrl } from '@/lib/format';
@@ -107,7 +107,9 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
   const [playing, setPlaying] = useState(false);
   // A calm melody, and a quicker one while the years play. The family chooses which, and whether there is any.
   const [audition, setAudition] = useState<MelodyTrial | null>(null);
-  const { music: mode, playMusic, melody, playMelody, latitude, longitude, appearance, moon, moonDay, pond } = session.settings;
+  const { music: mode, playMusic, melody, playMelody, latitude, longitude, appearance, moon, moonDay, pond, spacing } = session.settings;
+  // How roomy an admin is trying the tree, while choosing in the Look tab and before it is saved
+  const [spacingTrial, setSpacingTrial] = useState<SpacingMode | null>(null);
   const music = useTreeMusic(playing, { mode, playMusic, melody, playMelody, audition });
   const { wake: wakeSound } = music;
   // Leaves, or the faces of those who have a photo. Each person's own choice, kept on their device.
@@ -345,7 +347,7 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
     toast, fail,
     refresh: actions.refresh, signedIn: actions.signedIn, select: actions.select, openCard: actions.openCard, submit: actions.submit,
     focusOn: actions.focusOn, showRelationship: actions.showRelationship, openPanel: actions.openPanel, closePanel: actions.closePanel,
-    showBranches: setTintMembers, startPainting: actions.startPainting, audition: setAudition, wakeSound, followFamily,
+    showBranches: setTintMembers, startPainting: actions.startPainting, audition: setAudition, trySpacing: setSpacingTrial, wakeSound, followFamily,
   }), [session, tree, people, isAdmin, painting, toast, fail, actions, followFamily, wakeSound]);
 
   /* ---------- Live updates, and what arrives with them ---------- */
@@ -637,6 +639,7 @@ function Family({ session, tree, build }: { session: SessionInfo; tree: TreeSnap
         place={placeOf({ latitude, longitude })}
         moon={moon === 'day' ? (moonDay ? { day: moonDay } : 'tonight') : moon}
         pond={pond}
+        spacing={SPACING_OF[spacingTrial ?? spacing]}
         editing={editing}
         selectedId={selectedId}
         matches={matches}

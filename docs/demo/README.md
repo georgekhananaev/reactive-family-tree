@@ -1,6 +1,6 @@
 # Reactive Family Tree: end-to-end demo
 
-A working demo of the whole product described in [the plan](../README.md): the living tree, sign-in and roles, editing, suggestions and review, history and undo, privacy, the admin area, live updates between browsers, a real MCP endpoint for AI clients, and data in and out.
+A working demo of the whole product: the living tree, sign-in and roles, editing, suggestions and review, history and undo, privacy, the admin area, live updates between browsers, a real MCP endpoint for AI clients, and data in and out.
 
 It runs on Node alone. No install, no build.
 
@@ -99,7 +99,7 @@ web/       The app. Plain ES modules, no framework, no build.
 tests/     node:test. Rules, and the journeys end to end over HTTP.
 ```
 
-The points of the plan this demo proves:
+What this demo proves:
 
 - **One write path.** The app, an AI client and a GEDCOM import all call `Edits.submit()`. There is no second way to change the family.
 - **The same rules on both sides.** `core/permissions.js` labels the button in the browser and enforces on the server.
@@ -111,7 +111,7 @@ The points of the plan this demo proves:
 
 These are shortcuts for a zero-install demo. The behaviour is the planned one unless noted.
 
-| Area | Demo | Real build (per the plan) |
+| Area | Demo | Real build |
 |------|------|---------------------------|
 | Stack | Node's own HTTP and SQLite, vanilla modules | Next.js, libSQL with Drizzle, the React package |
 | Sign-in | Demo accounts. Magic links and invitations work, but the link is shown on screen | Links emailed. Passkeys and Google sign-in |
@@ -127,7 +127,7 @@ These are shortcuts for a zero-install demo. The behaviour is the planned one un
 | Languages | English | English and Hebrew, right to left |
 | Default visibility | Public with living people hidden, so the demo has something to show a visitor | Private |
 
-The app in `apps/web` now covers the first five rows of the right-hand column, apart from the local bridge, and it is private by default. It also has one portrait per person, with a switch between leaves and faces. The rest of the rows from "Names" to "Languages" are still to come. See [the roadmap](../11-roadmap.md).
+The app in `apps/web` now covers the first five rows of the right-hand column, apart from the local bridge, and it is private by default. It also has one portrait per person, with a switch between leaves and faces. The rest of the rows from "Names" to "Languages" are still to come.
 
 ## Reset
 

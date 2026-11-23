@@ -647,6 +647,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 .reads:empty { display: none; }
 .check { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--text); font-size: 1rem; }
 .check input { width: 20px; height: 20px; accent-color: var(--action); }
+/* A slider with a few stops, as wide as its form and tall enough for a finger */
+input.stops { display: block; width: 100%; height: 44px; margin: 0; accent-color: var(--action); cursor: pointer; }
 .form-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 /* Where Cloudflare's check shows a box to tick, when it wants one. Until then it holds nothing that can be seen. Among a form's fields it takes a row of its own. */
 .human-check { grid-column: 1 / -1; }

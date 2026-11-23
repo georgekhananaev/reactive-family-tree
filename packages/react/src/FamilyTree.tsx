@@ -39,6 +39,8 @@ export interface FamilyTreeProps {
   moon?: MoonChoice;
   /* A Japanese pond on the ground beside the tree, with koi swimming in it and now and then one leaping: the garden pond with a bridge, a pine and a bamboo spout, or the smaller koi pond. None unless asked for. */
   pond?: PondChoice;
+  /* How roomy the tree is. 1, the default, is as it comes: a large family's tree already grows until its names are clear of each other. More, up to 2, sets everyone further apart and makes the tree larger. Less, down to 0.5, draws them closer. */
+  spacing?: number;
   editing?: boolean;
   selectedId?: string | null;
   /* Search: these keep their colour, everyone else steps back. */
@@ -130,7 +132,7 @@ function clearDrawing(stage: HTMLElement, world: HTMLElement, svg: SVGSVGElement
 }
 
 export function FamilyTree({
-  data, viewerId = null, focusId = null, year = THIS_YEAR, playing = false, place = null, moon = 'tonight', pond = 'none', editing = false, selectedId = null, matches = null, route = null, tints = null,
+  data, viewerId = null, focusId = null, year = THIS_YEAR, playing = false, place = null, moon = 'tonight', pond = 'none', spacing = 1, editing = false, selectedId = null, matches = null, route = null, tints = null,
   faces = false, portraitOf, insets, label = 'The family tree', labels, className, onSelect, onAdd, onHold, onHoldMove, onHoldEnd, onMoved, ref,
 }: FamilyTreeProps): ReactElement {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -180,6 +182,11 @@ export function FamilyTree({
    * the year, as on a first load of the demo, then the room around the tree,
    * and last whatever is chosen or lit on it.
    */
+  // Before the family too, so that it is first drawn as far apart as it will stay
+  useEffect(() => {
+    engineRef.current?.setSpacing(spacing);
+  }, [spacing]);
+
   const { people, unions, rootId } = data;
   useEffect(() => {
     engineRef.current?.setData({ people, unions, rootId }, { viewerId, focusId });

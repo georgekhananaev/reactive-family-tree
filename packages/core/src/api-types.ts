@@ -288,6 +288,12 @@ export type MoonMode = 'tonight' | 'full' | 'day' | 'none';
 /* The pond on the ground beside the tree: the garden pond with its bridge, its pine and its bamboo spout, the smaller koi pond, or none. */
 export type PondMode = 'garden' | 'koi' | 'none';
 
+/*
+ * How roomy the tree is drawn, for everyone. A large family's tree already grows by itself until its names are clear
+ * of each other. This sets everyone closer together than that, or further apart, which also makes the tree larger.
+ */
+export type SpacingMode = 'tight' | 'compact' | 'normal' | 'roomy' | 'wide';
+
 /* What every browser is told, signed in or not. */
 export interface PublicSettings {
   /* In the reader's language where the family has written it in theirs. */
@@ -317,6 +323,7 @@ export interface PublicSettings {
   /* The day whose moon the tree shows, as 2026-11-15, when `moon` is "day". Empty for a stranger at a private tree. */
   moonDay: string;
   pond: PondMode;
+  spacing: SpacingMode;
 }
 
 export interface SessionInfo {
@@ -361,6 +368,7 @@ export interface AdminSettings {
   moon: MoonMode;
   moonDay: string;
   pond: PondMode;
+  spacing: SpacingMode;
   music: MusicMode;
   playMusic: boolean;
   melody: string;

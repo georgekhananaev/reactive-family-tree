@@ -34,7 +34,7 @@ reactive-family-tree/
 │  ├─ mcp/          The MCP server: tools, resources, prompts and the HTTP endpoint
 │  ├─ gedcom/       GEDCOM import and export
 │  └─ demo-data/    The made-up Marlow family, used by tests, the demo and the docs
-├─ docs/            The plan the project is built from, and an early demo
+├─ docs/            The design prototype and an early demo
 └─ docker/          The Dockerfile and a compose file
 ```
 

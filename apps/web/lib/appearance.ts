@@ -5,11 +5,14 @@
  * person, the way their device is set.
  */
 
-import type { Appearance } from '@reactive-family-tree/core';
+import type { Appearance, SpacingMode } from '@reactive-family-tree/core';
 import { skyOver } from 'reactive-family-tree/sky';
 import type { Place } from 'reactive-family-tree/sky';
 
 export type Theme = 'light' | 'dark';
+
+/* The family's five choices of how roomy the tree is, from the tightest to the roomiest, and how many times roomier than it comes each draws it. */
+export const SPACING_OF: Readonly<Record<SpacingMode, number>> = { tight: 0.7, compact: 0.85, normal: 1, roomy: 1.25, wide: 1.5 };
 
 /* Where a browser keeps the choice its own person made. */
 export const OWN_CHOICE = 'rft-appearance';

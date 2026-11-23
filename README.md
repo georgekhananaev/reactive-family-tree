@@ -220,7 +220,7 @@ until its owner has looked at it.
 | `packages/mcp` | The MCP server: tools, resources, and prompts |
 | `packages/gedcom` | GEDCOM in and out |
 | `packages/demo-data` | The Marlow family |
-| `docs` | The plan this was built from, the design prototype, and the first zero-install demo |
+| `docs` | The design prototype and the first zero-install demo |
 
 Every change to the family goes through one function, whether it comes from the
 page, an AI, or an import. That is where permissions, validation, history, and
@@ -269,7 +269,6 @@ The full documentation is on the [project site](https://familytree.reactatomics.
 
 ## More
 
-- [The plan](docs/README.md): what it is, how it looks and moves, and how it is built
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security](SECURITY.md)
